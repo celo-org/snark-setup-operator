@@ -47,14 +47,13 @@ const COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME: &str =
     "combined_verified_pok_and_correctness_new_challenge.hash";
 
 use snark_setup_operator::data_structs::{
-    Ceremony, Chunk, Contribution, Response, SignedContributedData, SignedVerifiedData,
-    VerifiedData,
+    Ceremony, Contribution, Response, SignedContributedData, SignedVerifiedData,
 };
 
 use anyhow::Result;
 use ethers::types::{Address, Signature};
 use gumdrop::Options;
-use phase1::{ContributionMode, CurveParameters, Phase1Parameters, ProvingSystem};
+use phase1::{ContributionMode, Phase1Parameters, ProvingSystem};
 use phase1_cli::{
     combine, contribute, new_challenge, transform_pok_and_correctness, transform_ratios,
 };
@@ -63,8 +62,7 @@ use setup_utils::{beacon_randomness, derive_rng_from_seed, from_slice};
 use std::{
     collections::HashSet,
     fs::{copy, remove_file, File},
-    io::{self, Read, Write},
-    marker::PhantomData,
+    io::{Read, Write},
     path::Path,
     str::FromStr,
 };
