@@ -8,16 +8,13 @@ pub enum MonitorError {
     LockHolderIsNoneError,
 }
 
-use snark_setup_operator::{
-    data_structs::{Ceremony, Response},
-    metrics::start_metrics,
-};
+use snark_setup_operator::data_structs::{Ceremony, Response};
 
 use anyhow::Result;
 use chrono::Duration;
 use gumdrop::Options;
+use std::collections::HashSet;
 use thiserror::Error;
-use tokio::time::delay_for;
 use tracing::info;
 use url::Url;
 
@@ -28,10 +25,6 @@ pub struct MonitorOpts {
         default = "http://localhost:8080"
     )]
     pub coordinator_url: String,
-    #[options(help = "listen url for metrics", default = "127.0.0.1")]
-    pub listen_url: String,
-    #[options(help = "listen port for metrics", default = "10101")]
-    pub listen_port: u16,
     #[options(help = "timeout in minutes", default = "1")]
     pub timeout: i64,
 }
@@ -55,6 +48,8 @@ impl Monitor {
         let ceremony: Ceremony = serde_json::from_str::<Response<Ceremony>>(&data)?.result;
 
         self.check_timeout(&ceremony)?;
+        self.check_all_done(&ceremony)?;
+        self.show_finished_chunks(&ceremony)?;
 
         Ok(())
     }
@@ -83,6 +78,57 @@ impl Monitor {
 
         Ok(())
     }
+
+    fn check_all_done(&self, ceremony: &Ceremony) -> Result<()> {
+        let participant_ids: HashSet<_> = ceremony.contributor_ids.iter().clone().collect();
+
+        if ceremony.chunks.iter().all(|chunk| {
+            let verified_participant_ids_in_chunk: HashSet<_> = chunk
+                .contributions
+                .iter()
+                .filter(|c| c.verified)
+                .map(|c| c.contributor_id.as_ref())
+                .filter_map(|e| e)
+                .collect();
+            participant_ids
+                .iter()
+                .all(|p| verified_participant_ids_in_chunk.contains(*p))
+        }) {
+            info!("all done");
+        }
+
+        Ok(())
+    }
+
+    fn show_finished_chunks(&self, ceremony: &Ceremony) -> Result<()> {
+        let participant_ids: HashSet<_> = ceremony.contributor_ids.iter().clone().collect();
+
+        let mut chunks_complete = vec![];
+        let mut chunks_incomplete = vec![];
+
+        for chunk in ceremony.chunks.iter() {
+            let verified_participant_ids_in_chunk: HashSet<_> = chunk
+                .contributions
+                .iter()
+                .filter(|c| c.verified)
+                .map(|c| c.contributor_id.as_ref())
+                .filter_map(|e| e)
+                .collect();
+            if participant_ids
+                .iter()
+                .all(|p| verified_participant_ids_in_chunk.contains(*p))
+            {
+                chunks_complete.push(chunk.chunk_id.clone())
+            } else {
+                chunks_incomplete.push(chunk.chunk_id.clone())
+            }
+        }
+
+        info!("complete chunks: {:?}", chunks_complete);
+        info!("incomplete chunks: {:?}", chunks_incomplete);
+
+        Ok(())
+    }
 }
 
 #[tokio::main]
@@ -92,22 +138,13 @@ async fn main() {
     let opts: MonitorOpts = MonitorOpts::parse_args_default_or_exit();
 
     let monitor = Monitor::new(&opts).expect("Should have been able to create a monitor.");
-    tokio::spawn(async move {
-        loop {
-            delay_for(
-                Duration::seconds(5)
-                    .to_std()
-                    .expect("Should have converted to standard duration"),
-            )
-            .await;
-            match monitor.run().await {
-                Err(e) => info!("Got error: {}", e.to_string()),
-                _ => {}
-            }
-        }
-    });
+    let mut monitor_interval = tokio::time::interval(std::time::Duration::from_secs(5));
+    loop {
+        monitor_interval.tick().await;
 
-    start_metrics(&opts.listen_url, opts.listen_port)
-        .await
-        .expect("Should have been able to wait for metrics.");
+        match monitor.run().await {
+            Err(e) => info!("Got error from monitor: {}", e.to_string()),
+            _ => {}
+        }
+    }
 }
