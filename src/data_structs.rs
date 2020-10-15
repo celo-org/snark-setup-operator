@@ -1,36 +1,20 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use crate::error::VerifyTranscriptError;
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
-pub struct ContributedData {
-    pub challenge_hash: String,
-    pub response_hash: String,
-    pub contribution_duration: Option<u64>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
 pub struct SignedContributedData {
-    pub data: ContributedData,
+    pub data: Value,
     pub signature: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
-pub struct VerifiedData {
-    pub challenge_hash: String,
-    pub response_hash: String,
-    pub new_challenge_hash: String,
-    pub verification_duration: Option<u64>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
 pub struct SignedVerifiedData {
-    pub data: VerifiedData,
+    pub data: Value,
     pub signature: String,
 }
 
@@ -58,38 +42,47 @@ pub struct Contribution {
 }
 
 impl Contribution {
-    pub fn verified_data(&self) -> Result<&SignedVerifiedData> {
+    pub fn verified_data(&self) -> Result<SignedVerifiedDataParsed> {
         let verified_data = self
             .verified_data
             .as_ref()
             .ok_or(VerifyTranscriptError::VerifiedDataIsNoneError)?;
+        let verified_data_parsed = SignedVerifiedDataParsed {
+            data: serde_json::from_value(verified_data.data.clone())?,
+            signature: verified_data.signature.clone(),
+        };
 
-        Ok(verified_data)
+        Ok(verified_data_parsed)
     }
 
-    pub fn contributed_data(&self) -> Result<&SignedContributedData> {
+    pub fn contributed_data(&self) -> Result<SignedContributedDataParsed> {
         let contributed_data = self
             .contributed_data
             .as_ref()
             .ok_or(VerifyTranscriptError::ContributorDataIsNoneError)?;
-
-        Ok(contributed_data)
+        let contributed_data_parsed = SignedContributedDataParsed {
+            data: serde_json::from_value(contributed_data.data.clone())?,
+            signature: contributed_data.signature.clone(),
+        };
+        Ok(contributed_data_parsed)
     }
 
-    pub fn contributor_id(&self) -> Result<&String> {
+    pub fn contributor_id(&self) -> Result<String> {
         let contributor_id = self
             .contributor_id
             .as_ref()
-            .ok_or(VerifyTranscriptError::ContributorIDIsNoneError)?;
+            .ok_or(VerifyTranscriptError::ContributorIDIsNoneError)?
+            .to_lowercase();
 
         Ok(contributor_id)
     }
 
-    pub fn verifier_id(&self) -> Result<&String> {
+    pub fn verifier_id(&self) -> Result<String> {
         let verifier_id = self
             .verifier_id
             .as_ref()
-            .ok_or(VerifyTranscriptError::VerifierIDIsNoneError)?;
+            .ok_or(VerifyTranscriptError::VerifierIDIsNoneError)?
+            .to_lowercase();
 
         Ok(verifier_id)
     }
@@ -153,4 +146,32 @@ pub struct Ceremony {
 pub struct Response<T> {
     pub result: T,
     pub status: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ContributedData {
+    pub challenge_hash: String,
+    pub response_hash: String,
+    pub contribution_duration: Option<u64>,
+}
+
+#[derive(Debug)]
+pub struct SignedContributedDataParsed {
+    pub data: ContributedData,
+    pub signature: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct VerifiedData {
+    pub challenge_hash: String,
+    pub response_hash: String,
+    pub new_challenge_hash: String,
+    pub verification_duration: Option<u64>,
+}
+#[derive(Debug)]
+pub struct SignedVerifiedDataParsed {
+    pub data: VerifiedData,
+    pub signature: String,
 }

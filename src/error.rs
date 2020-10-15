@@ -40,3 +40,17 @@ pub enum MonitorError {
     #[error("Lock holder was none")]
     LockHolderIsNoneError,
 }
+
+#[derive(Debug, Error)]
+pub enum ControlError {
+    #[error("Participant already exists: {0}, existing participants are {1:?}")]
+    ParticipantAlreadyExistsError(String, Vec<String>),
+    #[error("Participant does not exist: {0}, existing participants are {1:?}")]
+    ParticipantDoesNotExistError(String, Vec<String>),
+}
+
+#[derive(Debug, Error)]
+pub enum HttpError {
+    #[error("Status was {0}")]
+    StatusError(String),
+}

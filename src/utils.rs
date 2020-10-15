@@ -9,7 +9,8 @@ use std::{
 
 use crate::error::VerifyTranscriptError;
 use anyhow::Result;
-use ethers::types::{Address, Signature};
+use ethers::types::{Address, PrivateKey, Signature};
+use hex::ToHex;
 use phase1::ProvingSystem;
 use serde::Serialize;
 
@@ -105,4 +106,13 @@ pub fn check_new_challenge_hashes_same(a: &str, b: &str) -> Result<()> {
     }
 
     Ok(())
+}
+
+pub fn get_authorization_value(private_key: &str, method: &str, path: &str) -> Result<String> {
+    let private_key = PrivateKey::from_str(private_key)?;
+    let address = Address::from(&private_key).encode_hex::<String>();
+    let message = format!("{} {}", method.to_lowercase(), path.to_lowercase());
+    let signature = private_key.sign(message).to_string();
+    let authorization = format!("Celo 0x{}:0x{}", address, signature);
+    Ok(authorization)
 }

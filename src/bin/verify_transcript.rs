@@ -48,7 +48,7 @@ pub struct VerifyTranscriptOpts {
         default = "transcript.json"
     )]
     pub transcript_path: String,
-    #[options(help = "participant addresses to be verified", required)]
+    #[options(help = "participant addresses to be verified")]
     pub participant_id: Vec<String>,
 }
 
@@ -253,9 +253,18 @@ impl TranscriptVerifier {
             &parameters,
         );
 
-        if !required_participant_ids
-            .iter()
-            .all(|x| participant_ids_from_poks.contains(x))
+        info!(
+            "participants found in transcript:\n{}",
+            participant_ids_from_poks
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>()
+                .join("\n")
+        );
+        if required_participant_ids.len() > 0
+            && !required_participant_ids
+                .iter()
+                .all(|x| participant_ids_from_poks.contains(x))
         {
             return Err(VerifyTranscriptError::NotAllParticipantsPresent(
                 required_participant_ids,
