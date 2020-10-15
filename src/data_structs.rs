@@ -1,4 +1,7 @@
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
+
+use crate::error::VerifyTranscriptError;
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -52,6 +55,62 @@ pub struct Contribution {
     pub verified_location: Option<String>,
     pub verified: bool,
     pub verified_data: Option<SignedVerifiedData>,
+}
+
+impl Contribution {
+    pub fn verified_data(&self) -> Result<&SignedVerifiedData> {
+        let verified_data = self
+            .verified_data
+            .as_ref()
+            .ok_or(VerifyTranscriptError::VerifiedDataIsNoneError)?;
+
+        Ok(verified_data)
+    }
+
+    pub fn contributed_data(&self) -> Result<&SignedContributedData> {
+        let contributed_data = self
+            .contributed_data
+            .as_ref()
+            .ok_or(VerifyTranscriptError::ContributorDataIsNoneError)?;
+
+        Ok(contributed_data)
+    }
+
+    pub fn contributor_id(&self) -> Result<&String> {
+        let contributor_id = self
+            .contributor_id
+            .as_ref()
+            .ok_or(VerifyTranscriptError::ContributorIDIsNoneError)?;
+
+        Ok(contributor_id)
+    }
+
+    pub fn verifier_id(&self) -> Result<&String> {
+        let verifier_id = self
+            .verifier_id
+            .as_ref()
+            .ok_or(VerifyTranscriptError::VerifierIDIsNoneError)?;
+
+        Ok(verifier_id)
+    }
+
+    pub fn contributed_location(&self) -> Result<&String> {
+        let contributed_location = self
+            .contributed_location
+            .as_ref()
+            .ok_or(VerifyTranscriptError::ContributedLocationIsNoneError)?;
+
+        Ok(contributed_location)
+    }
+
+    pub fn verified_location(&self) -> Result<&String> {
+        let verified_location = self
+            .verified_location
+            .as_ref()
+            .ok_or(VerifyTranscriptError::VerifiedLocationIsNoneError)?;
+
+        Ok(verified_location)
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]

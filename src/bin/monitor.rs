@@ -1,20 +1,12 @@
-#[derive(Debug, Error)]
-pub enum MonitorError {
-    #[error("Metadata was none")]
-    MetadataNoneError,
-    #[error("Lock time was none")]
-    LockTimeIsNoneError,
-    #[error("Lock holder was none")]
-    LockHolderIsNoneError,
-}
-
-use snark_setup_operator::data_structs::{Ceremony, Response};
+use snark_setup_operator::{
+    data_structs::{Ceremony, Response},
+    error::MonitorError,
+};
 
 use anyhow::Result;
 use chrono::Duration;
 use gumdrop::Options;
 use std::collections::HashSet;
-use thiserror::Error;
 use tracing::info;
 use url::Url;
 

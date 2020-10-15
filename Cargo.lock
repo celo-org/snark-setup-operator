@@ -2449,8 +2449,3 @@ dependencies = [
  "winapi 0.2.8",
  "winapi-build",
 ]
-
-[[patch.unused]]
-name = "groth16"
-version = "0.1.1-alpha.0"
-source = "git+https://github.com/celo-org/zexe?rev=9febfcae7804e3224118c65607d9505a7dad4b29#9febfcae7804e3224118c65607d9505a7dad4b29"

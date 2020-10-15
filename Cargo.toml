@@ -29,4 +29,3 @@ zexe_algebra = { git = "https://github.com/celo-org/zexe", rev = "9febfcae7804e3
 zexe_fft = { git = "https://github.com/celo-org/zexe", rev = "9febfcae7804e3224118c65607d9505a7dad4b29", package = "ff-fft", default-features = false, features = ["ed_on_bls12_381", "bls12_381", "bls12_377"] }
 zexe_bench_utils = { git = "https://github.com/celo-org/zexe", rev = "9febfcae7804e3224118c65607d9505a7dad4b29", package = "bench-utils", default-features = false, features = ["ed_on_bls12_381", "bls12_381", "bls12_377"] }
 zexe_r1cs_core = { git = "https://github.com/celo-org/zexe", rev = "9febfcae7804e3224118c65607d9505a7dad4b29", package = "r1cs-core", default-features = false, features = ["ed_on_bls12_381", "bls12_381", "bls12_377"] }
-zexe_groth16 = { git = "https://github.com/celo-org/zexe", rev = "9febfcae7804e3224118c65607d9505a7dad4b29", package = "groth16", default-features = false, features = [] }

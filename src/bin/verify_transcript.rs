@@ -1,32 +1,27 @@
-#[derive(Debug, Error)]
-pub enum VerifyTranscriptError {
-    #[error("Contributor data was none")]
-    ContributorDataIsNoneError,
-    #[error("Verified data was none")]
-    VerifiedDataIsNoneError,
-    #[error("Contributor ID was none")]
-    ContributorIDIsNoneError,
-    #[error("Contributor ID was of wrong length: {0}")]
-    IDWrongLength(usize),
-    #[error("Verifier ID was none")]
-    VerifierIDIsNoneError,
-    #[error("Wrong new challenge hash: expected {0}, got {1}")]
-    WrongNewChallengeHash(String, String),
-    #[error("Wrong challenge hash: expected {0}, got {1}")]
-    WrongChallengeHash(String, String),
-    #[error("Wrong response hash: expected {0}, got {1}")]
-    WrongResponseHash(String, String),
-    #[error("Contributed location was none")]
-    ContributedLocationIsNoneError,
-    #[error("Verified location was none")]
-    VerifiedLocationIsNoneError,
-    #[error("Unsupported curve kind: {0}")]
-    UnsupportedCurveKindError(String),
-    #[error("Unsupported proving system: {0}")]
-    UnsupportedProvingSystemError(String),
-}
+use anyhow::Result;
+use gumdrop::Options;
+use phase1::{ContributionMode, Phase1Parameters};
+use phase1_cli::{
+    combine, contribute, new_challenge, transform_pok_and_correctness, transform_ratios,
+};
+use setup_utils::{beacon_randomness, derive_rng_from_seed, from_slice};
+use snark_setup_operator::{
+    data_structs::{Ceremony, Response},
+    error::VerifyTranscriptError,
+    utils::{
+        check_challenge_hashes_same, check_new_challenge_hashes_same, check_response_hashes_same,
+        copy_file_if_exists, download_file, proving_system_from_str, read_hash_from_file,
+        remove_file_if_exists, verify_signed_data,
+    },
+};
+use std::{
+    collections::HashSet,
+    fs::{copy, File},
+    io::{Read, Write},
+};
+use tracing::info;
+use zexe_algebra::{Bls12_377, PairingEngine, BW6_761};
 
-const ADDRESS_LENGTH: usize = 20;
 const CHALLENGE_FILENAME: &str = "challenge";
 const CHALLENGE_HASH_FILENAME: &str = "challenge.hash";
 const RESPONSE_FILENAME: &str = "response";
@@ -46,30 +41,6 @@ const COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME: &str =
 const COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME: &str =
     "combined_verified_pok_and_correctness_new_challenge.hash";
 
-use snark_setup_operator::data_structs::{
-    Ceremony, Contribution, Response, SignedContributedData, SignedVerifiedData,
-};
-
-use anyhow::Result;
-use ethers::types::{Address, Signature};
-use gumdrop::Options;
-use phase1::{ContributionMode, Phase1Parameters, ProvingSystem};
-use phase1_cli::{
-    combine, contribute, new_challenge, transform_pok_and_correctness, transform_ratios,
-};
-use serde::Serialize;
-use setup_utils::{beacon_randomness, derive_rng_from_seed, from_slice};
-use std::{
-    collections::HashSet,
-    fs::{copy, remove_file, File},
-    io::{Read, Write},
-    path::Path,
-    str::FromStr,
-};
-use thiserror::Error;
-use tracing::info;
-use zexe_algebra::{Bls12_377, PairingEngine, BW6_761};
-
 #[derive(Debug, Options, Clone)]
 pub struct VerifyTranscriptOpts {
     #[options(
@@ -79,156 +50,6 @@ pub struct VerifyTranscriptOpts {
     pub transcript_path: String,
     #[options(help = "participant addresses to be verified", required)]
     pub participant_id: Vec<String>,
-}
-
-fn remove_file_if_exists(file_path: &str) -> Result<()> {
-    if Path::new(file_path).exists() {
-        remove_file(file_path)?;
-    }
-    Ok(())
-}
-
-fn copy_file_if_exists(file_path: &str, dest_path: &str) -> Result<()> {
-    if Path::new(file_path).exists() {
-        copy(file_path, dest_path)?;
-    }
-    Ok(())
-}
-
-fn download_file(url: &str, file_path: &str) -> Result<()> {
-    remove_file_if_exists(file_path)?;
-    let mut resp = reqwest::blocking::get(url)?;
-    let mut out = File::create(file_path)?;
-    resp.copy_to(&mut out)?;
-    Ok(())
-}
-
-fn vrs_to_rsv(rsv: &str) -> String {
-    format!("{}{}{}", &rsv[2..66], &rsv[66..130], &rsv[..2])
-}
-
-fn verify_signed_data<T: Serialize>(data: &T, signature: &str, id: &str) -> Result<()> {
-    let vrs_signature = &signature[2..];
-    let rsv_signature = vrs_to_rsv(vrs_signature);
-    let signature = Signature::from_str(&rsv_signature)?;
-    let serialized_data = serde_json::to_string(data)?;
-
-    let deserialized_id = hex::decode(&id[2..])?;
-    if deserialized_id.len() != ADDRESS_LENGTH {
-        return Err(VerifyTranscriptError::IDWrongLength(deserialized_id.len()).into());
-    }
-    let mut address = [0u8; ADDRESS_LENGTH];
-    address.copy_from_slice(&deserialized_id);
-    let address = Address::from(address);
-    signature.verify(serialized_data, address)?;
-
-    Ok(())
-}
-
-fn read_hash_from_file(file_name: &str) -> Result<String> {
-    let mut hash = vec![];
-    File::open(file_name)
-        .expect("Should have opened hash file.")
-        .read_to_end(&mut hash)
-        .expect("Should have read hash file.");
-    let hash_hex = hex::encode(&hash);
-    Ok(hash_hex)
-}
-
-fn verified_data_from_contribution(contribution: &Contribution) -> Result<&SignedVerifiedData> {
-    let verified_data = contribution
-        .verified_data
-        .as_ref()
-        .ok_or(VerifyTranscriptError::VerifiedDataIsNoneError)?;
-
-    Ok(verified_data)
-}
-
-fn contributed_data_from_contribution(
-    contribution: &Contribution,
-) -> Result<&SignedContributedData> {
-    let contributed_data = contribution
-        .contributed_data
-        .as_ref()
-        .ok_or(VerifyTranscriptError::ContributorDataIsNoneError)?;
-
-    Ok(contributed_data)
-}
-
-fn contributor_id_from_contribution(contribution: &Contribution) -> Result<&String> {
-    let contributor_id = contribution
-        .contributor_id
-        .as_ref()
-        .ok_or(VerifyTranscriptError::ContributorIDIsNoneError)?;
-
-    Ok(contributor_id)
-}
-
-fn verifier_id_from_contribution(contribution: &Contribution) -> Result<&String> {
-    let verifier_id = contribution
-        .verifier_id
-        .as_ref()
-        .ok_or(VerifyTranscriptError::VerifierIDIsNoneError)?;
-
-    Ok(verifier_id)
-}
-
-fn contributed_location_from_contribution(contribution: &Contribution) -> Result<&String> {
-    let contributed_location = contribution
-        .contributed_location
-        .as_ref()
-        .ok_or(VerifyTranscriptError::ContributedLocationIsNoneError)?;
-
-    Ok(contributed_location)
-}
-
-fn verified_location_from_contribution(contribution: &Contribution) -> Result<&String> {
-    let verified_location = contribution
-        .verified_location
-        .as_ref()
-        .ok_or(VerifyTranscriptError::VerifiedLocationIsNoneError)?;
-
-    Ok(verified_location)
-}
-
-fn check_challenge_hashes_same(a: &str, b: &str) -> Result<()> {
-    if a != b {
-        return Err(VerifyTranscriptError::WrongChallengeHash(a.to_string(), b.to_string()).into());
-    }
-
-    Ok(())
-}
-
-fn check_response_hashes_same(a: &str, b: &str) -> Result<()> {
-    if a != b {
-        return Err(VerifyTranscriptError::WrongResponseHash(a.to_string(), b.to_string()).into());
-    }
-
-    Ok(())
-}
-
-fn check_new_challenge_hashes_same(a: &str, b: &str) -> Result<()> {
-    if a != b {
-        return Err(
-            VerifyTranscriptError::WrongNewChallengeHash(a.to_string(), b.to_string()).into(),
-        );
-    }
-
-    Ok(())
-}
-
-fn proving_system_from_str(proving_system_str: &str) -> Result<ProvingSystem> {
-    let proving_system = match proving_system_str {
-        "groth16" => ProvingSystem::Groth16,
-        "marlin" => ProvingSystem::Marlin,
-        _ => {
-            return Err(VerifyTranscriptError::UnsupportedProvingSystemError(
-                proving_system_str.to_string(),
-            )
-            .into());
-        }
-    };
-    Ok(proving_system)
 }
 
 pub struct TranscriptVerifier {
@@ -280,7 +101,9 @@ impl TranscriptVerifier {
     }
 
     fn run<E: PairingEngine>(&self) -> Result<()> {
-        let participant_ids: HashSet<_> = self.participant_ids.iter().cloned().collect();
+        let required_participant_ids: HashSet<_> = self.participant_ids.iter().cloned().collect();
+        let mut participant_ids_from_poks = HashSet::new();
+
         remove_file_if_exists(RESPONSE_LIST_FILENAME)?;
         let mut response_list_file = File::create(RESPONSE_LIST_FILENAME)?;
 
@@ -296,7 +119,7 @@ impl TranscriptVerifier {
                 remove_file_if_exists(NEW_CHALLENGE_FILENAME)?;
                 remove_file_if_exists(NEW_CHALLENGE_HASH_FILENAME)?;
                 if i == 0 {
-                    let verified_data = verified_data_from_contribution(contribution)?;
+                    let verified_data = contribution.verified_data()?;
                     new_challenge(
                         NEW_CHALLENGE_FILENAME,
                         NEW_CHALLENGE_HASH_FILENAME,
@@ -311,8 +134,13 @@ impl TranscriptVerifier {
                     current_new_challenge_hash = verified_data.data.new_challenge_hash.clone();
                     continue;
                 }
-                let contributed_data = contributed_data_from_contribution(contribution)?;
-                let contributor_id = contributor_id_from_contribution(contribution)?;
+
+                let contributor_id = contribution.contributor_id()?;
+                if chunk_index == 0 {
+                    participant_ids_from_poks.insert(contributor_id.clone());
+                }
+
+                let contributed_data = contribution.contributed_data()?;
                 verify_signed_data(
                     &contributed_data.data,
                     &contributed_data.signature,
@@ -324,8 +152,8 @@ impl TranscriptVerifier {
                     &current_new_challenge_hash,
                 )?;
 
-                let verified_data = verified_data_from_contribution(contribution)?;
-                let verifier_id = verifier_id_from_contribution(contribution)?;
+                let verified_data = contribution.verified_data()?;
+                let verifier_id = contribution.verifier_id()?;
                 verify_signed_data(&verified_data.data, &verified_data.signature, &verifier_id)?;
 
                 check_challenge_hashes_same(
@@ -337,7 +165,7 @@ impl TranscriptVerifier {
                     &verified_data.data.response_hash,
                 )?;
 
-                let contributed_location = contributed_location_from_contribution(contribution)?;
+                let contributed_location = contribution.contributed_location()?;
                 download_file(contributed_location, RESPONSE_FILENAME)?;
 
                 transform_pok_and_correctness(
@@ -424,6 +252,17 @@ impl TranscriptVerifier {
             COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME,
             &parameters,
         );
+
+        if !required_participant_ids
+            .iter()
+            .all(|x| participant_ids_from_poks.contains(x))
+        {
+            return Err(VerifyTranscriptError::NotAllParticipantsPresent(
+                required_participant_ids,
+                participant_ids_from_poks,
+            )
+            .into());
+        }
 
         Ok(())
     }
