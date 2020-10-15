@@ -72,7 +72,7 @@ impl Control {
             .into());
         }
         ceremony.contributor_ids.push(participant_id.clone());
-        info!("participants: {:?}", ceremony.contributor_ids);
+        info!("participants after adding: {:?}", ceremony.contributor_ids);
         self.put_ceremony(&ceremony).await?;
         Ok(())
     }

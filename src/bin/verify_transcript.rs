@@ -41,6 +41,8 @@ const COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME: &str =
 const COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME: &str =
     "combined_verified_pok_and_correctness_new_challenge.hash";
 
+const BEACON_HASH_LENGTH: usize = 32;
+
 #[derive(Debug, Options, Clone)]
 pub struct VerifyTranscriptOpts {
     #[options(
@@ -50,11 +52,14 @@ pub struct VerifyTranscriptOpts {
     pub transcript_path: String,
     #[options(help = "participant addresses to be verified")]
     pub participant_id: Vec<String>,
+    #[options(help = "the beacon hash", required)]
+    pub beacon_hash: String,
 }
 
 pub struct TranscriptVerifier {
     pub ceremony: Ceremony,
     pub participant_ids: Vec<String>,
+    pub beacon_hash: Vec<u8>,
 }
 
 impl TranscriptVerifier {
@@ -65,9 +70,17 @@ impl TranscriptVerifier {
             .read_to_string(&mut transcript)
             .expect("Should have read transcript file.");
         let ceremony: Ceremony = serde_json::from_str::<Response<Ceremony>>(&transcript)?.result;
+
+        let beacon_hash = hex::decode(&opts.beacon_hash)?;
+        if beacon_hash.len() != BEACON_HASH_LENGTH {
+            return Err(
+                VerifyTranscriptError::BeaconHashWrongLengthError(beacon_hash.len()).into(),
+            );
+        }
         let verifier = Self {
             ceremony,
             participant_ids: opts.participant_id.clone(),
+            beacon_hash,
         };
         Ok(verifier)
     }
@@ -101,23 +114,47 @@ impl TranscriptVerifier {
     }
 
     fn run<E: PairingEngine>(&self) -> Result<()> {
+        // These are the participant IDs we'd like to verify are included in the transcript.
         let required_participant_ids: HashSet<_> = self.participant_ids.iter().cloned().collect();
+
+        // These are the participant IDs we discover in the transcript.
         let mut participant_ids_from_poks = HashSet::new();
 
         remove_file_if_exists(RESPONSE_LIST_FILENAME)?;
         let mut response_list_file = File::create(RESPONSE_LIST_FILENAME)?;
 
+        // Quick check - make sure the all chunks have the same number of contributions.
+        // If the coordinator was honest, then each participant would have contributed
+        // once to each chunk.
+        if !self
+            .ceremony
+            .chunks
+            .iter()
+            .all(|c| c.contributions.len() == self.ceremony.chunks[0].contributions.len())
+        {
+            return Err(
+                VerifyTranscriptError::NotAllChunksHaveSameNumberOfContributionsError.into(),
+            );
+        }
+
         for (chunk_index, chunk) in self.ceremony.chunks.iter().enumerate() {
             let parameters = self.create_parameters_for_chunk::<E>(chunk_index)?;
             let mut current_new_challenge_hash = String::new();
             for (i, contribution) in chunk.contributions.iter().enumerate() {
+                // Clean up the previous contribution challenge and response.
                 remove_file_if_exists(CHALLENGE_FILENAME)?;
                 remove_file_if_exists(CHALLENGE_HASH_FILENAME)?;
-                copy_file_if_exists(NEW_CHALLENGE_FILENAME, CHALLENGE_FILENAME)?;
                 remove_file_if_exists(RESPONSE_FILENAME)?;
                 remove_file_if_exists(RESPONSE_HASH_FILENAME)?;
+                // Copy the previous contribution's new challenge output as this contribution's
+                // input challenge.
+                copy_file_if_exists(NEW_CHALLENGE_FILENAME, CHALLENGE_FILENAME)?;
+                // Clean up the copied new challenge.
                 remove_file_if_exists(NEW_CHALLENGE_FILENAME)?;
                 remove_file_if_exists(NEW_CHALLENGE_HASH_FILENAME)?;
+
+                // This is the initialization pseudo-contribution, so we verify it was
+                // deterministically created by `new`.
                 if i == 0 {
                     let verified_data = contribution.verified_data()?;
                     new_challenge(
@@ -140,6 +177,7 @@ impl TranscriptVerifier {
                     participant_ids_from_poks.insert(contributor_id.clone());
                 }
 
+                // Verify the challenge and response hashes were signed by the participant.
                 let contributed_data = contribution.contributed_data()?;
                 verify_signed_data(
                     &contributed_data.data,
@@ -147,6 +185,8 @@ impl TranscriptVerifier {
                     &contributor_id,
                 )?;
 
+                // Verify that the challenge the participant attested they worked on is
+                // indeed the one we have as the expected computed challenge.
                 check_new_challenge_hashes_same(
                     &contributed_data.data.challenge_hash,
                     &current_new_challenge_hash,
@@ -154,8 +194,14 @@ impl TranscriptVerifier {
 
                 let verified_data = contribution.verified_data()?;
                 let verifier_id = contribution.verifier_id()?;
+                // Verify the verifier challenge, response and new challenge hashes
+                // were signed by the verifier. This is not strictly necessary, but can help
+                // catch a malicious coordinator.
                 verify_signed_data(&verified_data.data, &verified_data.signature, &verifier_id)?;
 
+                // Check that the verifier attested to work on the same challenge the participant
+                // attested to work on, and that the participant produced the same response as the
+                // one the verifier verified.
                 check_challenge_hashes_same(
                     &contributed_data.data.challenge_hash,
                     &verified_data.data.challenge_hash,
@@ -166,8 +212,11 @@ impl TranscriptVerifier {
                 )?;
 
                 let contributed_location = contribution.contributed_location()?;
+                // Download the response computed by the participant.
                 download_file(contributed_location, RESPONSE_FILENAME)?;
 
+                // Run verification between challenge and response, and produce the next new
+                // challenge.
                 transform_pok_and_correctness(
                     CHALLENGE_FILENAME,
                     CHALLENGE_HASH_FILENAME,
@@ -179,16 +228,16 @@ impl TranscriptVerifier {
                 );
 
                 let challenge_hash_from_file = read_hash_from_file(CHALLENGE_HASH_FILENAME)?;
+                // Check that the challenge hash is indeed the one the participant and the verifier
+                // attested to work on.
                 check_challenge_hashes_same(
                     &verified_data.data.challenge_hash,
                     &challenge_hash_from_file,
                 )?;
-                check_challenge_hashes_same(
-                    &verified_data.data.challenge_hash,
-                    &current_new_challenge_hash,
-                )?;
 
                 let response_hash_from_file = read_hash_from_file(RESPONSE_HASH_FILENAME)?;
+                // Check that the response hash is indeed the one the participant attested they produced
+                // and the verifier attested to work on.
                 check_response_hashes_same(
                     &verified_data.data.response_hash,
                     &response_hash_from_file,
@@ -196,13 +245,18 @@ impl TranscriptVerifier {
 
                 let new_challenge_hash_from_file =
                     read_hash_from_file(NEW_CHALLENGE_HASH_FILENAME)?;
+                // Check that the new challenge hash is indeed the one the verifier attested to
+                // produce.
                 check_new_challenge_hashes_same(
                     &verified_data.data.new_challenge_hash,
                     &new_challenge_hash_from_file,
                 )?;
 
+                // Carry the produced new challenge hash to the next contribution.
                 current_new_challenge_hash = verified_data.data.new_challenge_hash.clone();
 
+                // This is the last contribution which we'll combine with the other last
+                // contributions, so add that to the list.
                 if i == chunk.contributions.len() - 1 {
                     let response_filename =
                         format!("{}_{}\n", RESPONSE_PREFIX_FOR_AGGREGATION, chunk_index);
@@ -216,16 +270,15 @@ impl TranscriptVerifier {
         info!("all chunks verified, aggregating");
         remove_file_if_exists(COMBINED_FILENAME)?;
         let parameters = self.create_parameters_for_chunk::<E>(0)?;
+        // Combine the last contributions from each chunk into a single big contributions.
         combine(RESPONSE_LIST_FILENAME, COMBINED_FILENAME, &parameters);
         info!("combined, applying beacon");
         let parameters = self.create_full_parameters::<E>()?;
         remove_file_if_exists(COMBINED_HASH_FILENAME)?;
         remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_FILENAME)?;
         remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME)?;
-        let beacon_hash =
-            hex::decode("0000000000000000000a558a61ddc8ee4e488d647a747fe4dcc362fe2026c620")
-                .expect("could not hex decode beacon hash");
-        let rng = derive_rng_from_seed(&beacon_randomness(from_slice(&beacon_hash)));
+        let rng = derive_rng_from_seed(&beacon_randomness(from_slice(&self.beacon_hash)));
+        // Apply the random beacon.
         contribute(
             COMBINED_FILENAME,
             COMBINED_HASH_FILENAME,
@@ -239,6 +292,7 @@ impl TranscriptVerifier {
         remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME)?;
         remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME)?;
         remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME)?;
+        // Verify the correctness of the random beacon.
         transform_pok_and_correctness(
             COMBINED_FILENAME,
             COMBINED_HASH_FILENAME,
@@ -248,6 +302,8 @@ impl TranscriptVerifier {
             COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME,
             &parameters,
         );
+        // Verify the consistency of the entire combined contribution, making sure that the
+        // correct ratios hold between elements.
         transform_ratios(
             COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME,
             &parameters,

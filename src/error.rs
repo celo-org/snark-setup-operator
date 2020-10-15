@@ -29,6 +29,10 @@ pub enum VerifyTranscriptError {
     UnsupportedProvingSystemError(String),
     #[error("Not all participant IDs present, required: {0:?} got: {1:?}")]
     NotAllParticipantsPresent(HashSet<String>, HashSet<String>),
+    #[error("Not all chunks have the same number of contributions")]
+    NotAllChunksHaveSameNumberOfContributionsError,
+    #[error("Beacon hash had wrong length: {0}")]
+    BeaconHashWrongLengthError(usize),
 }
 
 #[derive(Debug, Error)]

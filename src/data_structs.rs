@@ -72,7 +72,7 @@ impl Contribution {
             .contributor_id
             .as_ref()
             .ok_or(VerifyTranscriptError::ContributorIDIsNoneError)?
-            .to_lowercase();
+            .to_owned();
 
         Ok(contributor_id)
     }
@@ -82,7 +82,7 @@ impl Contribution {
             .verifier_id
             .as_ref()
             .ok_or(VerifyTranscriptError::VerifierIDIsNoneError)?
-            .to_lowercase();
+            .to_owned();
 
         Ok(verifier_id)
     }
