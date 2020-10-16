@@ -11,6 +11,12 @@ jobs:
   style:
     name: Check Style
     runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: -Dwarnings
+    strategy:
+      matrix:
+        rust:
+          - stable
     steps:
       - name: Checkout
         uses: actions/checkout@v1
@@ -78,10 +84,12 @@ jobs:
 
       - name: Compile for musl
         run: |
+          rustup target install x86_64-unknown-linux-musl
           cargo build --bin contribute --release --target x86_64-unknown-linux-musl
 
       - name: Compile for MacOS
         run: |
+          rustup target install x86_64-apple-darwin
           git clone https://github.com/tpoechtrager/osxcross
           cd osxcross
           wget -nc https://s3.dockerproject.org/darwin/v2/MacOSX10.10.sdk.tar.xz
@@ -92,4 +100,5 @@ jobs:
 
       - name: Compile for Windows
         run: |
+          rustup target install x86_64-pc-windows-gnu
           cargo build --bin contribute --release --target x86_64-pc-windows-gnu
