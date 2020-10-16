@@ -81,7 +81,7 @@ jobs:
 
       - name: Compile for musl
         run: |
-          sudo apt-get install musl-tools libssl-dev
+          sudo apt-get install musl-tools
           rustup target install x86_64-unknown-linux-musl
           cargo build --bin contribute --release --target x86_64-unknown-linux-musl
 

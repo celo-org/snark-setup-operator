@@ -30,6 +30,7 @@ setup-utils = { git = "https://github.com/celo-org/snark-setup", package = "setu
 secrecy = { version = "0.7" }
 spinner = "0.5.0"
 zexe_algebra = { git = "https://github.com/celo-org/zexe", rev = "9febfcae7804e3224118c65607d9505a7dad4b29", package = "algebra", default-features = false, features = ["bw6_761", "bls12_377"] }
+openssl-sys = { version = "0.9", features = ["vendored"]}
 
 [patch.'https://github.com/scipr-lab/zexe']
 zexe_algebra_core = { git = "https://github.com/celo-org/zexe", rev = "9febfcae7804e3224118c65607d9505a7dad4b29", package = "algebra-core", default-features = false, features = ["derive"] }
