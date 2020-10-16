@@ -13,10 +13,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       RUSTFLAGS: -Dwarnings
-    strategy:
-      matrix:
-        rust:
-          - stable
     steps:
       - name: Checkout
         uses: actions/checkout@v1
@@ -24,6 +20,7 @@ jobs:
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
+          toolchain: stable
           profile: minimal
           override: true
           components: rustfmt
