@@ -1,6 +1,5 @@
 use anyhow::Result;
 use gumdrop::Options;
-use phase1::{ContributionMode, Phase1Parameters};
 use phase1_cli::{
     combine, contribute, new_challenge, transform_pok_and_correctness, transform_ratios,
 };
@@ -11,7 +10,7 @@ use snark_setup_operator::{
     utils::{
         check_challenge_hashes_same, check_new_challenge_hashes_same, check_response_hashes_same,
         copy_file_if_exists, create_full_parameters, create_parameters_for_chunk, download_file,
-        proving_system_from_str, read_hash_from_file, remove_file_if_exists, verify_signed_data,
+        read_hash_from_file, remove_file_if_exists, verify_signed_data,
     },
 };
 use std::{
