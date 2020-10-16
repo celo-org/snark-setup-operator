@@ -6,7 +6,6 @@ use snark_setup_operator::{
 use anyhow::Result;
 use chrono::Duration;
 use gumdrop::Options;
-use snark_setup_operator::error::HttpError;
 use std::collections::HashSet;
 use tracing::info;
 use url::Url;
@@ -37,10 +36,9 @@ impl Monitor {
     }
 
     async fn run(&self) -> Result<()> {
-        let response = reqwest::get(self.server_url.as_str()).await?;
-        if !response.status().is_success() {
-            return Err(HttpError::StatusError(response.status().to_string()).into());
-        }
+        let response = reqwest::get(self.server_url.as_str())
+            .await?
+            .error_for_status()?;
         let data = response.text().await?;
         let ceremony: Ceremony = serde_json::from_str::<Response<Ceremony>>(&data)?.result;
 

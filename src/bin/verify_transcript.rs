@@ -10,8 +10,8 @@ use snark_setup_operator::{
     error::VerifyTranscriptError,
     utils::{
         check_challenge_hashes_same, check_new_challenge_hashes_same, check_response_hashes_same,
-        copy_file_if_exists, download_file, proving_system_from_str, read_hash_from_file,
-        remove_file_if_exists, verify_signed_data,
+        copy_file_if_exists, create_full_parameters, create_parameters_for_chunk, download_file,
+        proving_system_from_str, read_hash_from_file, remove_file_if_exists, verify_signed_data,
     },
 };
 use std::{
@@ -85,34 +85,6 @@ impl TranscriptVerifier {
         Ok(verifier)
     }
 
-    fn create_parameters_for_chunk<E: PairingEngine>(
-        &self,
-        chunk_index: usize,
-    ) -> Result<Phase1Parameters<E>> {
-        let proving_system =
-            proving_system_from_str(self.ceremony.parameters.proving_system.as_str())?;
-        let parameters = Phase1Parameters::<E>::new_chunk(
-            ContributionMode::Chunked,
-            chunk_index,
-            self.ceremony.parameters.chunk_size,
-            proving_system,
-            self.ceremony.parameters.power,
-            self.ceremony.parameters.batch_size,
-        );
-        Ok(parameters)
-    }
-
-    fn create_full_parameters<E: PairingEngine>(&self) -> Result<Phase1Parameters<E>> {
-        let proving_system =
-            proving_system_from_str(self.ceremony.parameters.proving_system.as_str())?;
-        let parameters = Phase1Parameters::<E>::new_full(
-            proving_system,
-            self.ceremony.parameters.power,
-            self.ceremony.parameters.batch_size,
-        );
-        Ok(parameters)
-    }
-
     fn run<E: PairingEngine>(&self) -> Result<()> {
         // These are the participant IDs we'd like to verify are included in the transcript.
         let required_participant_ids: HashSet<_> = self.participant_ids.iter().cloned().collect();
@@ -138,7 +110,7 @@ impl TranscriptVerifier {
         }
 
         for (chunk_index, chunk) in self.ceremony.chunks.iter().enumerate() {
-            let parameters = self.create_parameters_for_chunk::<E>(chunk_index)?;
+            let parameters = create_parameters_for_chunk::<E>(chunk_index)?;
             let mut current_new_challenge_hash = String::new();
             for (i, contribution) in chunk.contributions.iter().enumerate() {
                 // Clean up the previous contribution challenge and response.
@@ -269,11 +241,11 @@ impl TranscriptVerifier {
         drop(response_list_file);
         info!("all chunks verified, aggregating");
         remove_file_if_exists(COMBINED_FILENAME)?;
-        let parameters = self.create_parameters_for_chunk::<E>(0)?;
+        let parameters = create_parameters_for_chunk::<E>(0)?;
         // Combine the last contributions from each chunk into a single big contributions.
         combine(RESPONSE_LIST_FILENAME, COMBINED_FILENAME, &parameters);
         info!("combined, applying beacon");
-        let parameters = self.create_full_parameters::<E>()?;
+        let parameters = create_full_parameters::<E>()?;
         remove_file_if_exists(COMBINED_HASH_FILENAME)?;
         remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_FILENAME)?;
         remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME)?;

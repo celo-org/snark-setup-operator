@@ -54,7 +54,23 @@ pub enum ControlError {
 }
 
 #[derive(Debug, Error)]
+pub enum ContributeError {
+    #[error("Could not choose random chunk")]
+    CouldNotChooseChunkError,
+    #[error("Could not find chunk with ID: {0}")]
+    CouldNotFindChunkWithIDError(String),
+    #[error("Contributions list was empty for chunk with ID: {0}")]
+    ContributionListWasEmptyForChunkID(String),
+    #[error("Verified location was none for the last contribution in chunk with ID: {0}")]
+    VerifiedLocationWasNoneForChunkID(String),
+    #[error("Unknown upload mode: {0}")]
+    UnknownUploadModeError(String),
+}
+
+#[derive(Debug, Error)]
 pub enum HttpError {
-    #[error("Status was {0}")]
-    StatusError(String),
+    #[error("Could not upload to azure, status was: {0}")]
+    CouldNotUploadToAzureError(String),
+    #[error("Could not parse SAS: {0}")]
+    CouldNotParseSAS(String),
 }
