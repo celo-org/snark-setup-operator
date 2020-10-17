@@ -7,9 +7,9 @@ use std::{
     str::FromStr,
 };
 
-use crate::blobstore::upload_sas;
+use crate::blobstore::{upload_access_key, upload_sas};
 use crate::data_structs::Ceremony;
-use crate::error::VerifyTranscriptError;
+use crate::error::{UtilsError, VerifyTranscriptError};
 use anyhow::Result;
 use ethers::types::{Address, PrivateKey, Signature};
 use hex::ToHex;
@@ -45,6 +45,17 @@ pub async fn download_file_async(url: &str, file_path: &str) -> Result<()> {
 
 pub async fn upload_file_to_azure_async(file_path: &str, url: &str) -> Result<()> {
     upload_sas(file_path, url).await?;
+    Ok(())
+}
+
+pub async fn upload_file_to_azure_with_access_key_async(
+    file_path: &str,
+    access_key: &str,
+    account: &str,
+    container: &str,
+    path: &str,
+) -> Result<()> {
+    upload_access_key(file_path, access_key, account, container, path).await?;
     Ok(())
 }
 
@@ -191,4 +202,24 @@ pub fn sign_json(private_key: &PrivateKey, value: &serde_json::Value) -> Result<
     let message = serde_json::to_string(value)?;
     let signature = private_key.sign(message).to_string();
     Ok(format!("0x{}", signature))
+}
+
+pub fn address_to_string(address: &Address) -> String {
+    format!("0x{}", address.encode_hex::<String>())
+}
+
+#[derive(Debug)]
+pub enum UploadMode {
+    Auto,
+    Azure,
+    Direct,
+}
+
+pub fn upload_mode_from_str(upload_mode: &str) -> Result<UploadMode> {
+    match upload_mode {
+        "auto" => Ok(UploadMode::Auto),
+        "azure" => Ok(UploadMode::Azure),
+        "direct" => Ok(UploadMode::Direct),
+        _ => Err(UtilsError::UnknownUploadModeError(upload_mode.to_string()).into()),
+    }
 }

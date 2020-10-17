@@ -2,8 +2,9 @@ use snark_setup_operator::data_structs::{
     Chunk, ContributedData, ContributionUploadUrl, PlumoSetupKeys, SignedContributedData,
 };
 use snark_setup_operator::utils::{
-    create_parameters_for_chunk, download_file_async, get_authorization_value, read_hash_from_file,
-    remove_file_if_exists, sign_json, upload_file_direct_async, upload_file_to_azure_async,
+    address_to_string, create_parameters_for_chunk, download_file_async, get_authorization_value,
+    read_hash_from_file, remove_file_if_exists, sign_json, upload_file_direct_async,
+    upload_file_to_azure_async, upload_mode_from_str, UploadMode,
 };
 use snark_setup_operator::{
     data_structs::{Ceremony, Response},
@@ -14,7 +15,7 @@ use anyhow::Result;
 use chrono::Duration;
 use ethers::types::{Address, PrivateKey};
 use gumdrop::Options;
-use hex::ToHex;
+use panic_control::{spawn_quiet, ThreadResultExt};
 use phase1_cli::contribute;
 use rand::prelude::SliceRandom;
 use reqwest::header::AUTHORIZATION;
@@ -24,7 +25,7 @@ use spinner::{SpinnerBuilder, SpinnerHandle, DANCING_KIRBY};
 use std::collections::HashSet;
 use std::io::Read;
 use tokio::time::Instant;
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 use url::Url;
 use zexe_algebra::{PairingEngine, BW6_761};
 
@@ -32,12 +33,6 @@ const CHALLENGE_FILENAME: &str = "challenge";
 const CHALLENGE_HASH_FILENAME: &str = "challenge.hash";
 const RESPONSE_FILENAME: &str = "response";
 const RESPONSE_HASH_FILENAME: &str = "response.hash";
-
-#[derive(Debug)]
-pub enum UploadMode {
-    Azure,
-    Direct,
-}
 
 #[derive(Debug, Options, Clone)]
 pub struct ContributeOpts {
@@ -51,7 +46,7 @@ pub struct ContributeOpts {
         default = "plumo.keys"
     )]
     pub keys_path: String,
-    #[options(help = "the storage upload mode", default = "azure")]
+    #[options(help = "the storage upload mode", default = "auto")]
     pub upload_mode: String,
 }
 
@@ -66,16 +61,10 @@ pub struct Contribute<'a> {
 impl<'a> Contribute<'a> {
     pub fn new(opts: &ContributeOpts, seed: &'a [u8], private_key: &[u8]) -> Result<Self> {
         let private_key = bincode::deserialize(private_key)?;
-        let upload_mode = (match opts.upload_mode.as_str() {
-            "azure" => Ok(UploadMode::Azure),
-            "direct" => Ok(UploadMode::Direct),
-            _ => Err(ContributeError::UnknownUploadModeError(
-                opts.upload_mode.to_string(),
-            )),
-        })?;
+        let upload_mode = upload_mode_from_str(&opts.upload_mode)?;
         let contribute = Self {
             server_url: Url::parse(&opts.coordinator_url)?,
-            participant_id: Address::from(&private_key).encode_hex::<String>(),
+            participant_id: address_to_string(&Address::from(&private_key)),
             private_key,
             seed,
             upload_mode,
@@ -108,51 +97,67 @@ impl<'a> Contribute<'a> {
         loop {
             let ceremony = self.get_ceremony().await?;
             let non_contributed_chunks = self.get_non_contributed_chunks(&ceremony)?;
-            let incomplete_chunks = self.get_non_contributed_and_available_chunks(&ceremony)?;
-            if incomplete_chunks.len() == 0 {
-                if non_contributed_chunks.len() == 0 {
-                    return Ok(());
-                } else {
-                    spinner.update(format!(
-                        "Waiting for an available chunk... Completed {} / {}",
-                        ceremony.chunks.len() - incomplete_chunks.len(),
-                        ceremony.chunks.len()
-                    ));
-                    std::thread::sleep(Duration::seconds(10).to_std()?);
-                    continue;
+            let chunk_id = match self.get_already_locked_chunk(&ceremony)? {
+                Some(chunk_id) => chunk_id,
+                None => {
+                    let incomplete_chunks =
+                        self.get_non_contributed_and_available_chunks(&ceremony)?;
+                    if incomplete_chunks.len() == 0 {
+                        if non_contributed_chunks.len() == 0 {
+                            return Ok(());
+                        } else {
+                            spinner.update(format!(
+                                "Waiting for an available chunk... Completed {} / {}",
+                                ceremony.chunks.len() - non_contributed_chunks.len(),
+                                ceremony.chunks.len()
+                            ));
+                            std::thread::sleep(Duration::seconds(10).to_std()?);
+                            continue;
+                        }
+                    }
+                    let chunk_id = incomplete_chunks
+                        .choose(&mut rand::thread_rng())
+                        .ok_or(ContributeError::CouldNotChooseChunkError)?;
+                    self.lock_chunk(chunk_id).await?;
+                    chunk_id.clone()
                 }
-            }
-            let chunk_id = incomplete_chunks
-                .choose(&mut rand::thread_rng())
-                .ok_or(ContributeError::CouldNotChooseChunkError)?;
+            };
 
             let (chunk_index, chunk) = self.get_chunk(&ceremony, &chunk_id)?;
-            self.lock_chunk(&chunk_id).await?;
             spinner.update(format!(
                 "Contributing to chunk {}... Completed {} / {}",
                 chunk_id,
-                ceremony.chunks.len() - incomplete_chunks.len(),
+                ceremony.chunks.len() - non_contributed_chunks.len(),
                 ceremony.chunks.len()
             ));
             remove_file_if_exists(CHALLENGE_FILENAME)?;
             remove_file_if_exists(CHALLENGE_HASH_FILENAME)?;
             let download_url = self.get_download_url_of_last_challenge(&chunk)?;
             download_file_async(&download_url, CHALLENGE_FILENAME).await?;
-            let parameters = create_parameters_for_chunk::<E>(&ceremony, chunk_index)?;
             let rng = derive_rng_from_seed(seed);
             let start = Instant::now();
             remove_file_if_exists(RESPONSE_FILENAME)?;
             remove_file_if_exists(RESPONSE_HASH_FILENAME)?;
-            contribute(
-                CHALLENGE_FILENAME,
-                CHALLENGE_HASH_FILENAME,
-                RESPONSE_FILENAME,
-                RESPONSE_HASH_FILENAME,
-                &parameters,
-                rng,
-            );
+            let parameters = create_parameters_for_chunk::<E>(&ceremony, chunk_index)?;
+            let h = spawn_quiet(move || {
+                contribute(
+                    CHALLENGE_FILENAME,
+                    CHALLENGE_HASH_FILENAME,
+                    RESPONSE_FILENAME,
+                    RESPONSE_HASH_FILENAME,
+                    &parameters,
+                    rng,
+                );
+            });
+            let result = h.join();
+            if !result.is_ok() {
+                if let Some(panic_value) = result.panic_value_as_str() {
+                    error!("Contribute failed: {}", panic_value);
+                }
+                return Err(ContributeError::FailedRunningContributeError.into());
+            }
             let duration = start.elapsed();
-            let upload_url = self.get_upload_url(chunk_id).await?;
+            let upload_url = self.get_upload_url(&chunk_id).await?;
             let authorization = get_authorization_value(
                 &self.private_key,
                 "POST",
@@ -170,6 +175,14 @@ impl<'a> Contribute<'a> {
                 data: contributed_data_value,
             };
             match self.upload_mode {
+                UploadMode::Auto => {
+                    if upload_url.contains("blob.core.windows.net") {
+                        upload_file_to_azure_async(RESPONSE_FILENAME, &upload_url).await?
+                    } else {
+                        upload_file_direct_async(&authorization, RESPONSE_FILENAME, &upload_url)
+                            .await?
+                    }
+                }
                 UploadMode::Azure => {
                     upload_file_to_azure_async(RESPONSE_FILENAME, &upload_url).await?
                 }
@@ -181,6 +194,15 @@ impl<'a> Contribute<'a> {
             self.notify_contribution(&chunk_id, serde_json::to_value(signed_contributed_data)?)
                 .await?;
         }
+    }
+
+    fn get_already_locked_chunk(&self, ceremony: &Ceremony) -> Result<Option<String>> {
+        let chunk_id = ceremony
+            .chunks
+            .iter()
+            .find(|c| c.lock_holder == Some(self.participant_id.clone()))
+            .map(|c| c.chunk_id.clone());
+        Ok(chunk_id)
     }
 
     fn get_non_contributed_chunks(&self, ceremony: &Ceremony) -> Result<Vec<String>> {
@@ -244,15 +266,14 @@ impl<'a> Contribute<'a> {
     }
 
     fn get_chunk(&self, ceremony: &Ceremony, chunk_id: &str) -> Result<(usize, Chunk)> {
-        let (i, chunk) = ceremony
+        let chunk = ceremony
             .chunks
             .iter()
-            .enumerate()
-            .find(|(_, c)| c.chunk_id == chunk_id)
+            .find(|c| c.chunk_id == chunk_id)
             .ok_or(ContributeError::CouldNotFindChunkWithIDError(
                 chunk_id.to_string(),
             ))?;
-        Ok((i, chunk.clone()))
+        Ok((chunk_id.parse::<usize>()?, chunk.clone()))
     }
 
     async fn get_ceremony(&self) -> Result<Ceremony> {
@@ -331,12 +352,9 @@ fn read_keys(keys_path: &str) -> Result<(SecretVec<u8>, SecretVec<u8>)> {
     let mut contents = String::new();
     std::fs::File::open(&keys_path)?.read_to_string(&mut contents)?;
     let keys: PlumoSetupKeys = serde_json::from_str(&contents)?;
-    let passphrase = age::cli_common::read_secret(
-        "Enter your Plumo setup passphrase",
-        "Passphrase",
-        Some("Confirm passphrase"),
-    )
-    .map_err(|_| ContributeError::CouldNotReadPassphraseError)?;
+    let passphrase =
+        age::cli_common::read_secret("Enter your Plumo setup passphrase", "Passphrase", None)
+            .map_err(|_| ContributeError::CouldNotReadPassphraseError)?;
     let plumo_seed = SecretVec::new(decrypt(&passphrase, &keys.encrypted_seed)?);
     let plumo_private_key = SecretVec::new(decrypt(&passphrase, &keys.encrypted_private_key)?);
 

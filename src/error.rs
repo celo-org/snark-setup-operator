@@ -63,12 +63,12 @@ pub enum ContributeError {
     ContributionListWasEmptyForChunkID(String),
     #[error("Verified location was none for the last contribution in chunk with ID: {0}")]
     VerifiedLocationWasNoneForChunkID(String),
-    #[error("Unknown upload mode: {0}")]
-    UnknownUploadModeError(String),
     #[error("Unsupported decryptor")]
     UnsupportedDecryptorError,
     #[error("Could not read passphrase")]
     CouldNotReadPassphraseError,
+    #[error("Failed running contribute")]
+    FailedRunningContributeError,
 }
 
 #[derive(Debug, Error)]
@@ -77,4 +77,12 @@ pub enum HttpError {
     CouldNotUploadToAzureError(String),
     #[error("Could not parse SAS: {0}")]
     CouldNotParseSAS(String),
+}
+
+#[derive(Debug, Error)]
+pub enum UtilsError {
+    #[error("Unknown upload mode: {0}")]
+    UnknownUploadModeError(String),
+    #[error("Option was none")]
+    MissingOptionErr,
 }
