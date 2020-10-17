@@ -6,7 +6,6 @@ use age::{
 use anyhow::Result;
 use ethers::types::{Address, PrivateKey};
 use gumdrop::Options;
-use hex::ToHex;
 use rand::rngs::OsRng;
 use rand::RngCore;
 use secrecy::{ExposeSecret, SecretVec};
