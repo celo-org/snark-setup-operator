@@ -10,8 +10,9 @@ use snark_setup_operator::data_structs::{
 };
 use snark_setup_operator::error::UtilsError;
 use snark_setup_operator::utils::{
-    get_authorization_value, proving_system_from_str, read_hash_from_file, remove_file_if_exists,
-    upload_file_to_azure_with_access_key_async, upload_mode_from_str, UploadMode,
+    address_to_string, get_authorization_value, proving_system_from_str, read_hash_from_file,
+    remove_file_if_exists, upload_file_to_azure_with_access_key_async, upload_mode_from_str,
+    UploadMode,
 };
 use std::fs::File;
 use std::io::Write;
@@ -62,8 +63,13 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts) -> Result<()> {
         .text()
         .await?;
     let ceremony: Ceremony = serde_json::from_str::<Response<Ceremony>>(&data)?.result;
-    if ceremony.version != 0 {
-        return Err(anyhow!("Can only initialize a ceremony with version 0"));
+    let private_key = PrivateKey::from_str(&opts.private_key)?;
+    if ceremony.version != 0
+        || !ceremony
+            .verifier_ids
+            .contains(&address_to_string(&Address::from(&private_key)))
+    {
+        return Err(anyhow!("Can only initialize a ceremony with version 0 and the verifiers list must contain the address matching the private key"));
     }
 
     let upload_mode = upload_mode_from_str(&opts.upload_mode)?;
@@ -203,7 +209,6 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts) -> Result<()> {
 
     info!("Updating ceremony");
     let client = reqwest::Client::new();
-    let private_key = PrivateKey::from_str(&opts.private_key)?;
     let authorization = get_authorization_value(&private_key, "PUT", "/ceremony")?;
     client
         .put(server_url.as_str())

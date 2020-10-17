@@ -15,13 +15,13 @@ use anyhow::Result;
 use chrono::Duration;
 use ethers::types::{Address, PrivateKey};
 use gumdrop::Options;
+use indicatif::{ProgressBar, ProgressDrawTarget, ProgressStyle};
 use panic_control::{spawn_quiet, ThreadResultExt};
 use phase1_cli::contribute;
 use rand::prelude::SliceRandom;
 use reqwest::header::AUTHORIZATION;
 use secrecy::{ExposeSecret, SecretString, SecretVec};
 use setup_utils::derive_rng_from_seed;
-use spinner::{SpinnerBuilder, SpinnerHandle, DANCING_KIRBY};
 use std::collections::HashSet;
 use std::io::Read;
 use tokio::time::Instant;
@@ -73,29 +73,37 @@ impl<'a> Contribute<'a> {
     }
 
     async fn run_and_catch_errors<E: PairingEngine>(&self) -> Result<()> {
-        let spinner = SpinnerBuilder::new("Starting to contribute...".to_string())
-            .spinner(DANCING_KIRBY.to_vec())
-            .step(Duration::milliseconds(500).to_std()?)
-            .start();
+        let progress_style = ProgressStyle::default_bar()
+            .template(
+                "{spinner:.green} ([{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} {msg})",
+            )
+            .progress_chars("#>-");
+        let progress_bar = ProgressBar::hidden();
+        progress_bar.enable_steady_tick(1000);
+        progress_bar.set_style(progress_style);
         loop {
-            let result = self.run::<E>(&self.seed, &spinner).await;
+            let result = self.run::<E>(&self.seed, &progress_bar).await;
             match result {
                 Ok(_) => {
                     info!("Successfully contributed, thank you for participation! Waiting to see if you're still needed... Don't turn this off! ");
-                    spinner.update("Successfully contributed, thank you for participation! Waiting to see if you're still needed... Don't turn this off!".to_string());
+                    progress_bar.set_message("Successfully contributed, thank you for participation! Waiting to see if you're still needed... Don't turn this off!");
                 }
                 Err(e) => {
                     warn!("Got error from run: {}, retrying...", e);
-                    spinner.update(format!("Got error from run: {}, retrying...", e));
+                    progress_bar.set_message(&format!("Got error from run: {}, retrying...", e));
                 }
             }
             std::thread::sleep(Duration::seconds(10).to_std()?);
         }
     }
 
-    async fn run<E: PairingEngine>(&self, seed: &[u8], spinner: &SpinnerHandle) -> Result<()> {
+    async fn run<E: PairingEngine>(&self, seed: &[u8], progress_bar: &ProgressBar) -> Result<()> {
         loop {
             let ceremony = self.get_ceremony().await?;
+            progress_bar.set_length(ceremony.chunks.len() as u64);
+            if progress_bar.is_hidden() {
+                progress_bar.set_draw_target(ProgressDrawTarget::stderr());
+            }
             let non_contributed_chunks = self.get_non_contributed_chunks(&ceremony)?;
             let chunk_id = match self.get_already_locked_chunk(&ceremony)? {
                 Some(chunk_id) => chunk_id,
@@ -106,11 +114,12 @@ impl<'a> Contribute<'a> {
                         if non_contributed_chunks.len() == 0 {
                             return Ok(());
                         } else {
-                            spinner.update(format!(
-                                "Waiting for an available chunk... Completed {} / {}",
-                                ceremony.chunks.len() - non_contributed_chunks.len(),
-                                ceremony.chunks.len()
-                            ));
+                            progress_bar
+                                .set_message(&format!("Waiting for an available chunk...",));
+                            progress_bar.set_position(
+                                (ceremony.chunks.len() - non_contributed_chunks.len()) as u64,
+                            );
+
                             std::thread::sleep(Duration::seconds(10).to_std()?);
                             continue;
                         }
@@ -124,12 +133,9 @@ impl<'a> Contribute<'a> {
             };
 
             let (chunk_index, chunk) = self.get_chunk(&ceremony, &chunk_id)?;
-            spinner.update(format!(
-                "Contributing to chunk {}... Completed {} / {}",
-                chunk_id,
-                ceremony.chunks.len() - non_contributed_chunks.len(),
-                ceremony.chunks.len()
-            ));
+            progress_bar.set_message(&format!("Contributing to chunk {}...", chunk_id,));
+            progress_bar
+                .set_position((ceremony.chunks.len() - non_contributed_chunks.len()) as u64);
             remove_file_if_exists(CHALLENGE_FILENAME)?;
             remove_file_if_exists(CHALLENGE_HASH_FILENAME)?;
             let download_url = self.get_download_url_of_last_challenge(&chunk)?;
