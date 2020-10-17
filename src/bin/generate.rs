@@ -6,11 +6,11 @@ use age::{
 use anyhow::Result;
 use ethers::types::{Address, PrivateKey};
 use gumdrop::Options;
-use hex::ToHex;
 use rand::rngs::OsRng;
 use rand::RngCore;
 use secrecy::{ExposeSecret, SecretVec};
 use snark_setup_operator::data_structs::PlumoSetupKeys;
+use snark_setup_operator::utils::address_to_string;
 use std::io::Write;
 
 #[derive(Debug, Options, Clone)]
@@ -62,10 +62,7 @@ fn main() {
     rng.fill_bytes(&mut plumo_seed[..]);
     let plumo_seed = SecretVec::new(plumo_seed);
     let private_key = PrivateKey::new(&mut rng);
-    let address = format!(
-        "0x{}",
-        Address::from(private_key.clone()).encode_hex::<String>()
-    );
+    let address = address_to_string(&Address::from(&private_key));
     let private_key = private_key.serialize();
 
     let encrypted_plumo_seed = encrypt(plumo_encryptor, plumo_seed.expose_secret())
