@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use ethers::types::PrivateKey;
+use ethers::types::{Address, PrivateKey};
 use gumdrop::Options;
 use phase1::{ContributionMode, Phase1Parameters, ProvingSystem};
 use phase1_cli::new_challenge;

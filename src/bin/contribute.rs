@@ -74,9 +74,7 @@ impl<'a> Contribute<'a> {
 
     async fn run_and_catch_errors<E: PairingEngine>(&self) -> Result<()> {
         let progress_style = ProgressStyle::default_bar()
-            .template(
-                "{spinner:.green} ([{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} {msg})",
-            )
+            .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} {msg}")
             .progress_chars("#>-");
         let progress_bar = ProgressBar::hidden();
         progress_bar.enable_steady_tick(1000);
@@ -112,6 +110,7 @@ impl<'a> Contribute<'a> {
                         self.get_non_contributed_and_available_chunks(&ceremony)?;
                     if incomplete_chunks.len() == 0 {
                         if non_contributed_chunks.len() == 0 {
+                            progress_bar.set_position(ceremony.chunks.len() as u64);
                             return Ok(());
                         } else {
                             progress_bar
