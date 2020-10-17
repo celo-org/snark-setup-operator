@@ -4,21 +4,21 @@ use serde_json::Value;
 
 use crate::error::VerifyTranscriptError;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct SignedContributedData {
     pub data: Value,
     pub signature: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct SignedVerifiedData {
     pub data: Value,
     pub signature: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ContributionMetadata {
     pub contributed_time: Option<chrono::DateTime<chrono::Utc>>,
@@ -27,7 +27,7 @@ pub struct ContributionMetadata {
     pub verified_lock_holder_time: Option<chrono::DateTime<chrono::Utc>>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Contribution {
     pub metadata: Option<ContributionMetadata>,
@@ -106,13 +106,13 @@ impl Contribution {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ChunkMetadata {
     pub lock_holder_time: Option<chrono::DateTime<chrono::Utc>>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Chunk {
     pub chunk_id: String,
@@ -121,7 +121,7 @@ pub struct Chunk {
     pub metadata: Option<ChunkMetadata>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Parameters {
     pub proving_system: String,
@@ -131,7 +131,7 @@ pub struct Parameters {
     pub power: usize,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Ceremony {
     pub version: u64,
@@ -141,14 +141,14 @@ pub struct Ceremony {
     pub parameters: Parameters,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Response<T> {
     pub result: T,
     pub status: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ContributedData {
     pub challenge_hash: String,
@@ -156,13 +156,13 @@ pub struct ContributedData {
     pub contribution_duration: Option<u64>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SignedContributedDataParsed {
     pub data: ContributedData,
     pub signature: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct VerifiedData {
     pub challenge_hash: String,
@@ -170,8 +170,24 @@ pub struct VerifiedData {
     pub new_challenge_hash: String,
     pub verification_duration: Option<u64>,
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SignedVerifiedDataParsed {
     pub data: VerifiedData,
     pub signature: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ContributionUploadUrl {
+    pub chunk_id: String,
+    pub participant_id: String,
+    pub write_url: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PlumoSetupKeys {
+    pub encrypted_seed: String,
+    pub encrypted_private_key: String,
+    pub address: String,
 }

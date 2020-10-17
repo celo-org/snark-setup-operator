@@ -11,6 +11,8 @@ jobs:
   style:
     name: Check Style
     runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: -Dwarnings
     steps:
       - name: Checkout
         uses: actions/checkout@v1
@@ -18,6 +20,7 @@ jobs:
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
+          toolchain: stable
           profile: minimal
           override: true
           components: rustfmt
@@ -56,3 +59,45 @@ jobs:
           command: test
           args: --release --all --no-fail-fast
 
+  cross-compile:
+    name: Cross compile
+    runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: -Dwarnings
+    strategy:
+      matrix:
+        rust:
+          - stable
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Install Rust (${{ matrix.rust }})
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ matrix.rust }}
+          override: true
+
+      - name: Compile for musl
+        run: |
+          sudo apt install musl-tools
+          rustup target install x86_64-unknown-linux-musl
+          cargo build --bin contribute --release --target x86_64-unknown-linux-musl
+
+      - name: Compile for MacOS
+        run: |
+          sudo apt install gcc-mingw-w64-x86-64
+          rustup target install x86_64-apple-darwin
+          git clone https://github.com/tpoechtrager/osxcross
+          cd osxcross
+          wget -nc https://s3.dockerproject.org/darwin/v2/MacOSX10.10.sdk.tar.xz
+          mv MacOSX10.10.sdk.tar.xz tarballs/
+          UNATTENDED=yes OSX_VERSION_MIN=10.7 ./build.sh
+          cd ..
+          PATH="$PWD/osxcross/target/bin:$PATH" CC="$PWD/osxcross/target/bin/o64-clang" CXX="$PWD/osxcross/target/bin/o64-clang++" RUSTFLAGS="-C linker=$PWD/osxcross/target/bin/x86_64-apple-darwin14-clang -C ar=$PWD/osxcross/target/bin/x86_64-apple-darwin14-ar" cargo build --bin contribute --release --target x86_64-apple-darwin
+
+      - name: Compile for Windows
+        run: |
+          rustup target install x86_64-pc-windows-gnu
+          cargo build --bin contribute --release --target x86_64-pc-windows-gnu

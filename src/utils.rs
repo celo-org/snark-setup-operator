@@ -2,17 +2,21 @@ const ADDRESS_LENGTH: usize = 20;
 
 use std::{
     fs::{copy, remove_file, File},
-    io::Read,
+    io::{Read, Write},
     path::Path,
     str::FromStr,
 };
 
+use crate::blobstore::upload_sas;
+use crate::data_structs::Ceremony;
 use crate::error::VerifyTranscriptError;
 use anyhow::Result;
 use ethers::types::{Address, PrivateKey, Signature};
 use hex::ToHex;
-use phase1::ProvingSystem;
+use phase1::{ContributionMode, Phase1Parameters, ProvingSystem};
+use reqwest::header::AUTHORIZATION;
 use serde::Serialize;
+use zexe_algebra::PairingEngine;
 
 pub fn copy_file_if_exists(file_path: &str, dest_path: &str) -> Result<()> {
     if Path::new(file_path).exists() {
@@ -23,9 +27,44 @@ pub fn copy_file_if_exists(file_path: &str, dest_path: &str) -> Result<()> {
 
 pub fn download_file(url: &str, file_path: &str) -> Result<()> {
     remove_file_if_exists(file_path)?;
-    let mut resp = reqwest::blocking::get(url)?;
+    let mut resp = reqwest::blocking::get(url)?.error_for_status()?;
     let mut out = File::create(file_path)?;
     resp.copy_to(&mut out)?;
+    Ok(())
+}
+
+pub async fn download_file_async(url: &str, file_path: &str) -> Result<()> {
+    remove_file_if_exists(file_path)?;
+    let mut resp = reqwest::get(url).await?.error_for_status()?;
+    let mut out = File::create(file_path)?;
+    while let Some(chunk) = resp.chunk().await? {
+        out.write(&chunk)?;
+    }
+    Ok(())
+}
+
+pub async fn upload_file_to_azure_async(file_path: &str, url: &str) -> Result<()> {
+    upload_sas(file_path, url).await?;
+    Ok(())
+}
+
+pub async fn upload_file_direct_async(
+    authorization: &str,
+    file_path: &str,
+    url: &str,
+) -> Result<()> {
+    let mut file = File::open(file_path)?;
+    let mut contents = Vec::new();
+    file.read_to_end(&mut contents)?;
+
+    let client = reqwest::Client::new();
+    client
+        .post(url)
+        .header(AUTHORIZATION, authorization)
+        .body(contents)
+        .send()
+        .await?
+        .error_for_status()?;
     Ok(())
 }
 
@@ -108,11 +147,48 @@ pub fn check_new_challenge_hashes_same(a: &str, b: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn get_authorization_value(private_key: &str, method: &str, path: &str) -> Result<String> {
-    let private_key = PrivateKey::from_str(private_key)?;
-    let address = Address::from(&private_key).encode_hex::<String>();
+pub fn get_authorization_value(
+    private_key: &PrivateKey,
+    method: &str,
+    path: &str,
+) -> Result<String> {
+    let address = Address::from(private_key).encode_hex::<String>();
     let message = format!("{} {}", method.to_lowercase(), path.to_lowercase());
     let signature = private_key.sign(message).to_string();
     let authorization = format!("Celo 0x{}:0x{}", address, signature);
     Ok(authorization)
+}
+
+pub fn create_parameters_for_chunk<E: PairingEngine>(
+    ceremony: &Ceremony,
+    chunk_index: usize,
+) -> Result<Phase1Parameters<E>> {
+    let proving_system = proving_system_from_str(ceremony.parameters.proving_system.as_str())?;
+    let parameters = Phase1Parameters::<E>::new_chunk(
+        ContributionMode::Chunked,
+        chunk_index,
+        ceremony.parameters.chunk_size,
+        proving_system,
+        ceremony.parameters.power,
+        ceremony.parameters.batch_size,
+    );
+    Ok(parameters)
+}
+
+pub fn create_full_parameters<E: PairingEngine>(
+    ceremony: &Ceremony,
+) -> Result<Phase1Parameters<E>> {
+    let proving_system = proving_system_from_str(ceremony.parameters.proving_system.as_str())?;
+    let parameters = Phase1Parameters::<E>::new_full(
+        proving_system,
+        ceremony.parameters.power,
+        ceremony.parameters.batch_size,
+    );
+    Ok(parameters)
+}
+
+pub fn sign_json(private_key: &PrivateKey, value: &serde_json::Value) -> Result<String> {
+    let message = serde_json::to_string(value)?;
+    let signature = private_key.sign(message).to_string();
+    Ok(format!("0x{}", signature))
 }

@@ -4,11 +4,11 @@ use snark_setup_operator::{
 };
 
 use anyhow::Result;
+use ethers::types::PrivateKey;
 use gumdrop::Options;
 use reqwest::header::AUTHORIZATION;
-use snark_setup_operator::error::HttpError;
 use snark_setup_operator::utils::get_authorization_value;
-use std::{fs::File, io::Write, process};
+use std::{fs::File, io::Write, process, str::FromStr};
 use tracing::info;
 use url::Url;
 
@@ -47,14 +47,14 @@ pub struct ControlOpts {
 
 pub struct Control {
     pub server_url: Url,
-    pub private_key: String,
+    pub private_key: PrivateKey,
 }
 
 impl Control {
     pub fn new(opts: &ControlOpts) -> Result<Self> {
         let control = Self {
             server_url: Url::parse(&opts.coordinator_url)?.join("ceremony")?,
-            private_key: opts.private_key.clone(),
+            private_key: PrivateKey::from_str(&opts.private_key)?,
         };
         Ok(control)
     }
@@ -78,10 +78,9 @@ impl Control {
     }
 
     async fn get_ceremony(&self) -> Result<Ceremony> {
-        let response = reqwest::get(self.server_url.as_str()).await?;
-        if !response.status().is_success() {
-            return Err(HttpError::StatusError(response.status().to_string()).into());
-        }
+        let response = reqwest::get(self.server_url.as_str())
+            .await?
+            .error_for_status()?;
         let data = response.text().await?;
         let ceremony: Ceremony = serde_json::from_str::<Response<Ceremony>>(&data)?.result;
         Ok(ceremony)
@@ -99,15 +98,13 @@ impl Control {
         self.backup_ceremony(ceremony)?;
         let client = reqwest::Client::new();
         let authorization = get_authorization_value(&self.private_key, "PUT", "/ceremony")?;
-        let response = client
+        client
             .put(self.server_url.as_str())
             .header(AUTHORIZATION, authorization)
             .json(ceremony)
             .send()
-            .await?;
-        if !response.status().is_success() {
-            return Err(HttpError::StatusError(response.status().to_string()).into());
-        }
+            .await?
+            .error_for_status()?;
         Ok(())
     }
 
