@@ -189,4 +189,5 @@ pub struct ContributionUploadUrl {
 pub struct PlumoSetupKeys {
     pub encrypted_seed: String,
     pub encrypted_private_key: String,
+    pub address: String,
 }

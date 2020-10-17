@@ -4,8 +4,9 @@ use age::{
     EncryptError, Encryptor,
 };
 use anyhow::Result;
-use ethers::types::PrivateKey;
+use ethers::types::{Address, PrivateKey};
 use gumdrop::Options;
+use hex::ToHex;
 use rand::rngs::OsRng;
 use rand::RngCore;
 use secrecy::{ExposeSecret, SecretVec};
@@ -60,7 +61,12 @@ fn main() {
     let mut plumo_seed = vec![0u8; 64];
     rng.fill_bytes(&mut plumo_seed[..]);
     let plumo_seed = SecretVec::new(plumo_seed);
-    let private_key = PrivateKey::new(&mut rng).serialize();
+    let private_key = PrivateKey::new(&mut rng);
+    let address = format!(
+        "0x{}",
+        Address::from(private_key.clone()).encode_hex::<String>()
+    );
+    let private_key = private_key.serialize();
 
     let encrypted_plumo_seed = encrypt(plumo_encryptor, plumo_seed.expose_secret())
         .expect("Should have encrypted Plumo seed");
@@ -70,6 +76,7 @@ fn main() {
     let plumo_setup_keys = PlumoSetupKeys {
         encrypted_seed: encrypted_plumo_seed.to_string(),
         encrypted_private_key: encrypted_plumo_private_key.to_string(),
+        address,
     };
     file.write_all(
         &serde_json::to_vec(&plumo_setup_keys).expect("Should have converted setup keys to vector"),
