@@ -65,6 +65,10 @@ pub enum ContributeError {
     VerifiedLocationWasNoneForChunkID(String),
     #[error("Unknown upload mode: {0}")]
     UnknownUploadModeError(String),
+    #[error("Unsupported decryptor")]
+    UnsupportedDecryptorError,
+    #[error("Could not read passphrase")]
+    CouldNotReadPassphraseError,
 }
 
 #[derive(Debug, Error)]

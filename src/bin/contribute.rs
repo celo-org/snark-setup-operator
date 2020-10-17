@@ -1,5 +1,5 @@
 use snark_setup_operator::data_structs::{
-    Chunk, ContributedData, ContributionUploadUrl, SignedContributedData,
+    Chunk, ContributedData, ContributionUploadUrl, PlumoSetupKeys, SignedContributedData,
 };
 use snark_setup_operator::utils::{
     create_parameters_for_chunk, download_file_async, get_authorization_value, read_hash_from_file,
@@ -17,12 +17,12 @@ use gumdrop::Options;
 use hex::ToHex;
 use phase1_cli::contribute;
 use rand::prelude::SliceRandom;
-use rand::RngCore;
 use reqwest::header::AUTHORIZATION;
-use secrecy::ExposeSecret;
+use secrecy::{ExposeSecret, SecretString, SecretVec};
 use setup_utils::derive_rng_from_seed;
 use spinner::{SpinnerBuilder, SpinnerHandle, DANCING_KIRBY};
-use std::{collections::HashSet, str::FromStr};
+use std::collections::HashSet;
+use std::io::Read;
 use tokio::time::Instant;
 use tracing::{info, warn};
 use url::Url;
@@ -46,22 +46,26 @@ pub struct ContributeOpts {
         default = "http://localhost:8080"
     )]
     pub coordinator_url: String,
-    #[options(help = "the Celo private key for contribution", required)]
-    pub private_key: String,
+    #[options(
+        help = "the encrypted keys for the Plumo setup",
+        default = "plumo.keys"
+    )]
+    pub keys_path: String,
     #[options(help = "the storage upload mode", default = "azure")]
     pub upload_mode: String,
 }
 
-pub struct Contribute {
+pub struct Contribute<'a> {
     pub server_url: Url,
     pub participant_id: String,
     pub private_key: PrivateKey,
+    pub seed: &'a [u8],
     pub upload_mode: UploadMode,
 }
 
-impl Contribute {
-    pub fn new(opts: &ContributeOpts) -> Result<Self> {
-        let private_key = PrivateKey::from_str(&opts.private_key)?;
+impl<'a> Contribute<'a> {
+    pub fn new(opts: &ContributeOpts, seed: &'a [u8], private_key: &[u8]) -> Result<Self> {
+        let private_key = bincode::deserialize(private_key)?;
         let upload_mode = (match opts.upload_mode.as_str() {
             "azure" => Ok(UploadMode::Azure),
             "direct" => Ok(UploadMode::Direct),
@@ -73,21 +77,19 @@ impl Contribute {
             server_url: Url::parse(&opts.coordinator_url)?,
             participant_id: Address::from(&private_key).encode_hex::<String>(),
             private_key,
+            seed,
             upload_mode,
         };
         Ok(contribute)
     }
 
     async fn run_and_catch_errors<E: PairingEngine>(&self) -> Result<()> {
-        let mut secret_seed = vec![0; 32];
-        rand::thread_rng().fill_bytes(&mut secret_seed[..]);
-        let secret = secrecy::SecretVec::new(secret_seed);
         let spinner = SpinnerBuilder::new("Starting to contribute...".to_string())
             .spinner(DANCING_KIRBY.to_vec())
             .step(Duration::milliseconds(500).to_std()?)
             .start();
         loop {
-            let result = self.run::<E>(secret.expose_secret(), &spinner).await;
+            let result = self.run::<E>(&self.seed, &spinner).await;
             match result {
                 Ok(_) => {
                     info!("Successfully contributed, thank you for participation! Waiting to see if you're still needed... Don't turn this off! ");
@@ -311,6 +313,36 @@ impl Contribute {
     }
 }
 
+fn decrypt(passphrase: &SecretString, encrypted: &str) -> Result<Vec<u8>> {
+    let decoded = SecretVec::new(hex::decode(encrypted)?);
+    let decryptor = age::Decryptor::new(decoded.expose_secret().as_slice())?;
+    let mut output = vec![];
+    if let age::Decryptor::Passphrase(decryptor) = decryptor {
+        let mut reader = decryptor.decrypt(passphrase, None)?;
+        reader.read_to_end(&mut output)?;
+    } else {
+        return Err(ContributeError::UnsupportedDecryptorError.into());
+    }
+
+    Ok(output)
+}
+
+fn read_keys(keys_path: &str) -> Result<(SecretVec<u8>, SecretVec<u8>)> {
+    let mut contents = String::new();
+    std::fs::File::open(&keys_path)?.read_to_string(&mut contents)?;
+    let keys: PlumoSetupKeys = serde_json::from_str(&contents)?;
+    let passphrase = age::cli_common::read_secret(
+        "Enter your Plumo setup passphrase",
+        "Passphrase",
+        Some("Confirm passphrase"),
+    )
+    .map_err(|_| ContributeError::CouldNotReadPassphraseError)?;
+    let plumo_seed = SecretVec::new(decrypt(&passphrase, &keys.encrypted_seed)?);
+    let plumo_private_key = SecretVec::new(decrypt(&passphrase, &keys.encrypted_private_key)?);
+
+    Ok((plumo_seed, plumo_private_key))
+}
+
 #[tokio::main]
 async fn main() {
     let appender = tracing_appender::rolling::never(".", "snark-setup.log");
@@ -318,8 +350,11 @@ async fn main() {
     tracing_subscriber::fmt().with_writer(non_blocking).init();
 
     let opts: ContributeOpts = ContributeOpts::parse_args_default_or_exit();
+    let (seed, private_key) =
+        read_keys(&opts.keys_path).expect("Should have loaded Plumo setup keys");
 
-    let contribute = Contribute::new(&opts).expect("Should have been able to create a contribute.");
+    let contribute = Contribute::new(&opts, seed.expose_secret(), private_key.expose_secret())
+        .expect("Should have been able to create a contribute.");
     match contribute.run_and_catch_errors::<BW6_761>().await {
         Err(e) => info!("Got error from contribute: {}", e.to_string()),
         _ => {}
