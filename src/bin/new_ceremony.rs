@@ -6,7 +6,7 @@ use phase1_cli::new_challenge;
 use reqwest::header::AUTHORIZATION;
 use snark_setup_operator::data_structs::{
     Ceremony, Chunk, ChunkMetadata, Contribution, ContributionMetadata, Parameters, Response,
-    SignedVerifiedData, VerifiedData,
+    SignedData, VerifiedData,
 };
 use snark_setup_operator::error::UtilsError;
 use snark_setup_operator::utils::{
@@ -27,6 +27,7 @@ const NEW_CHALLENGE_HASH_FILENAME: &str = "new_challenge.hash";
 
 #[derive(Debug, Options, Clone)]
 pub struct NewCeremonyOpts {
+    help: bool,
     #[options(help = "the server url", required)]
     pub server_url: String,
     #[options(help = "the upload mode", required)]
@@ -173,7 +174,7 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts) -> Result<()> {
                     contributed_location: None,
                     verifier_id: Some(verifier.clone()),
                     verified: true,
-                    verified_data: Some(SignedVerifiedData {
+                    verified_data: Some(SignedData {
                         data: serde_json::to_value(VerifiedData {
                             challenge_hash: "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000".to_string(),
                             response_hash: "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000".to_string(),

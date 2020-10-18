@@ -34,6 +34,7 @@ pub enum Command {
 
 #[derive(Debug, Options, Clone)]
 pub struct ControlOpts {
+    help: bool,
     #[options(
         help = "the url of the coordinator API",
         default = "http://localhost:8080"

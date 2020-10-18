@@ -44,6 +44,7 @@ const BEACON_HASH_LENGTH: usize = 32;
 
 #[derive(Debug, Options, Clone)]
 pub struct VerifyTranscriptOpts {
+    help: bool,
     #[options(
         help = "the path of the transcript json file",
         default = "transcript.json"

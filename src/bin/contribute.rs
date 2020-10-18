@@ -1,10 +1,11 @@
 use snark_setup_operator::data_structs::{
-    Chunk, ContributedData, ContributionUploadUrl, PlumoSetupKeys, SignedContributedData,
+    Chunk, ContributedData, ContributionUploadUrl, PlumoSetupKeys, SignedData, VerifiedData,
 };
 use snark_setup_operator::utils::{
     address_to_string, create_parameters_for_chunk, download_file_async, get_authorization_value,
-    read_hash_from_file, remove_file_if_exists, sign_json, upload_file_direct_async,
-    upload_file_to_azure_async, upload_mode_from_str, UploadMode,
+    participation_mode_from_str, read_hash_from_file, remove_file_if_exists, sign_json,
+    upload_file_direct_async, upload_file_to_azure_async, upload_mode_from_str, ParticipationMode,
+    UploadMode,
 };
 use snark_setup_operator::{
     data_structs::{Ceremony, Response},
@@ -17,7 +18,7 @@ use ethers::types::{Address, PrivateKey};
 use gumdrop::Options;
 use indicatif::{ProgressBar, ProgressDrawTarget, ProgressStyle};
 use panic_control::{spawn_quiet, ThreadResultExt};
-use phase1_cli::contribute;
+use phase1_cli::{contribute, transform_pok_and_correctness};
 use rand::prelude::SliceRandom;
 use reqwest::header::AUTHORIZATION;
 use secrecy::{ExposeSecret, SecretString, SecretVec};
@@ -33,6 +34,8 @@ const CHALLENGE_FILENAME: &str = "challenge";
 const CHALLENGE_HASH_FILENAME: &str = "challenge.hash";
 const RESPONSE_FILENAME: &str = "response";
 const RESPONSE_HASH_FILENAME: &str = "response.hash";
+const NEW_CHALLENGE_FILENAME: &str = "new_challenge";
+const NEW_CHALLENGE_HASH_FILENAME: &str = "new_challenge.hash";
 
 #[derive(Debug, Options, Clone)]
 pub struct ContributeOpts {
@@ -48,6 +51,8 @@ pub struct ContributeOpts {
     pub keys_path: String,
     #[options(help = "the storage upload mode", default = "auto")]
     pub upload_mode: String,
+    #[options(help = "participation mode", default = "contribute")]
+    pub participation_mode: String,
 }
 
 pub struct Contribute<'a> {
@@ -56,18 +61,21 @@ pub struct Contribute<'a> {
     pub private_key: PrivateKey,
     pub seed: &'a [u8],
     pub upload_mode: UploadMode,
+    pub participation_mode: ParticipationMode,
 }
 
 impl<'a> Contribute<'a> {
     pub fn new(opts: &ContributeOpts, seed: &'a [u8], private_key: &[u8]) -> Result<Self> {
         let private_key = bincode::deserialize(private_key)?;
         let upload_mode = upload_mode_from_str(&opts.upload_mode)?;
+        let participation_mode = participation_mode_from_str(&opts.participation_mode)?;
         let contribute = Self {
             server_url: Url::parse(&opts.coordinator_url)?,
             participant_id: address_to_string(&Address::from(&private_key)),
             private_key,
             seed,
             upload_mode,
+            participation_mode,
         };
         Ok(contribute)
     }
@@ -111,6 +119,12 @@ impl<'a> Contribute<'a> {
                     if incomplete_chunks.len() == 0 {
                         if non_contributed_chunks.len() == 0 {
                             progress_bar.set_position(ceremony.chunks.len() as u64);
+                            remove_file_if_exists(CHALLENGE_FILENAME)?;
+                            remove_file_if_exists(CHALLENGE_HASH_FILENAME)?;
+                            remove_file_if_exists(RESPONSE_FILENAME)?;
+                            remove_file_if_exists(RESPONSE_HASH_FILENAME)?;
+                            remove_file_if_exists(NEW_CHALLENGE_FILENAME)?;
+                            remove_file_if_exists(NEW_CHALLENGE_HASH_FILENAME)?;
                             return Ok(());
                         } else {
                             progress_bar
@@ -132,36 +146,97 @@ impl<'a> Contribute<'a> {
             };
 
             let (chunk_index, chunk) = self.get_chunk(&ceremony, &chunk_id)?;
-            progress_bar.set_message(&format!("Contributing to chunk {}...", chunk_id,));
+            progress_bar.set_message(&format!(
+                "{} to chunk {}...",
+                match self.participation_mode {
+                    ParticipationMode::Contribute => "Contributing to",
+                    ParticipationMode::Verify => "Verifying",
+                },
+                chunk_id,
+            ));
             progress_bar
                 .set_position((ceremony.chunks.len() - non_contributed_chunks.len()) as u64);
-            remove_file_if_exists(CHALLENGE_FILENAME)?;
-            remove_file_if_exists(CHALLENGE_HASH_FILENAME)?;
-            let download_url = self.get_download_url_of_last_challenge(&chunk)?;
-            download_file_async(&download_url, CHALLENGE_FILENAME).await?;
-            let rng = derive_rng_from_seed(seed);
-            let start = Instant::now();
-            remove_file_if_exists(RESPONSE_FILENAME)?;
-            remove_file_if_exists(RESPONSE_HASH_FILENAME)?;
-            let parameters = create_parameters_for_chunk::<E>(&ceremony, chunk_index)?;
-            let h = spawn_quiet(move || {
-                contribute(
-                    CHALLENGE_FILENAME,
-                    CHALLENGE_HASH_FILENAME,
-                    RESPONSE_FILENAME,
-                    RESPONSE_HASH_FILENAME,
-                    &parameters,
-                    rng,
-                );
-            });
-            let result = h.join();
-            if !result.is_ok() {
-                if let Some(panic_value) = result.panic_value_as_str() {
-                    error!("Contribute failed: {}", panic_value);
+            let (file_to_upload, contributed_or_verified_data) = match self.participation_mode {
+                ParticipationMode::Contribute => {
+                    remove_file_if_exists(CHALLENGE_FILENAME)?;
+                    remove_file_if_exists(CHALLENGE_HASH_FILENAME)?;
+                    let download_url = self.get_download_url_of_last_challenge(&chunk)?;
+                    download_file_async(&download_url, CHALLENGE_FILENAME).await?;
+                    let rng = derive_rng_from_seed(seed);
+                    let start = Instant::now();
+                    remove_file_if_exists(RESPONSE_FILENAME)?;
+                    remove_file_if_exists(RESPONSE_HASH_FILENAME)?;
+                    let parameters = create_parameters_for_chunk::<E>(&ceremony, chunk_index)?;
+                    let h = spawn_quiet(move || {
+                        contribute(
+                            CHALLENGE_FILENAME,
+                            CHALLENGE_HASH_FILENAME,
+                            RESPONSE_FILENAME,
+                            RESPONSE_HASH_FILENAME,
+                            &parameters,
+                            rng,
+                        );
+                    });
+                    let result = h.join();
+                    if !result.is_ok() {
+                        if let Some(panic_value) = result.panic_value_as_str() {
+                            error!("Contribute failed: {}", panic_value);
+                        }
+                        return Err(ContributeError::FailedRunningContributeError.into());
+                    }
+                    let duration = start.elapsed();
+                    let contributed_data = ContributedData {
+                        challenge_hash: read_hash_from_file(CHALLENGE_HASH_FILENAME)?,
+                        response_hash: read_hash_from_file(RESPONSE_HASH_FILENAME)?,
+                        contribution_duration: Some(duration.as_millis() as u64),
+                    };
+
+                    (RESPONSE_FILENAME, serde_json::to_value(contributed_data)?)
                 }
-                return Err(ContributeError::FailedRunningContributeError.into());
-            }
-            let duration = start.elapsed();
+                ParticipationMode::Verify => {
+                    remove_file_if_exists(CHALLENGE_FILENAME)?;
+                    remove_file_if_exists(CHALLENGE_HASH_FILENAME)?;
+                    remove_file_if_exists(RESPONSE_FILENAME)?;
+                    remove_file_if_exists(RESPONSE_HASH_FILENAME)?;
+                    let challenge_download_url =
+                        self.get_download_url_of_last_challenge_for_verifying(&chunk)?;
+                    download_file_async(&challenge_download_url, CHALLENGE_FILENAME).await?;
+                    let response_download_url = self.get_download_url_of_last_response(&chunk)?;
+                    download_file_async(&response_download_url, RESPONSE_FILENAME).await?;
+                    let start = Instant::now();
+                    remove_file_if_exists(NEW_CHALLENGE_FILENAME)?;
+                    remove_file_if_exists(NEW_CHALLENGE_HASH_FILENAME)?;
+                    let parameters = create_parameters_for_chunk::<E>(&ceremony, chunk_index)?;
+                    let h = spawn_quiet(move || {
+                        transform_pok_and_correctness(
+                            CHALLENGE_FILENAME,
+                            CHALLENGE_HASH_FILENAME,
+                            RESPONSE_FILENAME,
+                            RESPONSE_HASH_FILENAME,
+                            NEW_CHALLENGE_FILENAME,
+                            NEW_CHALLENGE_HASH_FILENAME,
+                            &parameters,
+                        );
+                    });
+                    let result = h.join();
+                    if !result.is_ok() {
+                        if let Some(panic_value) = result.panic_value_as_str() {
+                            error!("Verification failed: {}", panic_value);
+                        }
+                        return Err(ContributeError::FailedRunningVerificationError.into());
+                    }
+                    let duration = start.elapsed();
+                    let verified_data = VerifiedData {
+                        challenge_hash: read_hash_from_file(CHALLENGE_HASH_FILENAME)?,
+                        response_hash: read_hash_from_file(RESPONSE_HASH_FILENAME)?,
+                        new_challenge_hash: read_hash_from_file(NEW_CHALLENGE_HASH_FILENAME)?,
+                        verification_duration: Some(duration.as_millis() as u64),
+                    };
+
+                    (NEW_CHALLENGE_FILENAME, serde_json::to_value(verified_data)?)
+                }
+            };
+
             let upload_url = self.get_upload_url(&chunk_id).await?;
             let authorization = get_authorization_value(
                 &self.private_key,
@@ -169,34 +244,28 @@ impl<'a> Contribute<'a> {
                 Url::parse(&upload_url)?.path(),
             )?;
 
-            let contributed_data = ContributedData {
-                challenge_hash: read_hash_from_file(CHALLENGE_HASH_FILENAME)?,
-                response_hash: read_hash_from_file(RESPONSE_HASH_FILENAME)?,
-                contribution_duration: Some(duration.as_millis() as u64),
-            };
-            let contributed_data_value = serde_json::to_value(contributed_data)?;
-            let signed_contributed_data = SignedContributedData {
-                signature: sign_json(&self.private_key, &contributed_data_value)?,
-                data: contributed_data_value,
-            };
             match self.upload_mode {
                 UploadMode::Auto => {
                     if upload_url.contains("blob.core.windows.net") {
-                        upload_file_to_azure_async(RESPONSE_FILENAME, &upload_url).await?
+                        upload_file_to_azure_async(file_to_upload, &upload_url).await?
                     } else {
-                        upload_file_direct_async(&authorization, RESPONSE_FILENAME, &upload_url)
+                        upload_file_direct_async(&authorization, file_to_upload, &upload_url)
                             .await?
                     }
                 }
                 UploadMode::Azure => {
-                    upload_file_to_azure_async(RESPONSE_FILENAME, &upload_url).await?
+                    upload_file_to_azure_async(file_to_upload, &upload_url).await?
                 }
                 UploadMode::Direct => {
-                    upload_file_direct_async(&authorization, RESPONSE_FILENAME, &upload_url).await?
+                    upload_file_direct_async(&authorization, file_to_upload, &upload_url).await?
                 }
             }
+            let signed_data = SignedData {
+                signature: sign_json(&self.private_key, &contributed_or_verified_data)?,
+                data: contributed_or_verified_data,
+            };
 
-            self.notify_contribution(&chunk_id, serde_json::to_value(signed_contributed_data)?)
+            self.notify_contribution(&chunk_id, serde_json::to_value(signed_data)?)
                 .await?;
         }
     }
@@ -259,6 +328,41 @@ impl<'a> Contribute<'a> {
                 chunk.chunk_id.to_string(),
             ))?
             .verified_location
+            .clone()
+            .ok_or(ContributeError::VerifiedLocationWasNoneForChunkID(
+                chunk.chunk_id.to_string(),
+            ))?;
+        Ok(url)
+    }
+
+    fn get_download_url_of_last_challenge_for_verifying(&self, chunk: &Chunk) -> Result<String> {
+        let url = chunk
+            .contributions
+            .iter()
+            .rev()
+            .skip(1)
+            .rev()
+            .last()
+            .ok_or(ContributeError::ContributionListWasEmptyForChunkID(
+                chunk.chunk_id.to_string(),
+            ))?
+            .verified_location
+            .clone()
+            .ok_or(ContributeError::VerifiedLocationWasNoneForChunkID(
+                chunk.chunk_id.to_string(),
+            ))?;
+        Ok(url)
+    }
+
+    fn get_download_url_of_last_response(&self, chunk: &Chunk) -> Result<String> {
+        let url = chunk
+            .contributions
+            .iter()
+            .last()
+            .ok_or(ContributeError::ContributionListWasEmptyForChunkID(
+                chunk.chunk_id.to_string(),
+            ))?
+            .contributed_location
             .clone()
             .ok_or(ContributeError::VerifiedLocationWasNoneForChunkID(
                 chunk.chunk_id.to_string(),
