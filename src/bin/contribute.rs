@@ -158,11 +158,11 @@ impl Contribute {
         cloned
     }
 
-    async fn run_ceremony_initialization(&self) -> Result<()> {
+    async fn run_ceremony_initialization_and_get_max_locks(&self) -> Result<u64> {
         let ceremony = self.get_ceremony().await?;
         self.release_locked_chunks(&ceremony).await?;
 
-        Ok(())
+        Ok(ceremony.max_locks)
     }
 
     async fn run_and_catch_errors<E: PairingEngine>(&self) -> Result<()> {
@@ -176,15 +176,29 @@ impl Contribute {
         progress_bar.enable_steady_tick(1000);
         progress_bar.set_style(progress_style);
         progress_bar.set_message("Getting initial data from the server...");
-        while let Err(e) = self.run_ceremony_initialization().await {
-            warn!("Got error from ceremony initialization: {}", e);
-            progress_bar.set_message(&format!("Got error from ceremony initialization: {}", e));
-            tokio::time::delay_for(delay_after_error_duration).await;
+        let max_locks_from_ceremony;
+        loop {
+            let max_locks = self.run_ceremony_initialization_and_get_max_locks().await;
+            match max_locks {
+                Ok(max_locks) => {
+                    max_locks_from_ceremony = max_locks;
+                    break;
+                }
+                Err(e) => {
+                    warn!("Got error from ceremony initialization: {}", e);
+                    progress_bar
+                        .set_message(&format!("Got error from ceremony initialization: {}", e));
+                    tokio::time::delay_for(delay_after_error_duration).await;
+                }
+            }
         }
         let total_tasks = if self.disable_pipelining {
             1
         } else {
-            self.max_in_download_lane + self.max_in_process_lane + self.max_in_upload_lane
+            std::cmp::min(
+                self.max_in_download_lane + self.max_in_process_lane + self.max_in_upload_lane,
+                max_locks_from_ceremony as usize,
+            )
         };
         let mut futures = vec![];
 
@@ -300,6 +314,8 @@ impl Contribute {
                 },
                 participant_locked_chunks.join(", "),
             ));
+            progress_bar
+                .set_position((ceremony.chunks.len() - non_contributed_chunks.len()) as u64);
         } else if non_contributed_chunks.len() == 0 {
             info!("Successfully contributed, thank you for participation! Waiting to see if you're still needed... Don't turn this off! ");
             progress_bar.set_position(ceremony.chunks.len() as u64);
