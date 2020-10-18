@@ -30,6 +30,8 @@ pub enum Command {
     #[options(help = "adds a participant")]
     AddParticipant(AddParticipantOpts),
     RemoveParticipant(RemoveParticipantOpts),
+    AddVerifier(AddParticipantOpts),
+    RemoveVerifier(RemoveParticipantOpts),
 }
 
 #[derive(Debug, Options, Clone)]
@@ -74,6 +76,21 @@ impl Control {
         }
         ceremony.contributor_ids.push(participant_id.clone());
         info!("participants after adding: {:?}", ceremony.contributor_ids);
+        self.put_ceremony(&ceremony).await?;
+        Ok(())
+    }
+
+    async fn add_verifier(&self, participant_id: String) -> Result<()> {
+        let mut ceremony = self.get_ceremony().await?;
+        if ceremony.verifier_ids.contains(&participant_id.to_string()) {
+            return Err(ControlError::ParticipantAlreadyExistsError(
+                participant_id.clone(),
+                ceremony.verifier_ids.clone(),
+            )
+            .into());
+        }
+        ceremony.verifier_ids.push(participant_id.clone());
+        info!("verifiers after adding: {:?}", ceremony.verifier_ids);
         self.put_ceremony(&ceremony).await?;
         Ok(())
     }
@@ -153,6 +170,31 @@ impl Control {
         self.put_ceremony(&ceremony).await?;
         Ok(())
     }
+
+    async fn remove_verifier(&self, participant_id: String) -> Result<()> {
+        let mut ceremony = self.get_ceremony().await?;
+        if !ceremony.verifier_ids.contains(&participant_id.to_string()) {
+            return Err(ControlError::ParticipantDoesNotExistError(
+                participant_id.clone(),
+                ceremony.verifier_ids.clone(),
+            )
+            .into());
+        }
+        ceremony.verifier_ids.retain(|x| *x != participant_id);
+        for (chunk_index, chunk) in ceremony.chunks.iter_mut().enumerate() {
+            // If the verifier is currently holding the lock, release it and continue.
+            if chunk.lock_holder == Some(participant_id.to_string()) {
+                info!(
+                    "chunk {} is locked by the participant, releasing it",
+                    chunk_index
+                );
+                chunk.lock_holder = None;
+                continue;
+            }
+        }
+        self.put_ceremony(&ceremony).await?;
+        Ok(())
+    }
 }
 
 #[tokio::main]
@@ -174,6 +216,14 @@ async fn main() {
             .expect("Should have run command successfully"),
         Command::RemoveParticipant(opts) => control
             .remove_participant(opts.participant_id)
+            .await
+            .expect("Should have run command successfully"),
+        Command::AddVerifier(opts) => control
+            .add_verifier(opts.participant_id)
+            .await
+            .expect("Should have run command successfully"),
+        Command::RemoveVerifier(opts) => control
+            .remove_verifier(opts.participant_id)
             .await
             .expect("Should have run command successfully"),
     });

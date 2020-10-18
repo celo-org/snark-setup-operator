@@ -110,12 +110,16 @@ impl<'a> Contribute<'a> {
             if progress_bar.is_hidden() {
                 progress_bar.set_draw_target(ProgressDrawTarget::stderr());
             }
-            let non_contributed_chunks = self.get_non_contributed_chunks(&ceremony)?;
+            let non_contributed_chunks =
+                self.get_non_contributed_chunks(&ceremony, &self.participation_mode)?;
+
             let chunk_id = match self.get_already_locked_chunk(&ceremony)? {
                 Some(chunk_id) => chunk_id,
                 None => {
-                    let incomplete_chunks =
-                        self.get_non_contributed_and_available_chunks(&ceremony)?;
+                    let incomplete_chunks = self.get_non_contributed_and_available_chunks(
+                        &ceremony,
+                        &self.participation_mode,
+                    )?;
                     if incomplete_chunks.len() == 0 {
                         if non_contributed_chunks.len() == 0 {
                             progress_bar.set_position(ceremony.chunks.len() as u64);
@@ -147,7 +151,7 @@ impl<'a> Contribute<'a> {
 
             let (chunk_index, chunk) = self.get_chunk(&ceremony, &chunk_id)?;
             progress_bar.set_message(&format!(
-                "{} to chunk {}...",
+                "{} chunk {}...",
                 match self.participation_mode {
                     ParticipationMode::Contribute => "Contributing to",
                     ParticipationMode::Verify => "Verifying",
@@ -279,40 +283,86 @@ impl<'a> Contribute<'a> {
         Ok(chunk_id)
     }
 
-    fn get_non_contributed_chunks(&self, ceremony: &Ceremony) -> Result<Vec<String>> {
+    fn get_non_contributed_chunks(
+        &self,
+        ceremony: &Ceremony,
+        participation_mode: &ParticipationMode,
+    ) -> Result<Vec<String>> {
         let mut non_contributed = vec![];
 
         for chunk in ceremony.chunks.iter() {
-            let participant_ids_in_chunk: HashSet<_> = chunk
-                .contributions
-                .iter()
-                .map(|c| c.contributor_id.as_ref())
-                .filter_map(|e| e)
-                .collect();
-            if !participant_ids_in_chunk.contains(&self.participant_id) {
-                non_contributed.push(chunk.chunk_id.clone());
+            match participation_mode {
+                ParticipationMode::Contribute => {
+                    let participant_ids_in_chunk: HashSet<_> = chunk
+                        .contributions
+                        .iter()
+                        .map(|c| c.contributor_id.as_ref())
+                        .filter_map(|e| e)
+                        .collect();
+                    if !participant_ids_in_chunk.contains(&self.participant_id) {
+                        non_contributed.push(chunk.chunk_id.clone());
+                    }
+                }
+                ParticipationMode::Verify => {
+                    if !chunk
+                        .contributions
+                        .iter()
+                        .last()
+                        .ok_or(ContributeError::ContributionListWasEmptyForChunkID(
+                            chunk.chunk_id.to_string(),
+                        ))?
+                        .verified
+                    {
+                        non_contributed.push(chunk.chunk_id.clone());
+                    }
+                }
             }
         }
 
         Ok(non_contributed)
     }
 
-    fn get_non_contributed_and_available_chunks(&self, ceremony: &Ceremony) -> Result<Vec<String>> {
+    fn get_non_contributed_and_available_chunks(
+        &self,
+        ceremony: &Ceremony,
+        participation_mode: &ParticipationMode,
+    ) -> Result<Vec<String>> {
         let mut non_contributed = vec![];
 
         for chunk in ceremony.chunks.iter().filter(|c| c.lock_holder.is_none()) {
-            if !chunk.contributions.iter().all(|c| c.verified) {
+            if *participation_mode == ParticipationMode::Contribute
+                && !chunk.contributions.iter().all(|c| c.verified)
+            {
                 continue;
             }
-            let participant_ids_in_chunk: HashSet<_> = chunk
-                .contributions
-                .iter()
-                .filter(|c| c.verified)
-                .map(|c| c.contributor_id.as_ref())
-                .filter_map(|e| e)
-                .collect();
-            if !participant_ids_in_chunk.contains(&self.participant_id) {
-                non_contributed.push(chunk.chunk_id.clone());
+            match participation_mode {
+                ParticipationMode::Contribute => {
+                    let participant_ids_in_chunk: HashSet<_> = chunk
+                        .contributions
+                        .iter()
+                        .map(|c| match participation_mode {
+                            ParticipationMode::Contribute => c.contributor_id.as_ref(),
+                            ParticipationMode::Verify => c.verifier_id.as_ref(),
+                        })
+                        .filter_map(|e| e)
+                        .collect();
+                    if !participant_ids_in_chunk.contains(&self.participant_id) {
+                        non_contributed.push(chunk.chunk_id.clone());
+                    }
+                }
+                ParticipationMode::Verify => {
+                    if !chunk
+                        .contributions
+                        .iter()
+                        .last()
+                        .ok_or(ContributeError::ContributionListWasEmptyForChunkID(
+                            chunk.chunk_id.to_string(),
+                        ))?
+                        .verified
+                    {
+                        non_contributed.push(chunk.chunk_id.clone());
+                    }
+                }
             }
         }
 

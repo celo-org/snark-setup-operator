@@ -224,7 +224,7 @@ pub fn upload_mode_from_str(upload_mode: &str) -> Result<UploadMode> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ParticipationMode {
     Contribute,
     Verify,
