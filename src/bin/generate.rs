@@ -15,6 +15,7 @@ use std::io::Write;
 
 #[derive(Debug, Options, Clone)]
 pub struct GenerateOpts {
+    help: bool,
     #[options(help = "the path of the output keys file", default = "plumo.keys")]
     pub file_path: String,
 }

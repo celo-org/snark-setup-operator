@@ -69,6 +69,8 @@ pub enum ContributeError {
     CouldNotReadPassphraseError,
     #[error("Failed running contribute")]
     FailedRunningContributeError,
+    #[error("Failed running verification")]
+    FailedRunningVerificationError,
 }
 
 #[derive(Debug, Error)]
@@ -85,4 +87,6 @@ pub enum UtilsError {
     UnknownUploadModeError(String),
     #[error("Option was none")]
     MissingOptionErr,
+    #[error("Unknown participation mode: {0}")]
+    UnknownParticipationModeError(String),
 }

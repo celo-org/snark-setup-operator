@@ -6,14 +6,7 @@ use crate::error::VerifyTranscriptError;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct SignedContributedData {
-    pub data: Value,
-    pub signature: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct SignedVerifiedData {
+pub struct SignedData {
     pub data: Value,
     pub signature: String,
 }
@@ -34,11 +27,11 @@ pub struct Contribution {
 
     pub contributor_id: Option<String>,
     pub contributed_location: Option<String>,
-    pub contributed_data: Option<SignedContributedData>,
+    pub contributed_data: Option<SignedData>,
     pub verifier_id: Option<String>,
     pub verified_location: Option<String>,
     pub verified: bool,
-    pub verified_data: Option<SignedVerifiedData>,
+    pub verified_data: Option<SignedData>,
 }
 
 impl Contribution {

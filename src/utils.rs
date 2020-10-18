@@ -223,3 +223,17 @@ pub fn upload_mode_from_str(upload_mode: &str) -> Result<UploadMode> {
         _ => Err(UtilsError::UnknownUploadModeError(upload_mode.to_string()).into()),
     }
 }
+
+#[derive(Debug, PartialEq)]
+pub enum ParticipationMode {
+    Contribute,
+    Verify,
+}
+
+pub fn participation_mode_from_str(participation_mode: &str) -> Result<ParticipationMode> {
+    match participation_mode {
+        "contribute" => Ok(ParticipationMode::Contribute),
+        "verify" => Ok(ParticipationMode::Verify),
+        _ => Err(UtilsError::UnknownParticipationModeError(participation_mode.to_string()).into()),
+    }
+}

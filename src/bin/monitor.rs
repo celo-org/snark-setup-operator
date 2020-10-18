@@ -12,6 +12,7 @@ use url::Url;
 
 #[derive(Debug, Options, Clone)]
 pub struct MonitorOpts {
+    help: bool,
     #[options(
         help = "the url of the coordinator API",
         default = "http://localhost:8080"
