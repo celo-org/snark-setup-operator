@@ -214,13 +214,9 @@ impl<'a> Contribute<'a> {
         let mut non_contributed = vec![];
 
         for chunk in ceremony.chunks.iter() {
-            if !chunk.contributions.iter().all(|c| c.verified) {
-                continue;
-            }
             let participant_ids_in_chunk: HashSet<_> = chunk
                 .contributions
                 .iter()
-                .filter(|c| c.verified)
                 .map(|c| c.contributor_id.as_ref())
                 .filter_map(|e| e)
                 .collect();
