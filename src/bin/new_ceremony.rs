@@ -54,6 +54,8 @@ pub struct NewCeremonyOpts {
     pub proving_system: String,
     #[options(help = "curve", default = "bw6")]
     pub curve: String,
+    #[options(help = "max locks", default = "3")]
+    pub max_locks: u64,
 }
 
 async fn run<E: PairingEngine>(opts: &NewCeremonyOpts) -> Result<()> {
@@ -192,6 +194,7 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts) -> Result<()> {
     }
     let ceremony = Ceremony {
         version: 0,
+        max_locks: opts.max_locks,
         contributor_ids: opts.participant.clone(),
         verifier_ids: opts.verifier.clone(),
         parameters: Parameters {
