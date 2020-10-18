@@ -1766,7 +1766,7 @@ checksum = "d4fd5641d01c8f18a23da7b6fe29298ff4b55afcccdf78973b24cf3175fee32e"
 [[package]]
 name = "phase1"
 version = "0.3.0"
-source = "git+https://github.com/celo-org/snark-setup?rev=06ddd77dd8b94a7414b889f69b023e3ee92a1765#06ddd77dd8b94a7414b889f69b023e3ee92a1765"
+source = "git+https://github.com/celo-org/snark-setup?rev=9130e315f0e8985723fa4715d59406e1303c693d#9130e315f0e8985723fa4715d59406e1303c693d"
 dependencies = [
  "algebra",
  "algebra-core",
@@ -1785,7 +1785,7 @@ dependencies = [
 [[package]]
 name = "phase1-cli"
 version = "0.3.0"
-source = "git+https://github.com/celo-org/snark-setup?rev=06ddd77dd8b94a7414b889f69b023e3ee92a1765#06ddd77dd8b94a7414b889f69b023e3ee92a1765"
+source = "git+https://github.com/celo-org/snark-setup?rev=9130e315f0e8985723fa4715d59406e1303c693d#9130e315f0e8985723fa4715d59406e1303c693d"
 dependencies = [
  "algebra",
  "gumdrop",
@@ -2444,7 +2444,7 @@ dependencies = [
 [[package]]
 name = "setup-utils"
 version = "0.3.0"
-source = "git+https://github.com/celo-org/snark-setup?rev=06ddd77dd8b94a7414b889f69b023e3ee92a1765#06ddd77dd8b94a7414b889f69b023e3ee92a1765"
+source = "git+https://github.com/celo-org/snark-setup?rev=9130e315f0e8985723fa4715d59406e1303c693d#9130e315f0e8985723fa4715d59406e1303c693d"
 dependencies = [
  "algebra",
  "blake2",
