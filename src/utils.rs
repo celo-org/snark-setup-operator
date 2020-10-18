@@ -208,7 +208,7 @@ pub fn address_to_string(address: &Address) -> String {
     format!("0x{}", address.encode_hex::<String>())
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum UploadMode {
     Auto,
     Azure,
@@ -224,7 +224,7 @@ pub fn upload_mode_from_str(upload_mode: &str) -> Result<UploadMode> {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum ParticipationMode {
     Contribute,
     Verify,

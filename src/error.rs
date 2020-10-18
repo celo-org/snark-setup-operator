@@ -71,6 +71,18 @@ pub enum ContributeError {
     FailedRunningContributeError,
     #[error("Failed running verification")]
     FailedRunningVerificationError,
+    #[error("Seed was none")]
+    SeedWasNoneError,
+    #[error("Lane was null: {0}")]
+    LaneWasNullError(String),
+    #[error("Lane {0} did not contain chunk with ID: {1}")]
+    LaneDidNotContainChunkWithIDError(String, String),
+    #[error("Lane {0} already contains chunk with ID: {1}")]
+    LaneAlreadyContainsChunkWithIDError(String, String),
+    #[error("Could not find chunk with ID {0} in any lane")]
+    CouldNotFindChunkWithIDInAnyLaneError(String),
+    #[error("Could not find chunk with ID {0} in the ceremony locked by participant {1}")]
+    CouldNotFindChunkWithIDLockedByParticipantError(String, String),
 }
 
 #[derive(Debug, Error)]

@@ -99,25 +99,34 @@ pub async fn upload_with_client(
     let size = usize::try_from(file.metadata()?.len())?;
     let mut sent = 0;
     let mut blocks = BlockList { blocks: Vec::new() };
-    let mut data = vec![0; block_size];
+    let mut futures = vec![];
     while sent < size {
         let send_size = cmp::min(block_size, size - sent);
         let block_id = to_id(sent as u64)?;
-        data.resize(send_size, 0);
+        let mut data = vec![0; send_size];
         file.read_exact(&mut data)?;
 
-        client
-            .put_block()
-            .with_container_name(&container)
-            .with_blob_name(&path)
-            .with_body(&data)
-            .with_block_id(&block_id)
-            .finalize()
-            .await?;
+        let client = client.clone();
+        let container = container.to_string();
+        let path = path.to_string();
+        let block_id_for_spawn = block_id.clone();
+        let jh = tokio::spawn(async move {
+            client
+                .put_block()
+                .with_container_name(&container)
+                .with_blob_name(&path)
+                .with_body(&data)
+                .with_block_id(&block_id_for_spawn)
+                .finalize()
+                .await
+        });
+        futures.push(jh);
 
         blocks.blocks.push(BlobBlockType::Uncommitted(block_id));
         sent += send_size;
     }
+
+    futures::future::try_join_all(futures).await?;
 
     client
         .put_block_list()
