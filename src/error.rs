@@ -101,4 +101,6 @@ pub enum UtilsError {
     MissingOptionErr,
     #[error("Unknown participation mode: {0}")]
     UnknownParticipationModeError(String),
+    #[error("Retry failed: {0}")]
+    RetryFailedError(String),
 }

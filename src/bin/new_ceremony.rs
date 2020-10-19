@@ -58,6 +58,34 @@ pub struct NewCeremonyOpts {
     pub max_locks: u64,
 }
 
+fn build_ceremony_from_chunks(opts: &NewCeremonyOpts, chunks: &[Chunk]) -> Result<Ceremony> {
+    let chunk_size = 1 << opts.chunk_size;
+    let ceremony = Ceremony {
+        version: 0,
+        max_locks: opts.max_locks,
+        contributor_ids: opts.participant.clone(),
+        verifier_ids: opts.verifier.clone(),
+        parameters: Parameters {
+            proving_system: opts.proving_system.clone(),
+            curve_kind: opts.curve.clone(),
+            chunk_size: chunk_size,
+            batch_size: chunk_size,
+            power: opts.powers,
+        },
+        chunks: chunks.to_vec(),
+    };
+    let filename = format!("ceremony_{}", chrono::Utc::now().timestamp_nanos());
+    info!(
+        "Saving ceremony with {} chunks to {}",
+        chunks.len(),
+        filename
+    );
+    let mut file = File::create(filename)?;
+    file.write_all(serde_json::to_string_pretty(&ceremony)?.as_bytes())?;
+
+    Ok(ceremony)
+}
+
 async fn run<E: PairingEngine>(opts: &NewCeremonyOpts) -> Result<()> {
     let server_url = Url::parse(opts.server_url.as_str())?.join("ceremony")?;
     let data = reqwest::get(server_url.as_str())
@@ -191,26 +219,10 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts) -> Result<()> {
             ],
         };
         chunks.push(chunk);
+        build_ceremony_from_chunks(&opts, &chunks)?;
     }
-    let ceremony = Ceremony {
-        version: 0,
-        max_locks: opts.max_locks,
-        contributor_ids: opts.participant.clone(),
-        verifier_ids: opts.verifier.clone(),
-        parameters: Parameters {
-            proving_system: opts.proving_system.clone(),
-            curve_kind: opts.curve.clone(),
-            chunk_size: chunk_size,
-            batch_size: chunk_size,
-            power: opts.powers,
-        },
-        chunks,
-    };
 
-    let filename = format!("ceremony_{}", chrono::Utc::now().timestamp_nanos());
-    let mut file = File::create(filename)?;
-    file.write_all(serde_json::to_string_pretty(&ceremony)?.as_bytes())?;
-
+    let ceremony = build_ceremony_from_chunks(&opts, &chunks)?;
     info!("Updating ceremony");
     let client = reqwest::Client::new();
     let authorization = get_authorization_value(&private_key, "PUT", "/ceremony")?;
