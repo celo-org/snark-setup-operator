@@ -923,7 +923,10 @@ impl Contribute {
 
     async fn get_ceremony(&self) -> Result<Ceremony> {
         let ceremony_url = self.server_url.join("ceremony")?;
-        let response = reqwest::get(ceremony_url.as_str())
+        let client = reqwest::Client::builder().gzip(true).build()?;
+        let response = client
+            .get(ceremony_url.as_str())
+            .send()
             .await?
             .error_for_status()?;
         let data = response.text().await?;
