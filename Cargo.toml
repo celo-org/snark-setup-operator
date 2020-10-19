@@ -25,7 +25,7 @@ hex = "0.4"
 phase1 = { git = "https://github.com/celo-org/snark-setup", package = "phase1", rev = "9130e315f0e8985723fa4715d59406e1303c693d" }
 phase1-cli = { git = "https://github.com/celo-org/snark-setup", package = "phase1-cli", rev = "9130e315f0e8985723fa4715d59406e1303c693d" }
 rand = "0.7"
-reqwest = { version = "0.10", features = [ "blocking", "stream" ] }
+reqwest = { version = "0.10", features = [ "blocking", "stream", "gzip" ] }
 setup-utils = { git = "https://github.com/celo-org/snark-setup", package = "setup-utils", rev = "9130e315f0e8985723fa4715d59406e1303c693d" }
 secrecy = { version = "0.7" }
 indicatif = "0.15.0"
