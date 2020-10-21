@@ -14,7 +14,7 @@ use anyhow::Result;
 use ethers::types::{Address, PrivateKey, Signature};
 use hex::ToHex;
 use phase1::{ContributionMode, Phase1Parameters, ProvingSystem};
-use reqwest::header::AUTHORIZATION;
+use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
 use serde::Serialize;
 use zexe_algebra::PairingEngine;
 
@@ -72,6 +72,7 @@ pub async fn upload_file_direct_async(
     client
         .post(url)
         .header(AUTHORIZATION, authorization)
+        .header(CONTENT_TYPE, "application/octet-stream")
         .body(contents)
         .send()
         .await?
