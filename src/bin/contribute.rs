@@ -19,11 +19,16 @@ use gumdrop::Options;
 use indicatif::{ProgressBar, ProgressStyle};
 use lazy_static::lazy_static;
 use panic_control::{spawn_quiet, ThreadResultExt};
+use phase1::helpers::batch_exp_mode_from_str;
 use phase1_cli::{contribute, transform_pok_and_correctness};
 use rand::prelude::SliceRandom;
 use reqwest::header::AUTHORIZATION;
 use secrecy::{ExposeSecret, SecretString, SecretVec};
-use setup_utils::derive_rng_from_seed;
+use setup_utils::{
+    derive_rng_from_seed, upgrade_correctness_check_config, BatchExpMode,
+    DEFAULT_CONTRIBUTE_CHECK_INPUT_CORRECTNESS, DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+    DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
+};
 use std::collections::{HashMap, HashSet};
 use std::io::Read;
 use std::ops::Deref;
@@ -69,10 +74,18 @@ pub struct ContributeOpts {
         default = "plumo.keys"
     )]
     pub keys_path: String,
-    #[options(help = "the storage upload mode", default = "auto")]
-    pub upload_mode: String,
-    #[options(help = "participation mode", default = "contribute")]
-    pub participation_mode: String,
+    #[options(
+        help = "the storage upload mode",
+        default = "auto",
+        parse(try_from_str = "upload_mode_from_str")
+    )]
+    pub upload_mode: UploadMode,
+    #[options(
+        help = "participation mode",
+        default = "contribute",
+        parse(try_from_str = "participation_mode_from_str")
+    )]
+    pub participation_mode: ParticipationMode,
     #[options(help = "don't use pipelining")]
     pub disable_pipelining: bool,
     #[options(help = "maximum tasks in the download lane", default = "1")]
@@ -81,6 +94,17 @@ pub struct ContributeOpts {
     pub max_in_process_lane: usize,
     #[options(help = "maximum tasks in the upload lane", default = "1")]
     pub max_in_upload_lane: usize,
+    #[options(
+        help = "whether to always check whether incoming challenges are in correct subgroup and non-zero",
+        default = "false"
+    )]
+    pub force_correctness_checks: bool,
+    #[options(
+        help = "which batch exponentiation version to use",
+        default = "auto",
+        parse(try_from_str = "batch_exp_mode_from_str")
+    )]
+    pub batch_exp_mode: BatchExpMode,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -113,6 +137,8 @@ pub struct Contribute {
     pub new_challenge_filename: String,
     pub new_challenge_hash_filename: String,
     pub disable_pipelining: bool,
+    pub force_correctness_checks: bool,
+    pub batch_exp_mode: BatchExpMode,
 
     // This is the only mutable state we hold.
     pub chosen_chunk_id: Option<String>,
@@ -121,14 +147,12 @@ pub struct Contribute {
 impl Contribute {
     pub fn new(opts: &ContributeOpts, private_key: &[u8]) -> Result<Self> {
         let private_key = bincode::deserialize(private_key)?;
-        let upload_mode = upload_mode_from_str(&opts.upload_mode)?;
-        let participation_mode = participation_mode_from_str(&opts.participation_mode)?;
         let contribute = Self {
             server_url: Url::parse(&opts.coordinator_url)?,
             participant_id: address_to_string(&Address::from(&private_key)),
             private_key,
-            upload_mode,
-            participation_mode,
+            upload_mode: opts.upload_mode,
+            participation_mode: opts.participation_mode,
             max_in_download_lane: opts.max_in_download_lane,
             max_in_process_lane: opts.max_in_process_lane,
             max_in_upload_lane: opts.max_in_upload_lane,
@@ -139,6 +163,8 @@ impl Contribute {
             new_challenge_filename: NEW_CHALLENGE_FILENAME.to_string(),
             new_challenge_hash_filename: NEW_CHALLENGE_HASH_FILENAME.to_string(),
             disable_pipelining: opts.disable_pipelining,
+            force_correctness_checks: opts.force_correctness_checks,
+            batch_exp_mode: opts.batch_exp_mode,
 
             chosen_chunk_id: None,
         };
@@ -572,11 +598,15 @@ impl Contribute {
                         challenge_hash_filename,
                         response_filename,
                         response_hash_filename,
+                        force_correctness_checks,
+                        batch_exp_mode,
                     ) = (
                         self.challenge_filename.clone(),
                         self.challenge_hash_filename.clone(),
                         self.response_filename.clone(),
                         self.response_hash_filename.clone(),
+                        self.force_correctness_checks.clone(),
+                        self.batch_exp_mode.clone(),
                     );
                     let h = spawn_quiet(move || {
                         contribute(
@@ -584,6 +614,11 @@ impl Contribute {
                             &challenge_hash_filename,
                             &response_filename,
                             &response_hash_filename,
+                            upgrade_correctness_check_config(
+                                DEFAULT_CONTRIBUTE_CHECK_INPUT_CORRECTNESS,
+                                force_correctness_checks,
+                            ),
+                            batch_exp_mode,
                             &parameters,
                             rng,
                         );
@@ -635,6 +670,7 @@ impl Contribute {
                         response_hash_filename,
                         new_challenge_filename,
                         new_challenge_hash_filename,
+                        force_correctness_checks,
                     ) = (
                         self.challenge_filename.clone(),
                         self.challenge_hash_filename.clone(),
@@ -642,13 +678,22 @@ impl Contribute {
                         self.response_hash_filename.clone(),
                         self.new_challenge_filename.clone(),
                         self.new_challenge_hash_filename.clone(),
+                        self.force_correctness_checks.clone(),
                     );
                     let h = spawn_quiet(move || {
                         transform_pok_and_correctness(
                             &challenge_filename,
                             &challenge_hash_filename,
+                            upgrade_correctness_check_config(
+                                DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+                                force_correctness_checks,
+                            ),
                             &response_filename,
                             &response_hash_filename,
+                            upgrade_correctness_check_config(
+                                DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
+                                force_correctness_checks,
+                            ),
                             &new_challenge_filename,
                             &new_challenge_hash_filename,
                             &parameters,
