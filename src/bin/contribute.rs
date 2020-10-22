@@ -1,11 +1,11 @@
 use snark_setup_operator::data_structs::{
-    Chunk, ContributedData, ContributionUploadUrl, PlumoSetupKeys, SignedData, VerifiedData,
+    Chunk, ContributedData, ContributionUploadUrl, SignedData, VerifiedData,
 };
 use snark_setup_operator::utils::{
-    address_to_string, create_parameters_for_chunk, download_file_async, get_authorization_value,
-    participation_mode_from_str, read_hash_from_file, remove_file_if_exists, sign_json,
-    upload_file_direct_async, upload_file_to_azure_async, upload_mode_from_str, ParticipationMode,
-    UploadMode,
+    address_to_string, collect_processor_data, create_parameters_for_chunk, download_file_async,
+    get_authorization_value, participation_mode_from_str, read_hash_from_file, read_keys,
+    remove_file_if_exists, sign_json, upload_file_direct_async, upload_file_to_azure_async,
+    upload_mode_from_str, ParticipationMode, UploadMode,
 };
 use snark_setup_operator::{
     data_structs::{Ceremony, Response},
@@ -23,14 +23,13 @@ use phase1::helpers::batch_exp_mode_from_str;
 use phase1_cli::{contribute, transform_pok_and_correctness};
 use rand::prelude::SliceRandom;
 use reqwest::header::AUTHORIZATION;
-use secrecy::{ExposeSecret, SecretString, SecretVec};
+use secrecy::{ExposeSecret, SecretVec};
 use setup_utils::{
     derive_rng_from_seed, upgrade_correctness_check_config, BatchExpMode,
     DEFAULT_CONTRIBUTE_CHECK_INPUT_CORRECTNESS, DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
     DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
 };
 use std::collections::{HashMap, HashSet};
-use std::io::Read;
 use std::ops::Deref;
 use std::sync::RwLock;
 use tokio::time::Instant;
@@ -105,6 +104,11 @@ pub struct ContributeOpts {
         parse(try_from_str = "batch_exp_mode_from_str")
     )]
     pub batch_exp_mode: BatchExpMode,
+    #[options(
+        help = "whether to disable benchmarking data collection",
+        default = "false"
+    )]
+    pub disable_sysinfo: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -139,6 +143,7 @@ pub struct Contribute {
     pub disable_pipelining: bool,
     pub force_correctness_checks: bool,
     pub batch_exp_mode: BatchExpMode,
+    pub disable_sysinfo: bool,
 
     // This is the only mutable state we hold.
     pub chosen_chunk_id: Option<String>,
@@ -165,6 +170,7 @@ impl Contribute {
             disable_pipelining: opts.disable_pipelining,
             force_correctness_checks: opts.force_correctness_checks,
             batch_exp_mode: opts.batch_exp_mode,
+            disable_sysinfo: opts.disable_sysinfo,
 
             chosen_chunk_id: None,
         };
@@ -631,10 +637,16 @@ impl Contribute {
                         return Err(ContributeError::FailedRunningContributeError.into());
                     }
                     let duration = start.elapsed();
+                    let processor_data = if !self.disable_sysinfo {
+                        Some(collect_processor_data()?)
+                    } else {
+                        None
+                    };
                     let contributed_data = ContributedData {
                         challenge_hash: read_hash_from_file(&self.challenge_hash_filename)?,
                         response_hash: read_hash_from_file(&self.response_hash_filename)?,
                         contribution_duration: Some(duration.as_millis() as u64),
+                        processor_data,
                     };
 
                     (
@@ -1039,33 +1051,6 @@ impl Contribute {
             .error_for_status()?;
         Ok(())
     }
-}
-
-fn decrypt(passphrase: &SecretString, encrypted: &str) -> Result<Vec<u8>> {
-    let decoded = SecretVec::new(hex::decode(encrypted)?);
-    let decryptor = age::Decryptor::new(decoded.expose_secret().as_slice())?;
-    let mut output = vec![];
-    if let age::Decryptor::Passphrase(decryptor) = decryptor {
-        let mut reader = decryptor.decrypt(passphrase, None)?;
-        reader.read_to_end(&mut output)?;
-    } else {
-        return Err(ContributeError::UnsupportedDecryptorError.into());
-    }
-
-    Ok(output)
-}
-
-fn read_keys(keys_path: &str) -> Result<(SecretVec<u8>, SecretVec<u8>)> {
-    let mut contents = String::new();
-    std::fs::File::open(&keys_path)?.read_to_string(&mut contents)?;
-    let keys: PlumoSetupKeys = serde_json::from_str(&contents)?;
-    let passphrase =
-        age::cli_common::read_secret("Enter your Plumo setup passphrase", "Passphrase", None)
-            .map_err(|_| ContributeError::CouldNotReadPassphraseError)?;
-    let plumo_seed = SecretVec::new(decrypt(&passphrase, &keys.encrypted_seed)?);
-    let plumo_private_key = SecretVec::new(decrypt(&passphrase, &keys.encrypted_private_key)?);
-
-    Ok((plumo_seed, plumo_private_key))
 }
 
 #[tokio::main]

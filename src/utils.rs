@@ -8,14 +8,16 @@ use std::{
 };
 
 use crate::blobstore::{upload_access_key, upload_sas};
-use crate::data_structs::Ceremony;
+use crate::data_structs::{Ceremony, PlumoSetupKeys, ProcessorData};
 use crate::error::{UtilsError, VerifyTranscriptError};
 use anyhow::Result;
 use ethers::types::{Address, PrivateKey, Signature};
 use hex::ToHex;
 use phase1::{ContributionMode, Phase1Parameters, ProvingSystem};
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
+use secrecy::{ExposeSecret, SecretString, SecretVec};
 use serde::Serialize;
+use sysinfo::{ProcessorExt, System, SystemExt};
 use zexe_algebra::PairingEngine;
 
 pub fn copy_file_if_exists(file_path: &str, dest_path: &str) -> Result<()> {
@@ -237,4 +239,45 @@ pub fn participation_mode_from_str(participation_mode: &str) -> Result<Participa
         "verify" => Ok(ParticipationMode::Verify),
         _ => Err(UtilsError::UnknownParticipationModeError(participation_mode.to_string()).into()),
     }
+}
+
+fn decrypt(passphrase: &SecretString, encrypted: &str) -> Result<Vec<u8>> {
+    let decoded = SecretVec::new(hex::decode(encrypted)?);
+    let decryptor = age::Decryptor::new(decoded.expose_secret().as_slice())?;
+    let mut output = vec![];
+    if let age::Decryptor::Passphrase(decryptor) = decryptor {
+        let mut reader = decryptor.decrypt(passphrase, None)?;
+        reader.read_to_end(&mut output)?;
+    } else {
+        return Err(UtilsError::UnsupportedDecryptorError.into());
+    }
+
+    Ok(output)
+}
+
+pub fn read_keys(keys_path: &str) -> Result<(SecretVec<u8>, SecretVec<u8>)> {
+    let mut contents = String::new();
+    std::fs::File::open(&keys_path)?.read_to_string(&mut contents)?;
+    let keys: PlumoSetupKeys = serde_json::from_str(&contents)?;
+    let passphrase =
+        age::cli_common::read_secret("Enter your Plumo setup passphrase", "Passphrase", None)
+            .map_err(|_| UtilsError::CouldNotReadPassphraseError)?;
+    let plumo_seed = SecretVec::new(decrypt(&passphrase, &keys.encrypted_seed)?);
+    let plumo_private_key = SecretVec::new(decrypt(&passphrase, &keys.encrypted_private_key)?);
+
+    Ok((plumo_seed, plumo_private_key))
+}
+
+pub fn collect_processor_data() -> Result<Vec<ProcessorData>> {
+    let s = System::new();
+    let processors = s
+        .get_processors()
+        .iter()
+        .map(|p| ProcessorData {
+            name: p.get_name().to_string(),
+            brand: p.get_brand().to_string(),
+            frequency: p.get_frequency().to_string(),
+        })
+        .collect();
+    Ok(processors)
 }

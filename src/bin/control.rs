@@ -7,8 +7,9 @@ use anyhow::Result;
 use ethers::types::PrivateKey;
 use gumdrop::Options;
 use reqwest::header::AUTHORIZATION;
-use snark_setup_operator::utils::get_authorization_value;
-use std::{fs::File, io::Write, process, str::FromStr};
+use secrecy::ExposeSecret;
+use snark_setup_operator::utils::{get_authorization_value, read_keys};
+use std::{fs::File, io::Write, process};
 use tracing::info;
 use url::Url;
 
@@ -42,8 +43,11 @@ pub struct ControlOpts {
         default = "http://localhost:8080"
     )]
     pub coordinator_url: String,
-    #[options(help = "the private key of the control", required)]
-    pub private_key: String,
+    #[options(
+        help = "the encrypted keys for the Plumo setup",
+        default = "plumo.keys"
+    )]
+    pub keys_path: String,
     #[options(command, required)]
     pub command: Option<Command>,
 }
@@ -54,10 +58,11 @@ pub struct Control {
 }
 
 impl Control {
-    pub fn new(opts: &ControlOpts) -> Result<Self> {
+    pub fn new(opts: &ControlOpts, private_key: &[u8]) -> Result<Self> {
+        let private_key = bincode::deserialize(private_key)?;
         let control = Self {
             server_url: Url::parse(&opts.coordinator_url)?.join("ceremony")?,
-            private_key: PrivateKey::from_str(&opts.private_key)?,
+            private_key,
         };
         Ok(control)
     }
@@ -202,7 +207,10 @@ async fn main() {
     tracing_subscriber::fmt::init();
 
     let opts: ControlOpts = ControlOpts::parse_args_default_or_exit();
-    let control = Control::new(&opts).expect("Should have been able to create a control.");
+    let (_, private_key) = read_keys(&opts.keys_path).expect("Should have loaded Plumo setup keys");
+
+    let control = Control::new(&opts, private_key.expose_secret())
+        .expect("Should have been able to create a control.");
     let command = opts.clone().command.unwrap_or_else(|| {
         eprintln!("No command was provided.");
         eprintln!("{}", ControlOpts::usage());
