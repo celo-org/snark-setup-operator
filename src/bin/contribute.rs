@@ -1,5 +1,5 @@
 use snark_setup_operator::data_structs::{
-    Chunk, ChunkInfo, ContributedData, ContributionUploadUrl, FilteredChunks, PlumoSetupKeys, SignedData, VerifiedData,
+    Chunk, ContributedData, ContributionUploadUrl, FilteredChunks, PlumoSetupKeys, SignedData, VerifiedData,
 };
 use snark_setup_operator::utils::{
     address_to_string, create_parameters_for_chunk, download_file_async, get_authorization_value,
@@ -294,15 +294,14 @@ impl Contribute {
     }
 
     async fn status_updater(&self, progress_bar: ProgressBar) -> Result<()> {
-        let ceremony = self.get_ceremony().await?;
         let chunk_info = self.get_chunk_info().await?;
-        progress_bar.set_length(ceremony.chunks.len() as u64);
+        let num_chunks = chunk_info.chunks.len();
+        progress_bar.set_length(num_chunks as u64);
         let non_contributed_chunks =
             self.get_non_contributed_chunks(&chunk_info)?;
         
-        let num_chunks = chunk_info.chunks.len();
 
-        let participant_locked_chunks = self.get_participant_locked_chunks_display(&ceremony)?;
+        let participant_locked_chunks = self.get_participant_locked_chunks_display(&chunk_info)?;
         if participant_locked_chunks.len() > 0 {
             progress_bar.set_message(&format!(
                 "{} {} {}...",
@@ -720,7 +719,7 @@ impl Contribute {
         }
     }
 
-    fn get_participant_locked_chunks_display(&self, ceremony: &Ceremony) -> Result<Vec<String>> {
+    fn get_participant_locked_chunks_display(&self, ceremony: &FilteredChunks) -> Result<Vec<String>> {
         let mut chunk_ids = vec![];
         let pipeline = self.get_pipeline_snapshot()?;
         for lane in &[
