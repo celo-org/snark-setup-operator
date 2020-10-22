@@ -762,7 +762,6 @@ impl Contribute {
 
             self.remove_chunk_id_from_lane_if_exists(&PipelineLane::Upload, &chunk_id)?;
         }
-        Ok(chunk_ids)
     }
 
     fn get_participant_locked_chunks_display(&self, ceremony: &FilteredChunks) -> Result<Vec<String>> {
@@ -988,7 +987,6 @@ impl Contribute {
             .error_for_status()?
             .json()
             .await?;
-        info!("Write URL {}", response.result.write_url);
         Ok(response.result.write_url)
     }
 

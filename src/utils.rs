@@ -18,8 +18,6 @@ use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
 use serde::Serialize;
 use zexe_algebra::PairingEngine;
 
-use tracing::info;
-
 pub fn copy_file_if_exists(file_path: &str, dest_path: &str) -> Result<()> {
     if Path::new(file_path).exists() {
         copy(file_path, dest_path)?;
@@ -168,7 +166,6 @@ pub fn get_authorization_value(
 ) -> Result<String> {
     let address = Address::from(private_key).encode_hex::<String>();
     let message = format!("{} /{}", method.to_lowercase(), path.to_lowercase());
-    info!("Message {}", message);
     let signature = private_key.sign(message).to_string();
     let authorization = format!("Celo 0x{}:0x{}", address, signature);
     Ok(authorization)
