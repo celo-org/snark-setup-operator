@@ -115,7 +115,7 @@ impl Control {
     async fn put_ceremony(&self, ceremony: &Ceremony) -> Result<()> {
         self.backup_ceremony(ceremony)?;
         let client = reqwest::Client::new();
-        let authorization = get_authorization_value(&self.private_key, "PUT", "/ceremony")?;
+        let authorization = get_authorization_value(&self.private_key, "PUT", "ceremony")?;
         client
             .put(self.server_url.as_str())
             .header(AUTHORIZATION, authorization)

@@ -8,15 +8,17 @@ use std::{
 };
 
 use crate::blobstore::{upload_access_key, upload_sas};
-use crate::data_structs::Ceremony;
+use crate::data_structs::Parameters;
 use crate::error::{UtilsError, VerifyTranscriptError};
 use anyhow::Result;
 use ethers::types::{Address, PrivateKey, Signature};
 use hex::ToHex;
 use phase1::{ContributionMode, Phase1Parameters, ProvingSystem};
-use reqwest::header::AUTHORIZATION;
+use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
 use serde::Serialize;
 use zexe_algebra::PairingEngine;
+
+use tracing::info;
 
 pub fn copy_file_if_exists(file_path: &str, dest_path: &str) -> Result<()> {
     if Path::new(file_path).exists() {
@@ -72,6 +74,7 @@ pub async fn upload_file_direct_async(
     client
         .post(url)
         .header(AUTHORIZATION, authorization)
+        .header(CONTENT_TYPE, "application/octet-stream")
         .body(contents)
         .send()
         .await?
@@ -164,36 +167,37 @@ pub fn get_authorization_value(
     path: &str,
 ) -> Result<String> {
     let address = Address::from(private_key).encode_hex::<String>();
-    let message = format!("{} {}", method.to_lowercase(), path.to_lowercase());
+    let message = format!("{} /{}", method.to_lowercase(), path.to_lowercase());
+    info!("Message {}", message);
     let signature = private_key.sign(message).to_string();
     let authorization = format!("Celo 0x{}:0x{}", address, signature);
     Ok(authorization)
 }
 
 pub fn create_parameters_for_chunk<E: PairingEngine>(
-    ceremony: &Ceremony,
+    ceremony_parameters: &Parameters,
     chunk_index: usize,
 ) -> Result<Phase1Parameters<E>> {
-    let proving_system = proving_system_from_str(ceremony.parameters.proving_system.as_str())?;
+    let proving_system = proving_system_from_str(ceremony_parameters.proving_system.as_str())?;
     let parameters = Phase1Parameters::<E>::new_chunk(
         ContributionMode::Chunked,
         chunk_index,
-        ceremony.parameters.chunk_size,
+        ceremony_parameters.chunk_size,
         proving_system,
-        ceremony.parameters.power,
-        ceremony.parameters.batch_size,
+        ceremony_parameters.power,
+        ceremony_parameters.batch_size,
     );
     Ok(parameters)
 }
 
 pub fn create_full_parameters<E: PairingEngine>(
-    ceremony: &Ceremony,
+    ceremony_parameters: &Parameters,
 ) -> Result<Phase1Parameters<E>> {
-    let proving_system = proving_system_from_str(ceremony.parameters.proving_system.as_str())?;
+    let proving_system = proving_system_from_str(ceremony_parameters.proving_system.as_str())?;
     let parameters = Phase1Parameters::<E>::new_full(
         proving_system,
-        ceremony.parameters.power,
-        ceremony.parameters.batch_size,
+        ceremony_parameters.power,
+        ceremony_parameters.batch_size,
     );
     Ok(parameters)
 }

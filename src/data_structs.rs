@@ -137,6 +137,21 @@ pub struct Ceremony {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct ChunkInfo {
+    pub chunk_id: String,
+    pub lock_holder: Option<String>,
+    pub contributed: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct FilteredChunks {
+    pub chunks: Vec<ChunkInfo>,
+    pub parameters: Parameters,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct Response<T> {
     pub result: T,
     pub status: String,

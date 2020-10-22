@@ -110,7 +110,7 @@ impl TranscriptVerifier {
         }
 
         for (chunk_index, chunk) in self.ceremony.chunks.iter().enumerate() {
-            let parameters = create_parameters_for_chunk::<E>(&self.ceremony, chunk_index)?;
+            let parameters = create_parameters_for_chunk::<E>(&self.ceremony.parameters, chunk_index)?;
             let mut current_new_challenge_hash = String::new();
             for (i, contribution) in chunk.contributions.iter().enumerate() {
                 // Clean up the previous contribution challenge and response.
@@ -241,11 +241,11 @@ impl TranscriptVerifier {
         drop(response_list_file);
         info!("all chunks verified, aggregating");
         remove_file_if_exists(COMBINED_FILENAME)?;
-        let parameters = create_parameters_for_chunk::<E>(&self.ceremony, 0)?;
+        let parameters = create_parameters_for_chunk::<E>(&self.ceremony.parameters, 0)?;
         // Combine the last contributions from each chunk into a single big contributions.
         combine(RESPONSE_LIST_FILENAME, COMBINED_FILENAME, &parameters);
         info!("combined, applying beacon");
-        let parameters = create_full_parameters::<E>(&self.ceremony)?;
+        let parameters = create_full_parameters::<E>(&self.ceremony.parameters)?;
         remove_file_if_exists(COMBINED_HASH_FILENAME)?;
         remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_FILENAME)?;
         remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME)?;
