@@ -129,7 +129,8 @@ impl TranscriptVerifier {
         }
 
         for (chunk_index, chunk) in self.ceremony.chunks.iter().enumerate() {
-            let parameters = create_parameters_for_chunk::<E>(&self.ceremony.parameters, chunk_index)?;
+            let parameters =
+                create_parameters_for_chunk::<E>(&self.ceremony.parameters, chunk_index)?;
             let mut current_new_challenge_hash = String::new();
             for (i, contribution) in chunk.contributions.iter().enumerate() {
                 // Clean up the previous contribution challenge and response.

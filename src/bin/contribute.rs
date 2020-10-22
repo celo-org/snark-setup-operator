@@ -1,5 +1,6 @@
 use snark_setup_operator::data_structs::{
-    Chunk, ContributedData, ContributionUploadUrl, FilteredChunks, PlumoSetupKeys, SignedData, VerifiedData,
+    Chunk, ContributedData, ContributionUploadUrl, FilteredChunks, PlumoSetupKeys, SignedData,
+    VerifiedData,
 };
 use snark_setup_operator::utils::{
     address_to_string, create_parameters_for_chunk, download_file_async, get_authorization_value,
@@ -323,9 +324,7 @@ impl Contribute {
         let chunk_info = self.get_chunk_info().await?;
         let num_chunks = chunk_info.chunks.len();
         progress_bar.set_length(num_chunks as u64);
-        let non_contributed_chunks =
-            self.get_non_contributed_chunks(&chunk_info)?;
-        
+        let non_contributed_chunks = self.get_non_contributed_chunks(&chunk_info)?;
 
         let participant_locked_chunks = self.get_participant_locked_chunks_display(&chunk_info)?;
         if participant_locked_chunks.len() > 0 {
@@ -342,15 +341,13 @@ impl Contribute {
                 },
                 participant_locked_chunks.join(", "),
             ));
-            progress_bar
-                .set_position((num_chunks - non_contributed_chunks.len()) as u64);
+            progress_bar.set_position((num_chunks - non_contributed_chunks.len()) as u64);
         } else if non_contributed_chunks.len() == 0 {
             info!("Successfully contributed, thank you for participation! Waiting to see if you're still needed... Don't turn this off! ");
             progress_bar.set_position(num_chunks as u64);
             progress_bar.set_message("Successfully contributed, thank you for participation! Waiting to see if you're still needed... Don't turn this off!");
         } else {
-            progress_bar
-                .set_position((num_chunks - non_contributed_chunks.len()) as u64);
+            progress_bar.set_position((num_chunks - non_contributed_chunks.len()) as u64);
             progress_bar.set_message(&format!("Waiting for an available chunk...",));
         }
 
@@ -389,8 +386,7 @@ impl Contribute {
             }
         }
 
-        let incomplete_chunks =
-            self.get_non_contributed_and_available_chunks(&ceremony)?;
+        let incomplete_chunks = self.get_non_contributed_and_available_chunks(&ceremony)?;
         Ok(incomplete_chunks
             .choose(&mut rand::thread_rng())
             .ok_or(ContributeError::CouldNotChooseChunkError)?
@@ -541,11 +537,9 @@ impl Contribute {
                 .await?;
             let chunk_info = self.get_chunk_info().await?;
 
-            let non_contributed_chunks =
-                self.get_non_contributed_chunks(&chunk_info)?;
+            let non_contributed_chunks = self.get_non_contributed_chunks(&chunk_info)?;
 
-            let incomplete_chunks =
-                self.get_non_contributed_and_available_chunks(&chunk_info)?;
+            let incomplete_chunks = self.get_non_contributed_and_available_chunks(&chunk_info)?;
             if incomplete_chunks.len() == 0 {
                 if non_contributed_chunks.len() == 0 {
                     remove_file_if_exists(&self.challenge_filename)?;
@@ -594,7 +588,8 @@ impl Contribute {
                     let start = Instant::now();
                     remove_file_if_exists(&self.response_filename)?;
                     remove_file_if_exists(&self.response_hash_filename)?;
-                    let parameters = create_parameters_for_chunk::<E>(&chunk_info.parameters, chunk_index)?;
+                    let parameters =
+                        create_parameters_for_chunk::<E>(&chunk_info.parameters, chunk_index)?;
                     let (
                         challenge_filename,
                         challenge_hash_filename,
@@ -663,7 +658,8 @@ impl Contribute {
                     let start = Instant::now();
                     remove_file_if_exists(&self.new_challenge_filename)?;
                     remove_file_if_exists(&self.new_challenge_hash_filename)?;
-                    let parameters = create_parameters_for_chunk::<E>(&chunk_info.parameters, chunk_index)?;
+                    let parameters =
+                        create_parameters_for_chunk::<E>(&chunk_info.parameters, chunk_index)?;
 
                     let (
                         challenge_filename,
@@ -764,7 +760,10 @@ impl Contribute {
         }
     }
 
-    fn get_participant_locked_chunks_display(&self, ceremony: &FilteredChunks) -> Result<Vec<String>> {
+    fn get_participant_locked_chunks_display(
+        &self,
+        ceremony: &FilteredChunks,
+    ) -> Result<Vec<String>> {
         let mut chunk_ids = vec![];
         let pipeline = self.get_pipeline_snapshot()?;
         for lane in &[
@@ -820,10 +819,7 @@ impl Contribute {
         Ok(())
     }
 
-    fn get_non_contributed_chunks(
-        &self,
-        ceremony: &FilteredChunks,
-    ) -> Result<Vec<String>> {
+    fn get_non_contributed_chunks(&self, ceremony: &FilteredChunks) -> Result<Vec<String>> {
         let mut non_contributed = vec![];
 
         for chunk in ceremony.chunks.iter() {
@@ -941,7 +937,8 @@ impl Contribute {
             .await?
             .error_for_status()?;
         let data = response.text().await?;
-        let ceremony: FilteredChunks = serde_json::from_str::<Response<FilteredChunks>>(&data)?.result;
+        let ceremony: FilteredChunks =
+            serde_json::from_str::<Response<FilteredChunks>>(&data)?.result;
         Ok(ceremony)
     }
 
