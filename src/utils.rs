@@ -14,7 +14,7 @@ use anyhow::Result;
 use ethers::types::{Address, PrivateKey, Signature};
 use hex::ToHex;
 use phase1::{ContributionMode, Phase1Parameters, ProvingSystem};
-use reqwest::header::AUTHORIZATION;
+use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
 use serde::Serialize;
 use zexe_algebra::PairingEngine;
 
@@ -72,6 +72,7 @@ pub async fn upload_file_direct_async(
     client
         .post(url)
         .header(AUTHORIZATION, authorization)
+        .header(CONTENT_TYPE, "application/octet-stream")
         .body(contents)
         .send()
         .await?
@@ -208,7 +209,7 @@ pub fn address_to_string(address: &Address) -> String {
     format!("0x{}", address.encode_hex::<String>())
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum UploadMode {
     Auto,
     Azure,
@@ -224,7 +225,7 @@ pub fn upload_mode_from_str(upload_mode: &str) -> Result<UploadMode> {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum ParticipationMode {
     Contribute,
     Verify,

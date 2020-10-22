@@ -77,7 +77,7 @@ dependencies = [
 [[package]]
 name = "algebra"
 version = "0.1.1-alpha.0"
-source = "git+https://github.com/celo-org/zexe?rev=9febfcae7804e3224118c65607d9505a7dad4b29#9febfcae7804e3224118c65607d9505a7dad4b29"
+source = "git+https://github.com/celo-org/zexe?rev=ba217a777e8b09b59037a2a3408a0c5812ec65fb#ba217a777e8b09b59037a2a3408a0c5812ec65fb"
 dependencies = [
  "algebra-core",
 ]
@@ -85,7 +85,7 @@ dependencies = [
 [[package]]
 name = "algebra-core"
 version = "0.1.1-alpha.0"
-source = "git+https://github.com/celo-org/zexe?rev=9febfcae7804e3224118c65607d9505a7dad4b29#9febfcae7804e3224118c65607d9505a7dad4b29"
+source = "git+https://github.com/celo-org/zexe?rev=ba217a777e8b09b59037a2a3408a0c5812ec65fb#ba217a777e8b09b59037a2a3408a0c5812ec65fb"
 dependencies = [
  "algebra-core-derive",
  "cc",
@@ -104,7 +104,7 @@ dependencies = [
 [[package]]
 name = "algebra-core-derive"
 version = "0.1.1-alpha.0"
-source = "git+https://github.com/celo-org/zexe?rev=9febfcae7804e3224118c65607d9505a7dad4b29#9febfcae7804e3224118c65607d9505a7dad4b29"
+source = "git+https://github.com/celo-org/zexe?rev=ba217a777e8b09b59037a2a3408a0c5812ec65fb#ba217a777e8b09b59037a2a3408a0c5812ec65fb"
 dependencies = [
  "proc-macro2 1.0.24",
  "quote 1.0.7",
@@ -143,6 +143,19 @@ name = "arrayvec"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cff77d8686867eceff3105329d4698d96c2391c176d5d03adc90c7389162b5b8"
+
+[[package]]
+name = "async-compression"
+version = "0.3.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9021768bcce77296b64648cc7a7460e3df99979b97ed5c925c38d1cc83778d98"
+dependencies = [
+ "bytes",
+ "flate2",
+ "futures-core",
+ "memchr",
+ "pin-project-lite",
+]
 
 [[package]]
 name = "async-trait"
@@ -257,7 +270,7 @@ checksum = "cdcf67bb7ba7797a081cd19009948ab533af7c355d5caf1d08c777582d351e9c"
 [[package]]
 name = "bench-utils"
 version = "0.1.1-alpha.0"
-source = "git+https://github.com/celo-org/zexe?rev=9febfcae7804e3224118c65607d9505a7dad4b29#9febfcae7804e3224118c65607d9505a7dad4b29"
+source = "git+https://github.com/celo-org/zexe?rev=ba217a777e8b09b59037a2a3408a0c5812ec65fb#ba217a777e8b09b59037a2a3408a0c5812ec65fb"
 
 [[package]]
 name = "bincode"
@@ -490,6 +503,15 @@ name = "cpuid-bool"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8aebca1129a03dc6dc2b127edd729435bbc4a37e1d5f4d7513165089ceb02634"
+
+[[package]]
+name = "crc32fast"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ba125de2af0df55319f41944744ad91c71113bf74a4646efff39afe1f6842db1"
+dependencies = [
+ "cfg-if 0.1.10",
+]
 
 [[package]]
 name = "crossbeam"
@@ -855,7 +877,7 @@ checksum = "e88a8acf291dafb59c2d96e8f59828f3838bb1a70398823ade51a84de6a6deed"
 [[package]]
 name = "ff-fft"
 version = "0.1.1-alpha.0"
-source = "git+https://github.com/celo-org/zexe?rev=9febfcae7804e3224118c65607d9505a7dad4b29#9febfcae7804e3224118c65607d9505a7dad4b29"
+source = "git+https://github.com/celo-org/zexe?rev=ba217a777e8b09b59037a2a3408a0c5812ec65fb#ba217a777e8b09b59037a2a3408a0c5812ec65fb"
 dependencies = [
  "algebra-core",
  "rand 0.7.3",
@@ -872,6 +894,18 @@ dependencies = [
  "rand 0.7.3",
  "rustc-hex",
  "static_assertions",
+]
+
+[[package]]
+name = "flate2"
+version = "1.0.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "da80be589a72651dcda34d8b35bcdc9b7254ad06325611074d9cc0fbb19f60ee"
+dependencies = [
+ "cfg-if 0.1.10",
+ "crc32fast",
+ "libc",
+ "miniz_oxide",
 ]
 
 [[package]]
@@ -975,6 +1009,17 @@ dependencies = [
  "proc-macro2 1.0.24",
  "quote 1.0.7",
  "syn 1.0.44",
+]
+
+[[package]]
+name = "futures-retry"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "759bfe7464299589f02197a973e0e01f17c4cdcef87b454579af8b0629ba7420"
+dependencies = [
+ "futures",
+ "pin-project",
+ "tokio",
 ]
 
 [[package]]
@@ -1766,7 +1811,7 @@ checksum = "d4fd5641d01c8f18a23da7b6fe29298ff4b55afcccdf78973b24cf3175fee32e"
 [[package]]
 name = "phase1"
 version = "0.3.0"
-source = "git+https://github.com/celo-org/snark-setup?rev=06ddd77dd8b94a7414b889f69b023e3ee92a1765#06ddd77dd8b94a7414b889f69b023e3ee92a1765"
+source = "git+https://github.com/celo-org/snark-setup?rev=6d5a1d53286ae1a1d9dc3b7d2d43d296f4ab6296#6d5a1d53286ae1a1d9dc3b7d2d43d296f4ab6296"
 dependencies = [
  "algebra",
  "algebra-core",
@@ -1785,7 +1830,7 @@ dependencies = [
 [[package]]
 name = "phase1-cli"
 version = "0.3.0"
-source = "git+https://github.com/celo-org/snark-setup?rev=06ddd77dd8b94a7414b889f69b023e3ee92a1765#06ddd77dd8b94a7414b889f69b023e3ee92a1765"
+source = "git+https://github.com/celo-org/snark-setup?rev=6d5a1d53286ae1a1d9dc3b7d2d43d296f4ab6296#6d5a1d53286ae1a1d9dc3b7d2d43d296f4ab6296"
 dependencies = [
  "algebra",
  "gumdrop",
@@ -1936,7 +1981,7 @@ dependencies = [
 [[package]]
 name = "r1cs-core"
 version = "0.1.1-alpha.0"
-source = "git+https://github.com/celo-org/zexe?rev=9febfcae7804e3224118c65607d9505a7dad4b29#9febfcae7804e3224118c65607d9505a7dad4b29"
+source = "git+https://github.com/celo-org/zexe?rev=ba217a777e8b09b59037a2a3408a0c5812ec65fb#ba217a777e8b09b59037a2a3408a0c5812ec65fb"
 dependencies = [
  "algebra-core",
  "tracing",
@@ -2119,6 +2164,7 @@ version = "0.10.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e9eaa17ac5d7b838b7503d118fa16ad88f440498bf9ffe5424e621f93190d61e"
 dependencies = [
+ "async-compression",
  "base64 0.12.3",
  "bytes",
  "encoding_rs",
@@ -2444,7 +2490,7 @@ dependencies = [
 [[package]]
 name = "setup-utils"
 version = "0.3.0"
-source = "git+https://github.com/celo-org/snark-setup?rev=06ddd77dd8b94a7414b889f69b023e3ee92a1765#06ddd77dd8b94a7414b889f69b023e3ee92a1765"
+source = "git+https://github.com/celo-org/snark-setup?rev=6d5a1d53286ae1a1d9dc3b7d2d43d296f4ab6296#6d5a1d53286ae1a1d9dc3b7d2d43d296f4ab6296"
 dependencies = [
  "algebra",
  "blake2",
@@ -2541,9 +2587,12 @@ dependencies = [
  "byteorder",
  "chrono",
  "ethers",
+ "futures",
+ "futures-retry",
  "gumdrop",
  "hex",
  "indicatif",
+ "lazy_static",
  "openssl-sys",
  "panic-control",
  "phase1",

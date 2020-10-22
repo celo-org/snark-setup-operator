@@ -128,6 +128,7 @@ pub struct Parameters {
 #[serde(rename_all = "camelCase")]
 pub struct Ceremony {
     pub version: u64,
+    pub max_locks: u64,
     pub contributor_ids: Vec<String>,
     pub verifier_ids: Vec<String>,
     pub chunks: Vec<Chunk>,

@@ -5,7 +5,7 @@
 
 pub const ONE_MB: usize = 1024 * 1024;
 
-use crate::error::HttpError;
+use crate::error::{HttpError, UtilsError};
 use anyhow::Result;
 use azure_core::{BlobNameSupport, BlockIdSupport, BodySupport, ContainerNameSupport};
 use azure_storage::blob::blob::{BlobBlockType, BlockList, BlockListSupport};
@@ -13,11 +13,13 @@ use azure_storage::blob::container::{PublicAccess, PublicAccessSupport};
 use azure_storage::core::key_client::KeyClient;
 use azure_storage::{client, Blob, Container};
 use byteorder::{LittleEndian, WriteBytesExt};
+use futures_retry::{FutureRetry, RetryPolicy};
 use std::cmp;
 use std::convert::TryFrom;
 use std::fs::File;
 use std::io::prelude::*;
 use std::ops::Deref;
+use tracing::warn;
 use url::Url;
 
 const MAX_BLOCK_SIZE: usize = ONE_MB * 100;
@@ -51,7 +53,7 @@ pub async fn upload_sas(file_path: &str, sas: &str) -> Result<()> {
     let (account, container, path) = parse_sas(sas)?;
     let client = client::with_azure_sas(&account, sas);
 
-    upload_with_client(&client, &container, &path, file_path).await
+    upload_with_client_with_retries(&client, &container, &path, file_path).await
 }
 
 pub async fn upload_access_key(
@@ -84,7 +86,31 @@ pub async fn upload_access_key(
             .finalize()
             .await?;
     }
-    upload_with_client(&client, container, path, file_path).await
+    upload_with_client_with_retries(&client, container, path, file_path).await
+}
+
+fn handle_error(e: anyhow::Error) -> RetryPolicy<anyhow::Error> {
+    warn!("Failed uploading: {0}, retrying...", e.to_string());
+    RetryPolicy::WaitRetry(
+        chrono::Duration::seconds(5)
+            .to_std()
+            .expect("Should have converted to standard duration"),
+    )
+}
+
+pub async fn upload_with_client_with_retries(
+    client: &KeyClient,
+    container: &str,
+    path: &str,
+    file_path: &str,
+) -> Result<()> {
+    FutureRetry::new(
+        move || upload_with_client(client, container, path, file_path),
+        handle_error,
+    )
+    .await
+    .map_err(|e| UtilsError::RetryFailedError(e.0.to_string()))?;
+    Ok(())
 }
 
 pub async fn upload_with_client(
@@ -99,25 +125,34 @@ pub async fn upload_with_client(
     let size = usize::try_from(file.metadata()?.len())?;
     let mut sent = 0;
     let mut blocks = BlockList { blocks: Vec::new() };
-    let mut data = vec![0; block_size];
+    let mut futures = vec![];
     while sent < size {
         let send_size = cmp::min(block_size, size - sent);
         let block_id = to_id(sent as u64)?;
-        data.resize(send_size, 0);
+        let mut data = vec![0; send_size];
         file.read_exact(&mut data)?;
 
-        client
-            .put_block()
-            .with_container_name(&container)
-            .with_blob_name(&path)
-            .with_body(&data)
-            .with_block_id(&block_id)
-            .finalize()
-            .await?;
+        let client = client.clone();
+        let container = container.to_string();
+        let path = path.to_string();
+        let block_id_for_spawn = block_id.clone();
+        let jh = tokio::spawn(async move {
+            client
+                .put_block()
+                .with_container_name(&container)
+                .with_blob_name(&path)
+                .with_body(&data)
+                .with_block_id(&block_id_for_spawn)
+                .finalize()
+                .await
+        });
+        futures.push(jh);
 
         blocks.blocks.push(BlobBlockType::Uncommitted(block_id));
         sent += send_size;
     }
+
+    futures::future::try_join_all(futures).await?;
 
     client
         .put_block_list()

@@ -1,9 +1,13 @@
 use anyhow::Result;
 use gumdrop::Options;
+use phase1::helpers::batch_exp_mode_from_str;
 use phase1_cli::{
     combine, contribute, new_challenge, transform_pok_and_correctness, transform_ratios,
 };
-use setup_utils::{beacon_randomness, derive_rng_from_seed, from_slice};
+use setup_utils::{
+    derive_rng_from_seed, from_slice, upgrade_correctness_check_config, BatchExpMode,
+    DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS, DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
+};
 use snark_setup_operator::{
     data_structs::{Ceremony, Response},
     error::VerifyTranscriptError,
@@ -54,12 +58,25 @@ pub struct VerifyTranscriptOpts {
     pub participant_id: Vec<String>,
     #[options(help = "the beacon hash", required)]
     pub beacon_hash: String,
+    #[options(
+        help = "whether to always check whether incoming challenges are in correct subgroup and non-zero",
+        default = "false"
+    )]
+    pub force_correctness_checks: bool,
+    #[options(
+        help = "which batch exponentiation version to use",
+        default = "auto",
+        parse(try_from_str = "batch_exp_mode_from_str")
+    )]
+    pub batch_exp_mode: BatchExpMode,
 }
 
 pub struct TranscriptVerifier {
     pub ceremony: Ceremony,
     pub participant_ids: Vec<String>,
     pub beacon_hash: Vec<u8>,
+    pub force_correctness_checks: bool,
+    pub batch_exp_mode: BatchExpMode,
 }
 
 impl TranscriptVerifier {
@@ -81,6 +98,8 @@ impl TranscriptVerifier {
             ceremony,
             participant_ids: opts.participant_id.clone(),
             beacon_hash,
+            force_correctness_checks: opts.force_correctness_checks,
+            batch_exp_mode: opts.batch_exp_mode,
         };
         Ok(verifier)
     }
@@ -192,8 +211,16 @@ impl TranscriptVerifier {
                 transform_pok_and_correctness(
                     CHALLENGE_FILENAME,
                     CHALLENGE_HASH_FILENAME,
+                    upgrade_correctness_check_config(
+                        DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+                        self.force_correctness_checks,
+                    ),
                     RESPONSE_FILENAME,
                     RESPONSE_HASH_FILENAME,
+                    upgrade_correctness_check_config(
+                        DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
+                        self.force_correctness_checks,
+                    ),
                     NEW_CHALLENGE_FILENAME,
                     NEW_CHALLENGE_HASH_FILENAME,
                     &parameters,
@@ -249,13 +276,18 @@ impl TranscriptVerifier {
         remove_file_if_exists(COMBINED_HASH_FILENAME)?;
         remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_FILENAME)?;
         remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME)?;
-        let rng = derive_rng_from_seed(&beacon_randomness(from_slice(&self.beacon_hash)));
+        let rng = derive_rng_from_seed(&from_slice(&self.beacon_hash));
         // Apply the random beacon.
         contribute(
             COMBINED_FILENAME,
             COMBINED_HASH_FILENAME,
             COMBINED_VERIFIED_POK_AND_CORRECTNESS_FILENAME,
             COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME,
+            upgrade_correctness_check_config(
+                DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+                self.force_correctness_checks,
+            ),
+            self.batch_exp_mode,
             &parameters,
             rng,
         );
@@ -268,8 +300,16 @@ impl TranscriptVerifier {
         transform_pok_and_correctness(
             COMBINED_FILENAME,
             COMBINED_HASH_FILENAME,
+            upgrade_correctness_check_config(
+                DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+                self.force_correctness_checks,
+            ),
             COMBINED_VERIFIED_POK_AND_CORRECTNESS_FILENAME,
             COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME,
+            upgrade_correctness_check_config(
+                DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
+                self.force_correctness_checks,
+            ),
             COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME,
             COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME,
             &parameters,
@@ -278,6 +318,10 @@ impl TranscriptVerifier {
         // correct ratios hold between elements.
         transform_ratios(
             COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME,
+            upgrade_correctness_check_config(
+                DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+                self.force_correctness_checks,
+            ),
             &parameters,
         );
 
