@@ -1,6 +1,6 @@
 use snark_setup_operator::data_structs::{
-    ChunkDownloadInfo, ContributedData, ContributionUploadUrl, FilteredChunks, PlumoSetupKeys, SignedData,
-    VerifiedData,
+    ChunkDownloadInfo, ContributedData, ContributionUploadUrl, FilteredChunks, PlumoSetupKeys,
+    SignedData, VerifiedData,
 };
 use snark_setup_operator::utils::{
     address_to_string, create_parameters_for_chunk, download_file_async, get_authorization_value,
@@ -847,32 +847,26 @@ impl Contribute {
     }
 
     fn get_download_url_of_last_challenge(&self, chunk: &ChunkDownloadInfo) -> Result<String> {
-        let url = chunk
-            .last_challenge_url
-            .clone()
-            .ok_or(ContributeError::VerifiedLocationWasNoneForChunkID(
-                chunk.chunk_id.to_string(),
-            ))?;
+        let url = chunk.last_challenge_url.clone().ok_or(
+            ContributeError::VerifiedLocationWasNoneForChunkID(chunk.chunk_id.to_string()),
+        )?;
         Ok(url)
     }
 
-    fn get_download_url_of_last_challenge_for_verifying(&self, chunk: &ChunkDownloadInfo) -> Result<String> {
-        let url = chunk
-            .previous_challenge_url
-            .clone()
-            .ok_or(ContributeError::VerifiedLocationWasNoneForChunkID(
-                chunk.chunk_id.to_string(),
-            ))?;
+    fn get_download_url_of_last_challenge_for_verifying(
+        &self,
+        chunk: &ChunkDownloadInfo,
+    ) -> Result<String> {
+        let url = chunk.previous_challenge_url.clone().ok_or(
+            ContributeError::VerifiedLocationWasNoneForChunkID(chunk.chunk_id.to_string()),
+        )?;
         Ok(url)
     }
 
     fn get_download_url_of_last_response(&self, chunk: &ChunkDownloadInfo) -> Result<String> {
-        let url = chunk
-            .last_response_url
-            .clone()
-            .ok_or(ContributeError::ContributedLocationWasNoneForChunkID(
-                chunk.chunk_id.to_string(),
-            ))?;
+        let url = chunk.last_response_url.clone().ok_or(
+            ContributeError::ContributedLocationWasNoneForChunkID(chunk.chunk_id.to_string()),
+        )?;
         Ok(url)
     }
 
@@ -886,7 +880,8 @@ impl Contribute {
             .await?
             .error_for_status()?;
         let data = response.text().await?;
-        let chunk: ChunkDownloadInfo = serde_json::from_str::<Response<ChunkDownloadInfo>>(&data)?.result;
+        let chunk: ChunkDownloadInfo =
+            serde_json::from_str::<Response<ChunkDownloadInfo>>(&data)?.result;
         Ok((chunk_id.parse::<usize>()?, chunk))
     }
 
