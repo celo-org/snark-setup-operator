@@ -1,5 +1,5 @@
 use snark_setup_operator::data_structs::{
-    Chunk, ContributedData, ContributionUploadUrl, FilteredChunks, PlumoSetupKeys, SignedData,
+    ChunkDownloadInfo, ContributedData, ContributionUploadUrl, FilteredChunks, PlumoSetupKeys, SignedData,
     VerifiedData,
 };
 use snark_setup_operator::utils::{
@@ -564,7 +564,7 @@ impl Contribute {
             self.chosen_chunk_id = Some(chunk_id.to_string());
             self.lock_chunk(&chunk_id).await?;
 
-            let (chunk_index, chunk) = self.get_chunk(&chunk_id).await?;
+            let (chunk_index, chunk) = self.get_chunk_download_info(&chunk_id).await?;
 
             let (file_to_upload, contributed_or_verified_data) = match self.participation_mode {
                 ParticipationMode::Contribute => {
@@ -846,15 +846,9 @@ impl Contribute {
         Ok(non_contributed)
     }
 
-    fn get_download_url_of_last_challenge(&self, chunk: &Chunk) -> Result<String> {
+    fn get_download_url_of_last_challenge(&self, chunk: &ChunkDownloadInfo) -> Result<String> {
         let url = chunk
-            .contributions
-            .iter()
-            .last()
-            .ok_or(ContributeError::ContributionListWasEmptyForChunkID(
-                chunk.chunk_id.to_string(),
-            ))?
-            .verified_location
+            .last_challenge_url
             .clone()
             .ok_or(ContributeError::VerifiedLocationWasNoneForChunkID(
                 chunk.chunk_id.to_string(),
@@ -862,18 +856,9 @@ impl Contribute {
         Ok(url)
     }
 
-    fn get_download_url_of_last_challenge_for_verifying(&self, chunk: &Chunk) -> Result<String> {
+    fn get_download_url_of_last_challenge_for_verifying(&self, chunk: &ChunkDownloadInfo) -> Result<String> {
         let url = chunk
-            .contributions
-            .iter()
-            .rev()
-            .skip(1)
-            .rev()
-            .last()
-            .ok_or(ContributeError::ContributionListWasEmptyForChunkID(
-                chunk.chunk_id.to_string(),
-            ))?
-            .verified_location
+            .previous_challenge_url
             .clone()
             .ok_or(ContributeError::VerifiedLocationWasNoneForChunkID(
                 chunk.chunk_id.to_string(),
@@ -881,24 +866,18 @@ impl Contribute {
         Ok(url)
     }
 
-    fn get_download_url_of_last_response(&self, chunk: &Chunk) -> Result<String> {
+    fn get_download_url_of_last_response(&self, chunk: &ChunkDownloadInfo) -> Result<String> {
         let url = chunk
-            .contributions
-            .iter()
-            .last()
-            .ok_or(ContributeError::ContributionListWasEmptyForChunkID(
-                chunk.chunk_id.to_string(),
-            ))?
-            .contributed_location
+            .last_response_url
             .clone()
-            .ok_or(ContributeError::VerifiedLocationWasNoneForChunkID(
+            .ok_or(ContributeError::ContributedLocationWasNoneForChunkID(
                 chunk.chunk_id.to_string(),
             ))?;
         Ok(url)
     }
 
-    async fn get_chunk(&self, chunk_id: &str) -> Result<(usize, Chunk)> {
-        let get_path = format!("chunks/{}", chunk_id);
+    async fn get_chunk_download_info(&self, chunk_id: &str) -> Result<(usize, ChunkDownloadInfo)> {
+        let get_path = format!("chunk-info/{}", chunk_id);
         let get_chunk_url = self.server_url.join(&get_path)?;
         let client = reqwest::Client::new();
         let response = client
@@ -907,7 +886,7 @@ impl Contribute {
             .await?
             .error_for_status()?;
         let data = response.text().await?;
-        let chunk: Chunk = serde_json::from_str::<Response<Chunk>>(&data)?.result;
+        let chunk: ChunkDownloadInfo = serde_json::from_str::<Response<ChunkDownloadInfo>>(&data)?.result;
         Ok((chunk_id.parse::<usize>()?, chunk))
     }
 

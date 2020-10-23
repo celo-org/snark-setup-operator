@@ -145,6 +145,16 @@ pub struct ChunkInfo {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct ChunkDownloadInfo {
+    pub chunk_id: String,
+    pub lock_holder: Option<String>,
+    pub last_response_url: Option<String>,
+    pub last_challenge_url: Option<String>,
+    pub previous_challenge_url: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct FilteredChunks {
     pub chunks: Vec<ChunkInfo>,
     pub parameters: Parameters,

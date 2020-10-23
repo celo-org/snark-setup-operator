@@ -63,6 +63,8 @@ pub enum ContributeError {
     ContributionListWasEmptyForChunkID(String),
     #[error("Verified location was none for the last contribution in chunk with ID: {0}")]
     VerifiedLocationWasNoneForChunkID(String),
+    #[error("Contributed location was none for the last contribution in chunk with ID: {0}")]
+    ContributedLocationWasNoneForChunkID(String),
     #[error("Unsupported decryptor")]
     UnsupportedDecryptorError,
     #[error("Could not read passphrase")]
