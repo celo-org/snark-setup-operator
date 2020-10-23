@@ -14,7 +14,8 @@ use snark_setup_operator::{
 
 use anyhow::Result;
 use chrono::Duration;
-use ethers::types::{Address, PrivateKey};
+use ethers::core::k256::ecdsa::SigningKey;
+use ethers::signers::LocalWallet;
 use gumdrop::Options;
 use indicatif::{ProgressBar, ProgressStyle};
 use lazy_static::lazy_static;
@@ -128,7 +129,7 @@ impl std::fmt::Display for PipelineLane {
 pub struct Contribute {
     pub server_url: Url,
     pub participant_id: String,
-    pub private_key: PrivateKey,
+    pub private_key: LocalWallet,
     pub upload_mode: UploadMode,
     pub participation_mode: ParticipationMode,
     pub max_in_download_lane: usize,
@@ -151,10 +152,10 @@ pub struct Contribute {
 
 impl Contribute {
     pub fn new(opts: &ContributeOpts, private_key: &[u8]) -> Result<Self> {
-        let private_key = bincode::deserialize(private_key)?;
+        let private_key = LocalWallet::from(SigningKey::new(private_key)?);
         let contribute = Self {
             server_url: Url::parse(&opts.coordinator_url)?,
-            participant_id: address_to_string(&Address::from(&private_key)),
+            participant_id: address_to_string(&private_key.address()),
             private_key,
             upload_mode: opts.upload_mode,
             participation_mode: opts.participation_mode,

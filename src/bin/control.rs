@@ -4,7 +4,8 @@ use snark_setup_operator::{
 };
 
 use anyhow::Result;
-use ethers::types::PrivateKey;
+use ethers::core::k256::ecdsa::SigningKey;
+use ethers::signers::LocalWallet;
 use gumdrop::Options;
 use reqwest::header::AUTHORIZATION;
 use secrecy::ExposeSecret;
@@ -54,12 +55,12 @@ pub struct ControlOpts {
 
 pub struct Control {
     pub server_url: Url,
-    pub private_key: PrivateKey,
+    pub private_key: LocalWallet,
 }
 
 impl Control {
     pub fn new(opts: &ControlOpts, private_key: &[u8]) -> Result<Self> {
-        let private_key = bincode::deserialize(private_key)?;
+        let private_key = LocalWallet::from(SigningKey::new(private_key)?);
         let control = Self {
             server_url: Url::parse(&opts.coordinator_url)?.join("ceremony")?,
             private_key,

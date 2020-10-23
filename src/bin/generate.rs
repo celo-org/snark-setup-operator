@@ -1,10 +1,12 @@
+use age::cli_common::read_secret;
 use age::{
     armor::{ArmoredWriter, Format},
     cli_common::Passphrase,
     EncryptError, Encryptor,
 };
 use anyhow::Result;
-use ethers::types::{Address, PrivateKey};
+use blake2::{Blake2s, Digest};
+use ethers::signers::LocalWallet;
 use gumdrop::Options;
 use rand::rngs::OsRng;
 use rand::RngCore;
@@ -12,6 +14,8 @@ use secrecy::{ExposeSecret, SecretVec};
 use snark_setup_operator::data_structs::PlumoSetupKeys;
 use snark_setup_operator::utils::address_to_string;
 use std::io::Write;
+
+const PLUMO_SETUP_PERSONALIZATION: &[u8] = b"PLUMOSET";
 
 #[derive(Debug, Options, Clone)]
 pub struct GenerateOpts {
@@ -38,6 +42,9 @@ fn encrypt(encryptor: Encryptor, secret: &[u8]) -> Result<String> {
 
 fn main() {
     let opts: GenerateOpts = GenerateOpts::parse_args_default_or_exit();
+    let entropy = read_secret("Enter some entropy for your Plumo seed", "Entropy", None)
+        .expect("Should have read entropy");
+
     let mut file = std::fs::File::create(&opts.file_path).expect("Should have created keys file");
     let (plumo_encryptor, private_key_encryptor) =
         match age::cli_common::read_or_generate_passphrase() {
@@ -61,12 +68,17 @@ fn main() {
     let mut rng = OsRng;
     let mut plumo_seed = vec![0u8; 64];
     rng.fill_bytes(&mut plumo_seed[..]);
-    let plumo_seed = SecretVec::new(plumo_seed);
-    let private_key = PrivateKey::new(&mut rng);
-    let address = address_to_string(&Address::from(&private_key));
-    let private_key = private_key.serialize();
 
-    let encrypted_plumo_seed = encrypt(plumo_encryptor, plumo_seed.expose_secret())
+    let plumo_seed = SecretVec::new(plumo_seed);
+    let mut hasher = Blake2s::with_params(&[], &[], PLUMO_SETUP_PERSONALIZATION);
+    hasher.update(entropy.expose_secret().as_bytes());
+    hasher.update(plumo_seed.expose_secret());
+
+    let private_key = LocalWallet::new(&mut rng);
+    let address = address_to_string(&private_key.address());
+    let private_key = private_key.signer().to_bytes();
+
+    let encrypted_plumo_seed = encrypt(plumo_encryptor, hasher.finalize().as_slice())
         .expect("Should have encrypted Plumo seed");
     let encrypted_plumo_private_key = encrypt(private_key_encryptor, &private_key[..])
         .expect("Should have encrypted private key");

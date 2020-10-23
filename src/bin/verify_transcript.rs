@@ -258,9 +258,9 @@ impl TranscriptVerifier {
                 // contributions, so add that to the list.
                 if i == chunk.contributions.len() - 1 {
                     let response_filename =
-                        format!("{}_{}\n", RESPONSE_PREFIX_FOR_AGGREGATION, chunk_index);
+                        format!("{}_{}", RESPONSE_PREFIX_FOR_AGGREGATION, chunk_index);
                     copy(RESPONSE_FILENAME, &response_filename)?;
-                    response_list_file.write(response_filename.as_bytes())?;
+                    response_list_file.write(format!("{}\n", response_filename).as_bytes())?;
                 }
             }
             info!("chunk {} verified", chunk.chunk_id);

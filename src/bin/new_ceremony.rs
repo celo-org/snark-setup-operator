@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
-use ethers::types::Address;
+use ethers::core::k256::ecdsa::SigningKey;
+use ethers::signers::LocalWallet;
 use gumdrop::Options;
 use phase1::{ContributionMode, Phase1Parameters, ProvingSystem};
 use phase1_cli::new_challenge;
@@ -97,11 +98,11 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
         .text()
         .await?;
     let ceremony: Ceremony = serde_json::from_str::<Response<Ceremony>>(&data)?.result;
-    let private_key = bincode::deserialize(private_key)?;
+    let private_key = LocalWallet::from(SigningKey::new(private_key)?);
     if ceremony.version != 0
         || !ceremony
             .verifier_ids
-            .contains(&address_to_string(&Address::from(&private_key)))
+            .contains(&address_to_string(&private_key.address()))
     {
         return Err(anyhow!("Can only initialize a ceremony with version 0 and the verifiers list must contain the address matching the private key"));
     }

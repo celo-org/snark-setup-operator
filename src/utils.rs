@@ -11,7 +11,7 @@ use crate::blobstore::{upload_access_key, upload_sas};
 use crate::data_structs::{Ceremony, PlumoSetupKeys, ProcessorData};
 use crate::error::{UtilsError, VerifyTranscriptError};
 use anyhow::Result;
-use ethers::types::{Address, PrivateKey, Signature};
+use ethers::types::{Address, Signature};
 use hex::ToHex;
 use phase1::{ContributionMode, Phase1Parameters, ProvingSystem};
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
@@ -93,10 +93,10 @@ pub fn remove_file_if_exists(file_path: &str) -> Result<()> {
     Ok(())
 }
 
+use ethers::signers::{LocalWallet, Signer};
+
 pub fn verify_signed_data<T: Serialize>(data: &T, signature: &str, id: &str) -> Result<()> {
-    let vrs_signature = &signature[2..];
-    let rsv_signature = vrs_to_rsv(vrs_signature);
-    let signature = Signature::from_str(&rsv_signature)?;
+    let signature = Signature::from_str(&signature[2..])?;
     let serialized_data = serde_json::to_string(data)?;
 
     let deserialized_id = hex::decode(&id[2..])?;
@@ -162,14 +162,14 @@ pub fn check_new_challenge_hashes_same(a: &str, b: &str) -> Result<()> {
 }
 
 pub fn get_authorization_value(
-    private_key: &PrivateKey,
+    private_key: &LocalWallet,
     method: &str,
     path: &str,
 ) -> Result<String> {
-    let address = Address::from(private_key).encode_hex::<String>();
+    let address = private_key.address().encode_hex::<String>();
     let message = format!("{} {}", method.to_lowercase(), path.to_lowercase());
-    let signature = private_key.sign(message).to_string();
-    let authorization = format!("Celo 0x{}:0x{}", address, signature);
+    let signature: Signature = futures::executor::block_on(private_key.sign_message(message))?;
+    let authorization = format!("Celo 0x{}:0x{}", address, signature.to_string());
     Ok(authorization)
 }
 
@@ -201,10 +201,10 @@ pub fn create_full_parameters<E: PairingEngine>(
     Ok(parameters)
 }
 
-pub fn sign_json(private_key: &PrivateKey, value: &serde_json::Value) -> Result<String> {
+pub fn sign_json(private_key: &LocalWallet, value: &serde_json::Value) -> Result<String> {
     let message = serde_json::to_string(value)?;
-    let signature = private_key.sign(message).to_string();
-    Ok(format!("0x{}", signature))
+    let signature: Signature = futures::executor::block_on(private_key.sign_message(message))?;
+    Ok(format!("0x{}", signature.to_string()))
 }
 
 pub fn address_to_string(address: &Address) -> String {
