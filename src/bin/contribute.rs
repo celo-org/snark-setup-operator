@@ -729,7 +729,7 @@ impl Contribute {
             let authorization = get_authorization_value(
                 &self.private_key,
                 "POST",
-                &(Url::parse(&upload_url)?.path())[1..],
+                &Url::parse(&upload_url)?.path().trim_start_matches("/"),
             )?;
 
             match self.upload_mode {
