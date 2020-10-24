@@ -1,0 +1,11 @@
+server {
+        listen 80 default_server;
+        listen [::]:80 default_server;
+
+        gzip on;
+        gzip_types application/json;
+
+        location / {
+                proxy_pass http://localhost:8080;
+        }
+}
