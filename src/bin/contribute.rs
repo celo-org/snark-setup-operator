@@ -1,11 +1,11 @@
 use snark_setup_operator::data_structs::{
-    Chunk, ContributedData, ContributionUploadUrl, PlumoSetupKeys, SignedData, VerifiedData,
+    Chunk, ContributedData, ContributionUploadUrl, SignedData, VerifiedData,
 };
 use snark_setup_operator::utils::{
-    address_to_string, create_parameters_for_chunk, download_file_async, get_authorization_value,
-    participation_mode_from_str, read_hash_from_file, remove_file_if_exists, sign_json,
-    upload_file_direct_async, upload_file_to_azure_async, upload_mode_from_str, ParticipationMode,
-    UploadMode,
+    address_to_string, collect_processor_data, create_parameters_for_chunk, download_file_async,
+    get_authorization_value, participation_mode_from_str, read_hash_from_file, read_keys,
+    remove_file_if_exists, sign_json, upload_file_direct_async, upload_file_to_azure_async,
+    upload_mode_from_str, ParticipationMode, UploadMode,
 };
 use snark_setup_operator::{
     data_structs::{Ceremony, Response},
@@ -14,7 +14,8 @@ use snark_setup_operator::{
 
 use anyhow::Result;
 use chrono::Duration;
-use ethers::types::{Address, PrivateKey};
+use ethers::core::k256::ecdsa::SigningKey;
+use ethers::signers::LocalWallet;
 use gumdrop::Options;
 use indicatif::{ProgressBar, ProgressStyle};
 use lazy_static::lazy_static;
@@ -23,14 +24,13 @@ use phase1::helpers::batch_exp_mode_from_str;
 use phase1_cli::{contribute, transform_pok_and_correctness};
 use rand::prelude::SliceRandom;
 use reqwest::header::AUTHORIZATION;
-use secrecy::{ExposeSecret, SecretString, SecretVec};
+use secrecy::{ExposeSecret, SecretVec};
 use setup_utils::{
     derive_rng_from_seed, upgrade_correctness_check_config, BatchExpMode,
     DEFAULT_CONTRIBUTE_CHECK_INPUT_CORRECTNESS, DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
     DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
 };
 use std::collections::{HashMap, HashSet};
-use std::io::Read;
 use std::ops::Deref;
 use std::sync::RwLock;
 use tokio::time::Instant;
@@ -59,6 +59,7 @@ lazy_static! {
         RwLock::new(map)
     };
     static ref SEED: RwLock<Option<SecretVec<u8>>> = RwLock::new(None);
+    static ref EXITING: RwLock<bool> = RwLock::new(false);
 }
 
 #[derive(Debug, Options, Clone)]
@@ -105,6 +106,15 @@ pub struct ContributeOpts {
         parse(try_from_str = "batch_exp_mode_from_str")
     )]
     pub batch_exp_mode: BatchExpMode,
+    #[options(
+        help = "whether to disable benchmarking data collection",
+        default = "false"
+    )]
+    pub disable_sysinfo: bool,
+    #[options(help = "exit when finished contributing for the first time")]
+    pub exit_when_finished_contributing: bool,
+    #[options(help = "read passphrase from stdin. THIS IS UNSAFE as it doesn't use pinentry!")]
+    pub unsafe_passphrase: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -124,7 +134,7 @@ impl std::fmt::Display for PipelineLane {
 pub struct Contribute {
     pub server_url: Url,
     pub participant_id: String,
-    pub private_key: PrivateKey,
+    pub private_key: LocalWallet,
     pub upload_mode: UploadMode,
     pub participation_mode: ParticipationMode,
     pub max_in_download_lane: usize,
@@ -139,6 +149,8 @@ pub struct Contribute {
     pub disable_pipelining: bool,
     pub force_correctness_checks: bool,
     pub batch_exp_mode: BatchExpMode,
+    pub disable_sysinfo: bool,
+    pub exit_when_finished_contributing: bool,
 
     // This is the only mutable state we hold.
     pub chosen_chunk_id: Option<String>,
@@ -146,10 +158,10 @@ pub struct Contribute {
 
 impl Contribute {
     pub fn new(opts: &ContributeOpts, private_key: &[u8]) -> Result<Self> {
-        let private_key = bincode::deserialize(private_key)?;
+        let private_key = LocalWallet::from(SigningKey::new(private_key)?);
         let contribute = Self {
             server_url: Url::parse(&opts.coordinator_url)?,
-            participant_id: address_to_string(&Address::from(&private_key)),
+            participant_id: address_to_string(&private_key.address()),
             private_key,
             upload_mode: opts.upload_mode,
             participation_mode: opts.participation_mode,
@@ -165,6 +177,8 @@ impl Contribute {
             disable_pipelining: opts.disable_pipelining,
             force_correctness_checks: opts.force_correctness_checks,
             batch_exp_mode: opts.batch_exp_mode,
+            disable_sysinfo: opts.disable_sysinfo,
+            exit_when_finished_contributing: opts.exit_when_finished_contributing,
 
             chosen_chunk_id: None,
         };
@@ -232,7 +246,14 @@ impl Contribute {
         tokio::spawn(async move {
             loop {
                 match updater.status_updater(progress_bar.clone()).await {
-                    Ok(_) => {}
+                    Ok(true) => {
+                        let mut exiting = EXITING
+                            .write()
+                            .expect("Should have opened exiting signal for writing");
+                        *exiting = true;
+                        return;
+                    }
+                    Ok(false) => {}
                     Err(e) => {
                         warn!("Got error from updater: {}", e);
                         progress_bar.set_message(&format!(
@@ -251,7 +272,14 @@ impl Contribute {
                 loop {
                     let result = cloned.run::<E>().await;
                     match result {
-                        Ok(_) => {}
+                        Ok(_) => {
+                            let exiting = EXITING
+                                .read()
+                                .expect("Should have opened exiting signal for read");
+                            if *exiting {
+                                return;
+                            }
+                        }
                         Err(e) => {
                             warn!("Got error from run: {}, retrying...", e);
                             if let Some(chunk_id) = cloned.chosen_chunk_id.as_ref() {
@@ -319,7 +347,7 @@ impl Contribute {
         Ok(pipeline.clone())
     }
 
-    async fn status_updater(&self, progress_bar: ProgressBar) -> Result<()> {
+    async fn status_updater(&self, progress_bar: ProgressBar) -> Result<bool> {
         let ceremony = self.get_ceremony().await?;
         progress_bar.set_length(ceremony.chunks.len() as u64);
         let non_contributed_chunks =
@@ -345,14 +373,20 @@ impl Contribute {
         } else if non_contributed_chunks.len() == 0 {
             info!("Successfully contributed, thank you for participation! Waiting to see if you're still needed... Don't turn this off! ");
             progress_bar.set_position(ceremony.chunks.len() as u64);
-            progress_bar.set_message("Successfully contributed, thank you for participation! Waiting to see if you're still needed... Don't turn this off!");
+            if !self.exit_when_finished_contributing {
+                progress_bar.set_message("Successfully contributed, thank you for participation! Waiting to see if you're still needed... Don't turn this off!");
+            } else {
+                progress_bar.set_message("Successfully contributed, thank you for participation!");
+                progress_bar.finish();
+                return Ok(true);
+            }
         } else {
             progress_bar
                 .set_position((ceremony.chunks.len() - non_contributed_chunks.len()) as u64);
             progress_bar.set_message(&format!("Waiting for an available chunk...",));
         }
 
-        Ok(())
+        Ok(false)
     }
 
     fn choose_chunk_id(&self, ceremony: &Ceremony) -> Result<String> {
@@ -631,10 +665,16 @@ impl Contribute {
                         return Err(ContributeError::FailedRunningContributeError.into());
                     }
                     let duration = start.elapsed();
+                    let processor_data = if !self.disable_sysinfo {
+                        Some(collect_processor_data()?)
+                    } else {
+                        None
+                    };
                     let contributed_data = ContributedData {
                         challenge_hash: read_hash_from_file(&self.challenge_hash_filename)?,
                         response_hash: read_hash_from_file(&self.response_hash_filename)?,
                         contribution_duration: Some(duration.as_millis() as u64),
+                        processor_data,
                     };
 
                     (
@@ -1041,33 +1081,6 @@ impl Contribute {
     }
 }
 
-fn decrypt(passphrase: &SecretString, encrypted: &str) -> Result<Vec<u8>> {
-    let decoded = SecretVec::new(hex::decode(encrypted)?);
-    let decryptor = age::Decryptor::new(decoded.expose_secret().as_slice())?;
-    let mut output = vec![];
-    if let age::Decryptor::Passphrase(decryptor) = decryptor {
-        let mut reader = decryptor.decrypt(passphrase, None)?;
-        reader.read_to_end(&mut output)?;
-    } else {
-        return Err(ContributeError::UnsupportedDecryptorError.into());
-    }
-
-    Ok(output)
-}
-
-fn read_keys(keys_path: &str) -> Result<(SecretVec<u8>, SecretVec<u8>)> {
-    let mut contents = String::new();
-    std::fs::File::open(&keys_path)?.read_to_string(&mut contents)?;
-    let keys: PlumoSetupKeys = serde_json::from_str(&contents)?;
-    let passphrase =
-        age::cli_common::read_secret("Enter your Plumo setup passphrase", "Passphrase", None)
-            .map_err(|_| ContributeError::CouldNotReadPassphraseError)?;
-    let plumo_seed = SecretVec::new(decrypt(&passphrase, &keys.encrypted_seed)?);
-    let plumo_private_key = SecretVec::new(decrypt(&passphrase, &keys.encrypted_private_key)?);
-
-    Ok((plumo_seed, plumo_private_key))
-}
-
 #[tokio::main]
 async fn main() {
     let appender = tracing_appender::rolling::never(".", "snark-setup.log");
@@ -1078,8 +1091,8 @@ async fn main() {
         .init();
 
     let opts: ContributeOpts = ContributeOpts::parse_args_default_or_exit();
-    let (seed, private_key) =
-        read_keys(&opts.keys_path).expect("Should have loaded Plumo setup keys");
+    let (seed, private_key) = read_keys(&opts.keys_path, opts.unsafe_passphrase)
+        .expect("Should have loaded Plumo setup keys");
 
     *SEED.write().expect("Should have been able to write seed") = Some(seed);
 

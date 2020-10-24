@@ -63,10 +63,6 @@ pub enum ContributeError {
     ContributionListWasEmptyForChunkID(String),
     #[error("Verified location was none for the last contribution in chunk with ID: {0}")]
     VerifiedLocationWasNoneForChunkID(String),
-    #[error("Unsupported decryptor")]
-    UnsupportedDecryptorError,
-    #[error("Could not read passphrase")]
-    CouldNotReadPassphraseError,
     #[error("Failed running contribute")]
     FailedRunningContributeError,
     #[error("Failed running verification")]
@@ -103,4 +99,8 @@ pub enum UtilsError {
     UnknownParticipationModeError(String),
     #[error("Retry failed: {0}")]
     RetryFailedError(String),
+    #[error("Could not read passphrase")]
+    CouldNotReadPassphraseError,
+    #[error("Unsupported decryptor")]
+    UnsupportedDecryptorError,
 }
