@@ -255,13 +255,21 @@ fn decrypt(passphrase: &SecretString, encrypted: &str) -> Result<Vec<u8>> {
     Ok(output)
 }
 
-pub fn read_keys(keys_path: &str) -> Result<(SecretVec<u8>, SecretVec<u8>)> {
+pub fn read_keys(
+    keys_path: &str,
+    should_use_stdin: bool,
+) -> Result<(SecretVec<u8>, SecretVec<u8>)> {
     let mut contents = String::new();
     std::fs::File::open(&keys_path)?.read_to_string(&mut contents)?;
     let keys: PlumoSetupKeys = serde_json::from_str(&contents)?;
-    let passphrase =
-        age::cli_common::read_secret("Enter your Plumo setup passphrase", "Passphrase", None)
-            .map_err(|_| UtilsError::CouldNotReadPassphraseError)?;
+    let description = "Enter your Plumo setup passphrase:";
+    let passphrase = if should_use_stdin {
+        println!("{}", description);
+        SecretString::new(rpassword::read_password()?)
+    } else {
+        age::cli_common::read_secret(description, "Passphrase", None)
+            .map_err(|_| UtilsError::CouldNotReadPassphraseError)?
+    };
     let plumo_seed = SecretVec::new(decrypt(&passphrase, &keys.encrypted_seed)?);
     let plumo_private_key = SecretVec::new(decrypt(&passphrase, &keys.encrypted_private_key)?);
 

@@ -39,6 +39,7 @@ futures = "0.3"
 futures-retry = "0.5.0"
 sysinfo = "0.15.3"
 blake2 = "0.9"
+rpassword = "5.0.0"
 
 [patch.'https://github.com/scipr-lab/zexe']
 zexe_algebra_core = { git = "https://github.com/celo-org/zexe", rev = "ba217a777e8b09b59037a2a3408a0c5812ec65fb", package = "algebra-core", default-features = false, features = ["derive"] }

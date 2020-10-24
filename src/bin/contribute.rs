@@ -59,6 +59,7 @@ lazy_static! {
         RwLock::new(map)
     };
     static ref SEED: RwLock<Option<SecretVec<u8>>> = RwLock::new(None);
+    static ref EXITING: RwLock<bool> = RwLock::new(false);
 }
 
 #[derive(Debug, Options, Clone)]
@@ -110,6 +111,10 @@ pub struct ContributeOpts {
         default = "false"
     )]
     pub disable_sysinfo: bool,
+    #[options(help = "exit when finished contributing for the first time")]
+    pub exit_when_finished_contributing: bool,
+    #[options(help = "read passphrase from stdin. THIS IS UNSAFE as it doesn't use pinentry!")]
+    pub unsafe_passphrase: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -145,6 +150,7 @@ pub struct Contribute {
     pub force_correctness_checks: bool,
     pub batch_exp_mode: BatchExpMode,
     pub disable_sysinfo: bool,
+    pub exit_when_finished_contributing: bool,
 
     // This is the only mutable state we hold.
     pub chosen_chunk_id: Option<String>,
@@ -172,6 +178,7 @@ impl Contribute {
             force_correctness_checks: opts.force_correctness_checks,
             batch_exp_mode: opts.batch_exp_mode,
             disable_sysinfo: opts.disable_sysinfo,
+            exit_when_finished_contributing: opts.exit_when_finished_contributing,
 
             chosen_chunk_id: None,
         };
@@ -239,7 +246,14 @@ impl Contribute {
         tokio::spawn(async move {
             loop {
                 match updater.status_updater(progress_bar.clone()).await {
-                    Ok(_) => {}
+                    Ok(true) => {
+                        let mut exiting = EXITING
+                            .write()
+                            .expect("Should have opened exiting signal for writing");
+                        *exiting = true;
+                        return;
+                    }
+                    Ok(false) => {}
                     Err(e) => {
                         warn!("Got error from updater: {}", e);
                         progress_bar.set_message(&format!(
@@ -258,7 +272,14 @@ impl Contribute {
                 loop {
                     let result = cloned.run::<E>().await;
                     match result {
-                        Ok(_) => {}
+                        Ok(_) => {
+                            let exiting = EXITING
+                                .read()
+                                .expect("Should have opened exiting signal for read");
+                            if *exiting {
+                                return;
+                            }
+                        }
                         Err(e) => {
                             warn!("Got error from run: {}, retrying...", e);
                             if let Some(chunk_id) = cloned.chosen_chunk_id.as_ref() {
@@ -326,7 +347,7 @@ impl Contribute {
         Ok(pipeline.clone())
     }
 
-    async fn status_updater(&self, progress_bar: ProgressBar) -> Result<()> {
+    async fn status_updater(&self, progress_bar: ProgressBar) -> Result<bool> {
         let ceremony = self.get_ceremony().await?;
         progress_bar.set_length(ceremony.chunks.len() as u64);
         let non_contributed_chunks =
@@ -352,14 +373,20 @@ impl Contribute {
         } else if non_contributed_chunks.len() == 0 {
             info!("Successfully contributed, thank you for participation! Waiting to see if you're still needed... Don't turn this off! ");
             progress_bar.set_position(ceremony.chunks.len() as u64);
-            progress_bar.set_message("Successfully contributed, thank you for participation! Waiting to see if you're still needed... Don't turn this off!");
+            if !self.exit_when_finished_contributing {
+                progress_bar.set_message("Successfully contributed, thank you for participation! Waiting to see if you're still needed... Don't turn this off!");
+            } else {
+                progress_bar.set_message("Successfully contributed, thank you for participation!");
+                progress_bar.finish();
+                return Ok(true);
+            }
         } else {
             progress_bar
                 .set_position((ceremony.chunks.len() - non_contributed_chunks.len()) as u64);
             progress_bar.set_message(&format!("Waiting for an available chunk...",));
         }
 
-        Ok(())
+        Ok(false)
     }
 
     fn choose_chunk_id(&self, ceremony: &Ceremony) -> Result<String> {
@@ -1064,8 +1091,8 @@ async fn main() {
         .init();
 
     let opts: ContributeOpts = ContributeOpts::parse_args_default_or_exit();
-    let (seed, private_key) =
-        read_keys(&opts.keys_path).expect("Should have loaded Plumo setup keys");
+    let (seed, private_key) = read_keys(&opts.keys_path, opts.unsafe_passphrase)
+        .expect("Should have loaded Plumo setup keys");
 
     *SEED.write().expect("Should have been able to write seed") = Some(seed);
 

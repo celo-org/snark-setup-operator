@@ -60,6 +60,8 @@ pub struct NewCeremonyOpts {
     pub curve: String,
     #[options(help = "max locks", default = "3")]
     pub max_locks: u64,
+    #[options(help = "read passphrase from stdin. THIS IS UNSAFE as it doesn't use pinentry!")]
+    pub unsafe_passphrase: bool,
 }
 
 fn build_ceremony_from_chunks(opts: &NewCeremonyOpts, chunks: &[Chunk]) -> Result<Ceremony> {
@@ -247,7 +249,8 @@ async fn main() {
     tracing_subscriber::fmt::init();
 
     let opts: NewCeremonyOpts = NewCeremonyOpts::parse_args_default_or_exit();
-    let (_, private_key) = read_keys(&opts.keys_path).expect("Should have loaded Plumo setup keys");
+    let (_, private_key) = read_keys(&opts.keys_path, opts.unsafe_passphrase)
+        .expect("Should have loaded Plumo setup keys");
     match opts.curve.as_str() {
         "bw6" => {
             run::<BW6_761>(&opts, private_key.expose_secret())

@@ -49,6 +49,8 @@ pub struct ControlOpts {
         default = "plumo.keys"
     )]
     pub keys_path: String,
+    #[options(help = "read passphrase from stdin. THIS IS UNSAFE as it doesn't use pinentry!")]
+    pub unsafe_passphrase: bool,
     #[options(command, required)]
     pub command: Option<Command>,
 }
@@ -208,7 +210,8 @@ async fn main() {
     tracing_subscriber::fmt::init();
 
     let opts: ControlOpts = ControlOpts::parse_args_default_or_exit();
-    let (_, private_key) = read_keys(&opts.keys_path).expect("Should have loaded Plumo setup keys");
+    let (_, private_key) = read_keys(&opts.keys_path, opts.unsafe_passphrase)
+        .expect("Should have loaded Plumo setup keys");
 
     let control = Control::new(&opts, private_key.expose_secret())
         .expect("Should have been able to create a control.");
