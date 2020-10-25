@@ -17,7 +17,7 @@ use snark_setup_operator::utils::{
     upload_mode_from_str, UploadMode,
 };
 use std::fs::File;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::Path;
 use tracing::info;
 use url::Url;
@@ -62,6 +62,8 @@ pub struct NewCeremonyOpts {
     pub max_locks: u64,
     #[options(help = "read passphrase from stdin. THIS IS UNSAFE as it doesn't use pinentry!")]
     pub unsafe_passphrase: bool,
+    #[options(help = "use prepared ceremony")]
+    pub prepared_ceremony: Option<String>,
 }
 
 fn build_ceremony_from_chunks(opts: &NewCeremonyOpts, chunks: &[Chunk]) -> Result<Ceremony> {
@@ -124,6 +126,24 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
         ProvingSystem::Groth16 => (parameters.powers_g1_length + chunk_size - 1) / chunk_size,
         ProvingSystem::Marlin => (parameters.powers_length + chunk_size - 1) / chunk_size,
     };
+
+    if let Some(prepared_ceremony) = opts.prepared_ceremony.as_ref() {
+        let mut ceremony_contents = String::new();
+        File::open(&prepared_ceremony)?.read_to_string(&mut ceremony_contents)?;
+        let ceremony: Ceremony = serde_json::from_str::<Ceremony>(&ceremony_contents)?;
+        info!("Updating ceremony");
+        let client = reqwest::Client::new();
+        let authorization = get_authorization_value(&private_key, "PUT", "/ceremony")?;
+        client
+            .put(server_url.as_str())
+            .header(AUTHORIZATION, authorization)
+            .json(&ceremony)
+            .send()
+            .await?
+            .error_for_status()?;
+        info!("Done!");
+        return Ok(());
+    }
 
     let verifier = opts.verifier.first().ok_or(UtilsError::MissingOptionErr)?;
     let mut chunks = vec![];

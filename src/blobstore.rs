@@ -171,10 +171,10 @@ impl ErrorHandler<anyhow::Error> for MaxRetriesHandler {
 
     fn handle(&mut self, attempt: usize, e: Error) -> RetryPolicy<Self::OutError> {
         warn!(
-            "Failed uploading: {0}, retry {}/{}",
+            "Failed uploading: {}, retry {}/{}",
+            e.to_string(),
             attempt,
             self.max_attempts,
-            e.to_string()
         );
         if attempt > self.max_attempts {
             RetryPolicy::ForwardError(e)
