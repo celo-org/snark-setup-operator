@@ -29,8 +29,8 @@ curl https://sh.rustup.rs -sSf | sh -s -- -y
 
 export PATH="\$HOME/.cargo/bin:\$PATH"
 
-#rm -rf snark-setup-operator
-#git clone https://github.com/celo-org/snark-setup-operator
+rm -rf snark-setup-operator
+git clone https://github.com/celo-org/snark-setup-operator
 cd snark-setup-operator
 git checkout $COMMIT
 cargo build --release --bin new_ceremony
