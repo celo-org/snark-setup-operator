@@ -369,7 +369,7 @@ impl Contribute {
         let non_contributed_chunks =
             self.get_non_contributed_chunks(&ceremony, &self.participation_mode)?;
 
-        let participant_locked_chunks = self.get_participant_locked_chunks_display(&ceremony)?;
+        let participant_locked_chunks = self.get_participant_locked_chunks_display()?;
         if participant_locked_chunks.len() > 0 {
             progress_bar.set_message(&format!(
                 "{} {} {}...",
@@ -823,7 +823,7 @@ impl Contribute {
         }
     }
 
-    fn get_participant_locked_chunks_display(&self, ceremony: &Ceremony) -> Result<Vec<String>> {
+    fn get_participant_locked_chunks_display(&self) -> Result<Vec<String>> {
         let mut chunk_ids = vec![];
         let pipeline = self.get_pipeline_snapshot()?;
         for lane in &[
@@ -835,32 +835,6 @@ impl Contribute {
                 .get(lane)
                 .ok_or(ContributeError::LaneWasNullError(lane.to_string()))?
             {
-                if let Some(chunk) = ceremony
-                    .chunks
-                    .iter()
-                    .find(|c| c.chunk_id == chunk_id.clone())
-                {
-                    if chunk.lock_holder.is_some()
-                        && chunk.lock_holder != Some(self.participant_id.clone())
-                    {
-                        return Err(
-                            ContributeError::CouldNotFindChunkWithIDLockedByParticipantError(
-                                chunk_id.clone(),
-                                self.participant_id.clone(),
-                            )
-                            .into(),
-                        );
-                    }
-                } else {
-                    return Err(
-                        ContributeError::CouldNotFindChunkWithIDLockedByParticipantError(
-                            chunk_id.clone(),
-                            self.participant_id.clone(),
-                        )
-                        .into(),
-                    );
-                }
-
                 chunk_ids.push(format!("{} ({})", chunk_id.clone(), lane));
             }
         }
