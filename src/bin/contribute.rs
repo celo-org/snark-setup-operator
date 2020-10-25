@@ -348,7 +348,6 @@ impl Contribute {
                     .len()
                     < max_in_lane
                 {
-                    self.set_status_update_signal();
                     return Ok(());
                 }
             }
@@ -400,7 +399,7 @@ impl Contribute {
         } else {
             progress_bar
                 .set_position((ceremony.chunks.len() - non_contributed_chunks.len()) as u64);
-            progress_bar.set_message(&format!("Waiting for an available chunk...",));
+            progress_bar.set_message(&format!("kaiting for an available chunk...",));
         }
 
         Ok(false)
@@ -621,6 +620,7 @@ impl Contribute {
             }
             self.chosen_chunk_id = Some(chunk_id.to_string());
             self.lock_chunk(&chunk_id).await?;
+            self.set_status_update_signal();
 
             let (chunk_index, chunk) = self.get_chunk(&ceremony, &chunk_id)?;
 
