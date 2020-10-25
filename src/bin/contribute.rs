@@ -32,6 +32,7 @@ use setup_utils::{
 };
 use std::collections::{HashMap, HashSet};
 use std::ops::Deref;
+use std::sync::atomic::{AtomicBool, Ordering::SeqCst};
 use std::sync::RwLock;
 use tokio::time::Instant;
 use tracing::{debug, error, info, warn};
@@ -46,8 +47,8 @@ const RESPONSE_HASH_FILENAME: &str = "response.hash";
 const NEW_CHALLENGE_FILENAME: &str = "new_challenge";
 const NEW_CHALLENGE_HASH_FILENAME: &str = "new_challenge.hash";
 
-const DELAY_AFTER_ERROR_DURATION_SECS: i64 = 5;
-const DELAY_WAIT_FOR_PIPELINE_SECS: i64 = 5;
+const DELAY_AFTER_ERROR_DURATION_SECS: i64 = 60;
+const DELAY_WAIT_FOR_PIPELINE_SECS: i64 = 10;
 const DELAY_POLL_CEREMONY_SECS: i64 = 5;
 
 lazy_static! {
@@ -59,7 +60,8 @@ lazy_static! {
         RwLock::new(map)
     };
     static ref SEED: RwLock<Option<SecretVec<u8>>> = RwLock::new(None);
-    static ref EXITING: RwLock<bool> = RwLock::new(false);
+    static ref EXITING: AtomicBool = AtomicBool::new(false);
+    static ref SHOULD_UPDATE_STATUS: AtomicBool = AtomicBool::new(true);
 }
 
 #[derive(Debug, Options, Clone)]
@@ -205,10 +207,28 @@ impl Contribute {
         Ok(ceremony.max_locks)
     }
 
+    async fn wait_for_status_update_signal(&self) {
+        loop {
+            if SHOULD_UPDATE_STATUS.load(SeqCst) {
+                SHOULD_UPDATE_STATUS.store(false, SeqCst);
+                return;
+            }
+            tokio::time::delay_for(
+                Duration::seconds(DELAY_POLL_CEREMONY_SECS)
+                    .to_std()
+                    .expect("Should have converted duration to standard"),
+            )
+            .await;
+        }
+    }
+
+    fn set_status_update_signal(&self) {
+        SHOULD_UPDATE_STATUS.store(true, SeqCst);
+    }
+
     async fn run_and_catch_errors<E: PairingEngine>(&self) -> Result<()> {
         let delay_after_error_duration =
             Duration::seconds(DELAY_AFTER_ERROR_DURATION_SECS).to_std()?;
-        let delay_poll_ceremony_duration = Duration::seconds(DELAY_POLL_CEREMONY_SECS).to_std()?;
         let progress_bar = ProgressBar::new(0);
         let progress_style = ProgressStyle::default_bar()
             .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} {msg}")
@@ -247,10 +267,7 @@ impl Contribute {
             loop {
                 match updater.status_updater(progress_bar.clone()).await {
                     Ok(true) => {
-                        let mut exiting = EXITING
-                            .write()
-                            .expect("Should have opened exiting signal for writing");
-                        *exiting = true;
+                        EXITING.store(true, SeqCst);
                         return;
                     }
                     Ok(false) => {}
@@ -262,7 +279,7 @@ impl Contribute {
                         ));
                     }
                 }
-                tokio::time::delay_for(delay_poll_ceremony_duration).await;
+                updater.wait_for_status_update_signal().await;
             }
         });
         for i in 0..total_tasks {
@@ -273,10 +290,8 @@ impl Contribute {
                     let result = cloned.run::<E>().await;
                     match result {
                         Ok(_) => {
-                            let exiting = EXITING
-                                .read()
-                                .expect("Should have opened exiting signal for read");
-                            if *exiting {
+                            let exiting = EXITING.load(SeqCst);
+                            if exiting {
                                 return;
                             }
                         }
@@ -301,6 +316,7 @@ impl Contribute {
                                         &chunk_id,
                                     )
                                     .expect("Should have removed chunk ID from lane");
+                                cloned.set_status_update_signal();
                             }
                         }
                     }
@@ -332,10 +348,11 @@ impl Contribute {
                     .len()
                     < max_in_lane
                 {
+                    self.set_status_update_signal();
                     return Ok(());
                 }
             }
-            tokio::time::delay_for(Duration::seconds(DELAY_POLL_CEREMONY_SECS).to_std()?).await;
+            tokio::time::delay_for(Duration::seconds(DELAY_WAIT_FOR_PIPELINE_SECS).to_std()?).await;
         }
     }
 
@@ -556,7 +573,10 @@ impl Contribute {
                 .move_chunk_id_from_lane_to_lane(from, to, chunk_id)
                 .await?
             {
-                true => return Ok(()),
+                true => {
+                    self.set_status_update_signal();
+                    return Ok(());
+                }
                 false => {
                     tokio::time::delay_for(
                         Duration::seconds(DELAY_WAIT_FOR_PIPELINE_SECS).to_std()?,
@@ -799,6 +819,7 @@ impl Contribute {
                 .await?;
 
             self.remove_chunk_id_from_lane_if_exists(&PipelineLane::Upload, &chunk_id)?;
+            self.set_status_update_signal();
         }
     }
 
