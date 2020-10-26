@@ -322,7 +322,7 @@ impl Contribute {
 
     async fn status_updater(&self, progress_bar: ProgressBar) -> Result<()> {
         let chunk_info = self.get_chunk_info().await?;
-        let num_chunks = chunk_info.chunks.len();
+        let num_chunks = chunk_info.num_chunks;
         progress_bar.set_length(num_chunks as u64);
         let non_contributed_chunks = self.get_non_contributed_chunks(&chunk_info)?;
 
@@ -823,9 +823,7 @@ impl Contribute {
         let mut non_contributed = vec![];
 
         for chunk in ceremony.chunks.iter() {
-            if !chunk.contributed {
-                non_contributed.push(chunk.chunk_id.clone());
-            }
+            non_contributed.push(chunk.chunk_id.clone());
         }
 
         Ok(non_contributed)
@@ -838,7 +836,7 @@ impl Contribute {
         let mut non_contributed = vec![];
 
         for chunk in ceremony.chunks.iter() {
-            if !chunk.contributed && chunk.lock_holder.is_none() {
+            if chunk.lock_holder.is_none() {
                 non_contributed.push(chunk.chunk_id.clone());
             }
         }
@@ -871,7 +869,7 @@ impl Contribute {
     }
 
     async fn get_chunk_download_info(&self, chunk_id: &str) -> Result<(usize, ChunkDownloadInfo)> {
-        let get_path = format!("chunk-info/{}", chunk_id);
+        let get_path = format!("chunks/{}/info", chunk_id);
         let get_chunk_url = self.server_url.join(&get_path)?;
         let client = reqwest::Client::new();
         let response = client
@@ -900,8 +898,8 @@ impl Contribute {
 
     async fn get_chunk_info(&self) -> Result<FilteredChunks> {
         let get_path = match self.participation_mode {
-            ParticipationMode::Contribute => format!("contributor-chunks/{}", self.participant_id),
-            ParticipationMode::Verify => format!("verifier-chunks"),
+            ParticipationMode::Contribute => format!("contributor/{}/chunks", self.participant_id),
+            ParticipationMode::Verify => format!("verifier/chunks"),
         };
         let ceremony_url = self.server_url.join(&get_path)?;
         let client = reqwest::Client::builder().gzip(true).build()?;

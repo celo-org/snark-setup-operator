@@ -140,7 +140,6 @@ pub struct Ceremony {
 pub struct ChunkInfo {
     pub chunk_id: String,
     pub lock_holder: Option<String>,
-    pub contributed: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -158,6 +157,7 @@ pub struct ChunkDownloadInfo {
 pub struct FilteredChunks {
     pub chunks: Vec<ChunkInfo>,
     pub parameters: Parameters,
+    pub num_chunks: usize,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
