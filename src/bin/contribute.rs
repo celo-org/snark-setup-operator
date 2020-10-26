@@ -901,7 +901,7 @@ impl Contribute {
     async fn get_chunk_info(&self) -> Result<FilteredChunks> {
         let get_path = match self.participation_mode {
             ParticipationMode::Contribute => format!("contributor-chunks/{}", self.participant_id),
-            ParticipationMode::Verify => format!("verifier-chunks/{}", self.participant_id),
+            ParticipationMode::Verify => format!("verifier-chunks"),
         };
         let ceremony_url = self.server_url.join(&get_path)?;
         let client = reqwest::Client::builder().gzip(true).build()?;
