@@ -8,7 +8,7 @@ use std::{
 };
 
 use crate::blobstore::{upload_access_key, upload_sas};
-use crate::data_structs::{Ceremony, Parameters, PlumoSetupKeys, ProcessorData};
+use crate::data_structs::{Parameters, PlumoSetupKeys, ProcessorData};
 use crate::error::{UtilsError, VerifyTranscriptError};
 use anyhow::Result;
 use ethers::types::{Address, Signature};

@@ -1,6 +1,6 @@
 use snark_setup_operator::data_structs::{
-    ChunkDownloadInfo, ContributedData, ContributionUploadUrl, FilteredChunks, PlumoSetupKeys,
-    SignedData, VerifiedData,
+    ChunkDownloadInfo, ContributedData, ContributionUploadUrl, FilteredChunks, SignedData,
+    VerifiedData,
 };
 use snark_setup_operator::utils::{
     address_to_string, collect_processor_data, create_parameters_for_chunk, download_file_async,
