@@ -169,10 +169,19 @@ pub struct Response<T> {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct ProcessorData {
+    pub name: String,
+    pub brand: String,
+    pub frequency: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct ContributedData {
     pub challenge_hash: String,
     pub response_hash: String,
     pub contribution_duration: Option<u64>,
+    pub processor_data: Option<Vec<ProcessorData>>,
 }
 
 #[derive(Debug, Clone)]

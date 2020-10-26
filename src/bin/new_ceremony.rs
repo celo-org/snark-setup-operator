@@ -1,9 +1,11 @@
 use anyhow::{anyhow, Result};
-use ethers::types::{Address, PrivateKey};
+use ethers::core::k256::ecdsa::SigningKey;
+use ethers::signers::LocalWallet;
 use gumdrop::Options;
 use phase1::{ContributionMode, Phase1Parameters, ProvingSystem};
 use phase1_cli::new_challenge;
 use reqwest::header::AUTHORIZATION;
+use secrecy::ExposeSecret;
 use snark_setup_operator::data_structs::{
     Ceremony, Chunk, ChunkMetadata, Contribution, ContributionMetadata, Parameters, Response,
     SignedData, VerifiedData,
@@ -11,13 +13,12 @@ use snark_setup_operator::data_structs::{
 use snark_setup_operator::error::UtilsError;
 use snark_setup_operator::utils::{
     address_to_string, get_authorization_value, proving_system_from_str, read_hash_from_file,
-    remove_file_if_exists, upload_file_to_azure_with_access_key_async, upload_mode_from_str,
-    UploadMode,
+    read_keys, remove_file_if_exists, upload_file_to_azure_with_access_key_async,
+    upload_mode_from_str, UploadMode,
 };
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
-use std::str::FromStr;
 use tracing::info;
 use url::Url;
 use zexe_algebra::{Bls12_377, PairingEngine, BW6_761};
@@ -36,8 +37,11 @@ pub struct NewCeremonyOpts {
     pub participant: Vec<String>,
     #[options(help = "verifiers", required)]
     pub verifier: Vec<String>,
-    #[options(help = "private key to update the ceremony", required)]
-    pub private_key: String,
+    #[options(
+        help = "the encrypted keys for the Plumo setup",
+        default = "plumo.keys"
+    )]
+    pub keys_path: String,
     #[options(help = "storage account in azure mode")]
     pub storage_account: Option<String>,
     #[options(help = "container name in azure mode")]
@@ -56,6 +60,8 @@ pub struct NewCeremonyOpts {
     pub curve: String,
     #[options(help = "max locks", default = "3")]
     pub max_locks: u64,
+    #[options(help = "read passphrase from stdin. THIS IS UNSAFE as it doesn't use pinentry!")]
+    pub unsafe_passphrase: bool,
 }
 
 fn build_ceremony_from_chunks(opts: &NewCeremonyOpts, chunks: &[Chunk]) -> Result<Ceremony> {
@@ -86,7 +92,7 @@ fn build_ceremony_from_chunks(opts: &NewCeremonyOpts, chunks: &[Chunk]) -> Resul
     Ok(ceremony)
 }
 
-async fn run<E: PairingEngine>(opts: &NewCeremonyOpts) -> Result<()> {
+async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Result<()> {
     let server_url = Url::parse(opts.server_url.as_str())?.join("ceremony")?;
     let data = reqwest::get(server_url.as_str())
         .await?
@@ -94,11 +100,11 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts) -> Result<()> {
         .text()
         .await?;
     let ceremony: Ceremony = serde_json::from_str::<Response<Ceremony>>(&data)?.result;
-    let private_key = PrivateKey::from_str(&opts.private_key)?;
+    let private_key = LocalWallet::from(SigningKey::new(private_key)?);
     if ceremony.version != 0
         || !ceremony
             .verifier_ids
-            .contains(&address_to_string(&Address::from(&private_key)))
+            .contains(&address_to_string(&private_key.address()))
     {
         return Err(anyhow!("Can only initialize a ceremony with version 0 and the verifiers list must contain the address matching the private key"));
     }
@@ -243,14 +249,16 @@ async fn main() {
     tracing_subscriber::fmt::init();
 
     let opts: NewCeremonyOpts = NewCeremonyOpts::parse_args_default_or_exit();
+    let (_, private_key) = read_keys(&opts.keys_path, opts.unsafe_passphrase)
+        .expect("Should have loaded Plumo setup keys");
     match opts.curve.as_str() {
         "bw6" => {
-            run::<BW6_761>(&opts)
+            run::<BW6_761>(&opts, private_key.expose_secret())
                 .await
                 .expect("Should have run the new ceremony generation");
         }
         "bls12_377" => {
-            run::<Bls12_377>(&opts)
+            run::<Bls12_377>(&opts, private_key.expose_secret())
                 .await
                 .expect("Should have run the new ceremony generation");
         }

@@ -105,4 +105,8 @@ pub enum UtilsError {
     UnknownParticipationModeError(String),
     #[error("Retry failed: {0}")]
     RetryFailedError(String),
+    #[error("Could not read passphrase")]
+    CouldNotReadPassphraseError,
+    #[error("Unsupported decryptor")]
+    UnsupportedDecryptorError,
 }

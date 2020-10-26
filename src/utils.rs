@@ -8,14 +8,16 @@ use std::{
 };
 
 use crate::blobstore::{upload_access_key, upload_sas};
-use crate::data_structs::Parameters;
+use crate::data_structs::{Ceremony, Parameters, PlumoSetupKeys, ProcessorData};
 use crate::error::{UtilsError, VerifyTranscriptError};
 use anyhow::Result;
-use ethers::types::{Address, PrivateKey, Signature};
+use ethers::types::{Address, Signature};
 use hex::ToHex;
 use phase1::{ContributionMode, Phase1Parameters, ProvingSystem};
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
+use secrecy::{ExposeSecret, SecretString, SecretVec};
 use serde::Serialize;
+use sysinfo::{ProcessorExt, System, SystemExt};
 use zexe_algebra::PairingEngine;
 
 pub fn copy_file_if_exists(file_path: &str, dest_path: &str) -> Result<()> {
@@ -91,10 +93,10 @@ pub fn remove_file_if_exists(file_path: &str) -> Result<()> {
     Ok(())
 }
 
+use ethers::signers::{LocalWallet, Signer};
+
 pub fn verify_signed_data<T: Serialize>(data: &T, signature: &str, id: &str) -> Result<()> {
-    let vrs_signature = &signature[2..];
-    let rsv_signature = vrs_to_rsv(vrs_signature);
-    let signature = Signature::from_str(&rsv_signature)?;
+    let signature = Signature::from_str(&signature[2..])?;
     let serialized_data = serde_json::to_string(data)?;
 
     let deserialized_id = hex::decode(&id[2..])?;
@@ -160,14 +162,14 @@ pub fn check_new_challenge_hashes_same(a: &str, b: &str) -> Result<()> {
 }
 
 pub fn get_authorization_value(
-    private_key: &PrivateKey,
+    private_key: &LocalWallet,
     method: &str,
     path: &str,
 ) -> Result<String> {
-    let address = Address::from(private_key).encode_hex::<String>();
+    let address = private_key.address().encode_hex::<String>();
     let message = format!("{} /{}", method.to_lowercase(), path.to_lowercase());
-    let signature = private_key.sign(message).to_string();
-    let authorization = format!("Celo 0x{}:0x{}", address, signature);
+    let signature: Signature = futures::executor::block_on(private_key.sign_message(message))?;
+    let authorization = format!("Celo 0x{}:0x{}", address, signature.to_string());
     Ok(authorization)
 }
 
@@ -199,10 +201,10 @@ pub fn create_full_parameters<E: PairingEngine>(
     Ok(parameters)
 }
 
-pub fn sign_json(private_key: &PrivateKey, value: &serde_json::Value) -> Result<String> {
+pub fn sign_json(private_key: &LocalWallet, value: &serde_json::Value) -> Result<String> {
     let message = serde_json::to_string(value)?;
-    let signature = private_key.sign(message).to_string();
-    Ok(format!("0x{}", signature))
+    let signature: Signature = futures::executor::block_on(private_key.sign_message(message))?;
+    Ok(format!("0x{}", signature.to_string()))
 }
 
 pub fn address_to_string(address: &Address) -> String {
@@ -237,4 +239,53 @@ pub fn participation_mode_from_str(participation_mode: &str) -> Result<Participa
         "verify" => Ok(ParticipationMode::Verify),
         _ => Err(UtilsError::UnknownParticipationModeError(participation_mode.to_string()).into()),
     }
+}
+
+fn decrypt(passphrase: &SecretString, encrypted: &str) -> Result<Vec<u8>> {
+    let decoded = SecretVec::new(hex::decode(encrypted)?);
+    let decryptor = age::Decryptor::new(decoded.expose_secret().as_slice())?;
+    let mut output = vec![];
+    if let age::Decryptor::Passphrase(decryptor) = decryptor {
+        let mut reader = decryptor.decrypt(passphrase, None)?;
+        reader.read_to_end(&mut output)?;
+    } else {
+        return Err(UtilsError::UnsupportedDecryptorError.into());
+    }
+
+    Ok(output)
+}
+
+pub fn read_keys(
+    keys_path: &str,
+    should_use_stdin: bool,
+) -> Result<(SecretVec<u8>, SecretVec<u8>)> {
+    let mut contents = String::new();
+    std::fs::File::open(&keys_path)?.read_to_string(&mut contents)?;
+    let keys: PlumoSetupKeys = serde_json::from_str(&contents)?;
+    let description = "Enter your Plumo setup passphrase:";
+    let passphrase = if should_use_stdin {
+        println!("{}", description);
+        SecretString::new(rpassword::read_password()?)
+    } else {
+        age::cli_common::read_secret(description, "Passphrase", None)
+            .map_err(|_| UtilsError::CouldNotReadPassphraseError)?
+    };
+    let plumo_seed = SecretVec::new(decrypt(&passphrase, &keys.encrypted_seed)?);
+    let plumo_private_key = SecretVec::new(decrypt(&passphrase, &keys.encrypted_private_key)?);
+
+    Ok((plumo_seed, plumo_private_key))
+}
+
+pub fn collect_processor_data() -> Result<Vec<ProcessorData>> {
+    let s = System::new();
+    let processors = s
+        .get_processors()
+        .iter()
+        .map(|p| ProcessorData {
+            name: p.get_name().to_string(),
+            brand: p.get_brand().to_string(),
+            frequency: p.get_frequency().to_string(),
+        })
+        .collect();
+    Ok(processors)
 }
