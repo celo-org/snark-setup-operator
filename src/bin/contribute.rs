@@ -1086,7 +1086,7 @@ async fn main() {
         .init();
 
     let opts: ContributeOpts = ContributeOpts::parse_args_default_or_exit();
-    let (seed, private_key) = read_keys(&opts.keys_path, opts.unsafe_passphrase)
+    let (seed, private_key) = read_keys(&opts.keys_path, opts.unsafe_passphrase, true)
         .expect("Should have loaded Plumo setup keys");
 
     *SEED.write().expect("Should have been able to write seed") = Some(seed);

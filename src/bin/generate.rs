@@ -1,10 +1,5 @@
 use age::cli_common::read_secret;
-use age::{
-    armor::{ArmoredWriter, Format},
-    cli_common::Passphrase,
-    EncryptError, Encryptor,
-};
-use anyhow::Result;
+use age::cli_common::Passphrase;
 use blake2::{Blake2s, Digest};
 use ethers::signers::LocalWallet;
 use gumdrop::Options;
@@ -12,39 +7,21 @@ use rand::rngs::OsRng;
 use rand::RngCore;
 use secrecy::{ExposeSecret, SecretString, SecretVec};
 use snark_setup_operator::data_structs::PlumoSetupKeys;
-use snark_setup_operator::utils::address_to_string;
+use snark_setup_operator::utils::{address_to_string, encrypt, PLUMO_SETUP_PERSONALIZATION};
 use std::io::Write;
-
-const PLUMO_SETUP_PERSONALIZATION: &[u8] = b"PLUMOSET";
 
 #[derive(Debug, Options, Clone)]
 pub struct GenerateOpts {
     help: bool,
     #[options(help = "the path of the output keys file", default = "plumo.keys")]
-    pub file_path: String,
+    pub keys_path: String,
     #[options(help = "read passphrase from stdin. THIS IS UNSAFE as it doesn't use pinentry!")]
     pub unsafe_passphrase: bool,
 }
 
-fn encrypt(encryptor: Encryptor, secret: &[u8]) -> Result<String> {
-    let mut encrypted_output = vec![];
-    let mut writer = encryptor
-        .wrap_output(ArmoredWriter::wrap_output(
-            &mut encrypted_output,
-            Format::Binary,
-        )?)
-        .map_err(|e| match e {
-            EncryptError::Io(e) => e,
-        })?;
-    std::io::copy(&mut std::io::Cursor::new(secret), &mut writer)?;
-    writer.finish()?;
-    let encrypted_secret = hex::encode(&encrypted_output);
-    Ok(encrypted_secret.to_string())
-}
-
 fn main() {
     let opts: GenerateOpts = GenerateOpts::parse_args_default_or_exit();
-    let mut file = std::fs::File::create(&opts.file_path).expect("Should have created keys file");
+    let mut file = std::fs::File::create(&opts.keys_path).expect("Should have created keys file");
     let (entropy, plumo_encryptor, private_key_encryptor) = if !opts.unsafe_passphrase {
         let entropy = read_secret("Enter some entropy for your Plumo seed", "Entropy", None)
             .expect("Should have read entropy");
@@ -100,11 +77,16 @@ fn main() {
     let plumo_setup_keys = PlumoSetupKeys {
         encrypted_seed: encrypted_plumo_seed.to_string(),
         encrypted_private_key: encrypted_plumo_private_key.to_string(),
+        encrypted_extra_entropy: None,
         address,
     };
     file.write_all(
         &serde_json::to_vec(&plumo_setup_keys).expect("Should have converted setup keys to vector"),
     )
     .expect("Should have written setup keys successfully to file");
-    println!("Done! Your keys are ready in {}.", &opts.file_path);
+    file.sync_all().expect("Should have synced to disk");
+    println!(
+        "Done! Your keys are ready in {}. Your address is : {}.",
+        &opts.keys_path, plumo_setup_keys.address
+    );
 }

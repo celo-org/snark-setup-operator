@@ -1,15 +1,13 @@
+pub const PLUMO_SETUP_PERSONALIZATION: &[u8] = b"PLUMOSET";
 const ADDRESS_LENGTH: usize = 20;
-
-use std::{
-    fs::{copy, remove_file, File},
-    io::{Read, Write},
-    path::Path,
-    str::FromStr,
-};
 
 use crate::blobstore::{upload_access_key, upload_sas};
 use crate::data_structs::{Ceremony, PlumoSetupKeys, ProcessorData};
 use crate::error::{UtilsError, VerifyTranscriptError};
+use age::{
+    armor::{ArmoredWriter, Format},
+    EncryptError, Encryptor,
+};
 use anyhow::Result;
 use ethers::types::{Address, Signature};
 use hex::ToHex;
@@ -17,6 +15,12 @@ use phase1::{ContributionMode, Phase1Parameters, ProvingSystem};
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
 use secrecy::{ExposeSecret, SecretString, SecretVec};
 use serde::Serialize;
+use std::{
+    fs::{copy, remove_file, File, OpenOptions},
+    io::{Read, Write},
+    path::Path,
+    str::FromStr,
+};
 use sysinfo::{ProcessorExt, System, SystemExt};
 use zexe_algebra::PairingEngine;
 
@@ -93,7 +97,10 @@ pub fn remove_file_if_exists(file_path: &str) -> Result<()> {
     Ok(())
 }
 
+use blake2::{Blake2s, Digest};
 use ethers::signers::{LocalWallet, Signer};
+use rand::rngs::OsRng;
+use rand::RngCore;
 
 pub fn verify_signed_data<T: Serialize>(data: &T, signature: &str, id: &str) -> Result<()> {
     let signature = Signature::from_str(&signature[2..])?;
@@ -255,13 +262,32 @@ fn decrypt(passphrase: &SecretString, encrypted: &str) -> Result<Vec<u8>> {
     Ok(output)
 }
 
+pub fn encrypt(encryptor: Encryptor, secret: &[u8]) -> Result<String> {
+    let mut encrypted_output = vec![];
+    let mut writer = encryptor
+        .wrap_output(ArmoredWriter::wrap_output(
+            &mut encrypted_output,
+            Format::Binary,
+        )?)
+        .map_err(|e| match e {
+            EncryptError::Io(e) => e,
+        })?;
+    std::io::copy(&mut std::io::Cursor::new(secret), &mut writer)?;
+    writer.finish()?;
+    let encrypted_secret = hex::encode(&encrypted_output);
+    Ok(encrypted_secret.to_string())
+}
+
 pub fn read_keys(
     keys_path: &str,
     should_use_stdin: bool,
+    should_collect_extra_entropy: bool,
 ) -> Result<(SecretVec<u8>, SecretVec<u8>)> {
     let mut contents = String::new();
-    std::fs::File::open(&keys_path)?.read_to_string(&mut contents)?;
-    let keys: PlumoSetupKeys = serde_json::from_str(&contents)?;
+    {
+        std::fs::File::open(&keys_path)?.read_to_string(&mut contents)?;
+    }
+    let mut keys: PlumoSetupKeys = serde_json::from_str(&contents)?;
     let description = "Enter your Plumo setup passphrase:";
     let passphrase = if should_use_stdin {
         println!("{}", description);
@@ -270,10 +296,44 @@ pub fn read_keys(
         age::cli_common::read_secret(description, "Passphrase", None)
             .map_err(|_| UtilsError::CouldNotReadPassphraseError)?
     };
-    let plumo_seed = SecretVec::new(decrypt(&passphrase, &keys.encrypted_seed)?);
-    let plumo_private_key = SecretVec::new(decrypt(&passphrase, &keys.encrypted_private_key)?);
+    let plumo_seed_from_file = SecretVec::new(decrypt(&passphrase, &keys.encrypted_seed)?);
+    let plumo_private_key_from_file =
+        SecretVec::new(decrypt(&passphrase, &keys.encrypted_private_key)?);
 
-    Ok((plumo_seed, plumo_private_key))
+    if should_collect_extra_entropy && keys.encrypted_extra_entropy.is_none() && !should_use_stdin {
+        let description = "Enter some extra entropy (this should only be done at the first time you run the contribute binary!):";
+        let entered_entropy = age::cli_common::read_secret(description, "Entropy", None)
+            .map_err(|_| UtilsError::CouldNotReadEntropyError)?;
+        let encryptor = age::Encryptor::with_user_passphrase(passphrase.clone());
+
+        let mut rng = OsRng;
+        let mut extra_entropy = vec![0u8; 64];
+        rng.fill_bytes(&mut extra_entropy[..]);
+
+        let extra_entropy = SecretVec::new(extra_entropy);
+        let mut hasher = Blake2s::with_params(&[], &[], PLUMO_SETUP_PERSONALIZATION);
+        hasher.update(extra_entropy.expose_secret());
+        hasher.update(entered_entropy.expose_secret());
+        let combined_entropy = SecretVec::<u8>::new(hasher.finalize().as_slice().to_vec());
+        let encrypted_extra_entropy = encrypt(encryptor, combined_entropy.expose_secret())?;
+        keys.encrypted_extra_entropy = Some(encrypted_extra_entropy);
+        let mut file = OpenOptions::new().write(true).open(&keys_path)?;
+        file.write_all(&serde_json::to_vec(&keys)?)?;
+        file.sync_all()?;
+    }
+
+    let plumo_seed = match keys.encrypted_extra_entropy {
+        None => plumo_seed_from_file,
+        Some(encrypted_entropy) => {
+            let entropy = SecretVec::new(decrypt(&passphrase, &encrypted_entropy)?);
+            let mut hasher = Blake2s::with_params(&[], &[], PLUMO_SETUP_PERSONALIZATION);
+            hasher.update(plumo_seed_from_file.expose_secret());
+            hasher.update(entropy.expose_secret());
+            SecretVec::<u8>::new(hasher.finalize().as_slice().to_vec())
+        }
+    };
+
+    Ok((plumo_seed, plumo_private_key_from_file))
 }
 
 pub fn collect_processor_data() -> Result<Vec<ProcessorData>> {

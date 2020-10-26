@@ -101,6 +101,10 @@ pub enum UtilsError {
     RetryFailedError(String),
     #[error("Could not read passphrase")]
     CouldNotReadPassphraseError,
+    #[error("Could not read entropy")]
+    CouldNotReadEntropyError,
+    #[error("Entropy was none")]
+    EntropyWasNoneError,
     #[error("Unsupported decryptor")]
     UnsupportedDecryptorError,
 }

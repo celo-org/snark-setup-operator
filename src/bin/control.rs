@@ -210,7 +210,7 @@ async fn main() {
     tracing_subscriber::fmt::init();
 
     let opts: ControlOpts = ControlOpts::parse_args_default_or_exit();
-    let (_, private_key) = read_keys(&opts.keys_path, opts.unsafe_passphrase)
+    let (_, private_key) = read_keys(&opts.keys_path, opts.unsafe_passphrase, false)
         .expect("Should have loaded Plumo setup keys");
 
     let control = Control::new(&opts, private_key.expose_secret())
