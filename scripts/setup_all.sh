@@ -4,8 +4,8 @@ KEYFILE=$1
 COORDINATOR_IP=$(cat server_ip)
 OPERATOR_IP=$(cat operator_ip)
 
-POWERS=24
-CHUNK_SIZE=15
+POWERS=27
+CHUNK_SIZE=20
 
 retry() {
     local -r -i max_attempts="$1"; shift
