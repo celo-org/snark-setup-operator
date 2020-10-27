@@ -21,13 +21,13 @@ use gumdrop::Options;
 use indicatif::{ProgressBar, ProgressStyle};
 use lazy_static::lazy_static;
 use panic_control::{spawn_quiet, ThreadResultExt};
-use phase1::helpers::batch_exp_mode_from_str;
+use phase1::helpers::{batch_exp_mode_from_str, subgroup_check_mode_from_str};
 use phase1_cli::{contribute, transform_pok_and_correctness};
 use rand::prelude::SliceRandom;
 use reqwest::header::AUTHORIZATION;
 use secrecy::{ExposeSecret, SecretVec};
 use setup_utils::{
-    derive_rng_from_seed, upgrade_correctness_check_config, BatchExpMode,
+    derive_rng_from_seed, upgrade_correctness_check_config, BatchExpMode, SubgroupCheckMode,
     DEFAULT_CONTRIBUTE_CHECK_INPUT_CORRECTNESS, DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
     DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
 };
@@ -111,6 +111,12 @@ pub struct ContributeOpts {
     )]
     pub batch_exp_mode: BatchExpMode,
     #[options(
+        help = "which subgroup check version to use",
+        default = "auto",
+        parse(try_from_str = "subgroup_check_mode_from_str")
+    )]
+    pub subgroup_check_mode: SubgroupCheckMode,
+    #[options(
         help = "whether to disable benchmarking data collection",
         default = "false"
     )]
@@ -153,6 +159,7 @@ pub struct Contribute {
     pub disable_pipelining: bool,
     pub force_correctness_checks: bool,
     pub batch_exp_mode: BatchExpMode,
+    pub subgroup_check_mode: SubgroupCheckMode,
     pub disable_sysinfo: bool,
     pub exit_when_finished_contributing: bool,
 
@@ -181,6 +188,7 @@ impl Contribute {
             disable_pipelining: opts.disable_pipelining,
             force_correctness_checks: opts.force_correctness_checks,
             batch_exp_mode: opts.batch_exp_mode,
+            subgroup_check_mode: opts.subgroup_check_mode,
             disable_sysinfo: opts.disable_sysinfo,
             exit_when_finished_contributing: opts.exit_when_finished_contributing,
 
@@ -743,6 +751,7 @@ impl Contribute {
                         new_challenge_filename,
                         new_challenge_hash_filename,
                         force_correctness_checks,
+                        subgroup_check_mode,
                     ) = (
                         self.challenge_filename.clone(),
                         self.challenge_hash_filename.clone(),
@@ -751,6 +760,7 @@ impl Contribute {
                         self.new_challenge_filename.clone(),
                         self.new_challenge_hash_filename.clone(),
                         self.force_correctness_checks.clone(),
+                        self.subgroup_check_mode.clone(),
                     );
                     let h = spawn_quiet(move || {
                         transform_pok_and_correctness(
@@ -768,6 +778,7 @@ impl Contribute {
                             ),
                             &new_challenge_filename,
                             &new_challenge_hash_filename,
+                            subgroup_check_mode,
                             &parameters,
                         );
                     });
@@ -1037,6 +1048,7 @@ async fn main() {
     let appender = tracing_appender::rolling::never(".", "snark-setup.log");
     let (non_blocking, _guard) = tracing_appender::non_blocking(appender);
     tracing_subscriber::fmt()
+        .json()
         .with_env_filter(EnvFilter::from_default_env())
         .with_writer(non_blocking)
         .init();

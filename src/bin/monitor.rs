@@ -129,7 +129,7 @@ impl Monitor {
 
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt::init();
+    tracing_subscriber::fmt().json().init();
 
     let opts: MonitorOpts = MonitorOpts::parse_args_default_or_exit();
 

@@ -26,6 +26,12 @@ pub struct RemoveParticipantOpts {
     pub participant_id: String,
 }
 
+#[derive(Debug, Options, Clone)]
+pub struct SignalShutdownOpts {
+    #[options(help = "the signal", required)]
+    pub shutdown_signal: bool,
+}
+
 // The supported commands
 #[derive(Debug, Options, Clone)]
 pub enum Command {
@@ -34,6 +40,7 @@ pub enum Command {
     RemoveParticipant(RemoveParticipantOpts),
     AddVerifier(AddParticipantOpts),
     RemoveVerifier(RemoveParticipantOpts),
+    SignalShutdown(SignalShutdownOpts),
 }
 
 #[derive(Debug, Options, Clone)]
@@ -203,11 +210,19 @@ impl Control {
         self.put_ceremony(&ceremony).await?;
         Ok(())
     }
+
+    async fn signal_shutdown(&self, shutdown_signal: bool) -> Result<()> {
+        let mut ceremony = self.get_ceremony().await?;
+        ceremony.shutdown_signal = shutdown_signal;
+        info!("shutdown signal: {}", ceremony.shutdown_signal);
+        self.put_ceremony(&ceremony).await?;
+        Ok(())
+    }
 }
 
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt::init();
+    tracing_subscriber::fmt().json().init();
 
     let opts: ControlOpts = ControlOpts::parse_args_default_or_exit();
     let (_, private_key) = read_keys(&opts.keys_path, opts.unsafe_passphrase, false)
@@ -236,6 +251,10 @@ async fn main() {
             .expect("Should have run command successfully"),
         Command::RemoveVerifier(opts) => control
             .remove_verifier(opts.participant_id)
+            .await
+            .expect("Should have run command successfully"),
+        Command::SignalShutdown(opts) => control
+            .signal_shutdown(opts.shutdown_signal)
             .await
             .expect("Should have run command successfully"),
     });
