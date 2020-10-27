@@ -158,6 +158,7 @@ pub struct ChunkDownloadInfo {
 pub struct FilteredChunks {
     pub chunks: Vec<ChunkInfo>,
     pub parameters: Parameters,
+    pub num_non_contributed: usize,
     pub num_chunks: usize,
     pub max_locks: u64,
     pub shutdown_signal: bool,
