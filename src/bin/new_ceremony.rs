@@ -251,7 +251,7 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
     let ceremony = build_ceremony_from_chunks(&opts, &chunks)?;
     info!("Updating ceremony");
     let client = reqwest::Client::new();
-    let authorization = get_authorization_value(&private_key, "PUT", "/ceremony")?;
+    let authorization = get_authorization_value(&private_key, "PUT", "ceremony")?;
     client
         .put(server_url.as_str())
         .header(AUTHORIZATION, authorization)
