@@ -79,6 +79,8 @@ pub enum ContributeError {
     CouldNotFindChunkWithIDInAnyLaneError(String),
     #[error("Could not find chunk with ID {0} in the ceremony locked by participant {1}")]
     CouldNotFindChunkWithIDLockedByParticipantError(String, String),
+    #[error("Got exit signal")]
+    GotExitSignalError,
 }
 
 #[derive(Debug, Error)]

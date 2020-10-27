@@ -28,6 +28,7 @@ rand = "0.7"
 reqwest = { version = "0.10", features = [ "blocking", "stream", "gzip" ] }
 setup-utils = { git = "https://github.com/celo-org/snark-setup", package = "setup-utils", rev = "a9faf50149d642a533f874a15761a19a480a8ac6" }
 secrecy = { version = "0.7" }
+ctrlc = "3.1.7"
 indicatif = "0.15.0"
 zexe_algebra = { git = "https://github.com/celo-org/zexe", rev = "ba217a777e8b09b59037a2a3408a0c5812ec65fb", package = "algebra", default-features = false, features = ["bw6_761", "bls12_377"] }
 openssl-sys = { version = "0.9", features = ["vendored"]}

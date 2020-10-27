@@ -32,7 +32,7 @@ use setup_utils::{
 };
 use std::collections::{HashMap, HashSet};
 use std::ops::Deref;
-use std::sync::atomic::{AtomicBool, Ordering::SeqCst};
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering::SeqCst};
 use std::sync::RwLock;
 use tokio::time::Instant;
 use tracing::{debug, error, info, warn};
@@ -48,7 +48,7 @@ const NEW_CHALLENGE_FILENAME: &str = "new_challenge";
 const NEW_CHALLENGE_HASH_FILENAME: &str = "new_challenge.hash";
 
 const DELAY_AFTER_ERROR_DURATION_SECS: i64 = 60;
-const DELAY_WAIT_FOR_PIPELINE_SECS: i64 = 10;
+const DELAY_WAIT_FOR_PIPELINE_SECS: i64 = 5;
 const DELAY_POLL_CEREMONY_SECS: i64 = 5;
 
 lazy_static! {
@@ -62,6 +62,7 @@ lazy_static! {
     static ref SEED: RwLock<Option<SecretVec<u8>>> = RwLock::new(None);
     static ref EXITING: AtomicBool = AtomicBool::new(false);
     static ref SHOULD_UPDATE_STATUS: AtomicBool = AtomicBool::new(true);
+    static ref EXIT_SIGNAL: AtomicU8 = AtomicU8::new(0);
 }
 
 #[derive(Debug, Options, Clone)]
@@ -235,6 +236,9 @@ impl Contribute {
             .progress_chars("#>-");
         progress_bar.enable_steady_tick(1000);
         progress_bar.set_style(progress_style);
+        progress_bar.println(
+            "Contributing! Please unmount and remove the USB drive containing your keys now.",
+        );
         progress_bar.set_message("Getting initial data from the server...");
         let max_locks_from_ceremony;
         loop {
@@ -288,13 +292,11 @@ impl Contribute {
             let jh = tokio::spawn(async move {
                 loop {
                     let result = cloned.run::<E>().await;
+                    if EXITING.load(SeqCst) {
+                        return;
+                    }
                     match result {
-                        Ok(_) => {
-                            let exiting = EXITING.load(SeqCst);
-                            if exiting {
-                                return;
-                            }
-                        }
+                        Ok(_) => {}
                         Err(e) => {
                             warn!("Got error from run: {}, retrying...", e);
                             if let Some(chunk_id) = cloned.chosen_chunk_id.as_ref() {
@@ -338,6 +340,9 @@ impl Contribute {
             PipelineLane::Upload => self.max_in_upload_lane,
         };
         loop {
+            if EXITING.load(SeqCst) {
+                return Err(ContributeError::GotExitSignalError.into());
+            }
             {
                 let pipeline = PIPELINE
                     .read()
@@ -364,6 +369,13 @@ impl Contribute {
     }
 
     async fn status_updater(&self, progress_bar: ProgressBar) -> Result<bool> {
+        if EXIT_SIGNAL.load(SeqCst) > 0 {
+            progress_bar.set_message("Exit detected, handling chunks in buffer. If there was a problem, please contact the coordinator for help. If you got notified by the coordinator, please destroy the USB drive containing your keys. Press 10 times to force quit.");
+            progress_bar.set_length(0);
+            progress_bar.finish();
+            return Ok(true);
+        }
+
         let ceremony = self.get_ceremony().await?;
         progress_bar.set_length(ceremony.chunks.len() as u64);
         let non_contributed_chunks =
@@ -392,14 +404,14 @@ impl Contribute {
             if !self.exit_when_finished_contributing {
                 progress_bar.set_message("Successfully contributed, thank you for participation! Waiting to see if you're still needed... Don't turn this off!");
             } else {
-                progress_bar.set_message("Successfully contributed, thank you for participation!");
+                progress_bar.set_message("Successfully contributed, thank you for participation! Please destroy the USB drive containing your keys.");
                 progress_bar.finish();
                 return Ok(true);
             }
         } else {
             progress_bar
                 .set_position((ceremony.chunks.len() - non_contributed_chunks.len()) as u64);
-            progress_bar.set_message(&format!("kaiting for an available chunk...",));
+            progress_bar.set_message(&format!("waiting for an available chunk...",));
         }
 
         Ok(false)
@@ -568,6 +580,9 @@ impl Contribute {
         chunk_id: &str,
     ) -> Result<()> {
         loop {
+            if EXITING.load(SeqCst) {
+                return Err(ContributeError::GotExitSignalError.into());
+            }
             match self
                 .move_chunk_id_from_lane_to_lane(from, to, chunk_id)
                 .await?
@@ -1078,6 +1093,16 @@ impl Contribute {
 
 #[tokio::main]
 async fn main() {
+    ctrlc::set_handler(move || {
+        println!("Got ctrl+c...");
+        SHOULD_UPDATE_STATUS.store(true, SeqCst);
+        EXIT_SIGNAL.fetch_add(1, SeqCst);
+        if EXIT_SIGNAL.load(SeqCst) >= 10 {
+            println!("Force quitting...");
+            std::process::exit(0);
+        }
+    })
+    .expect("Error setting Ctrl-C handler");
     let appender = tracing_appender::rolling::never(".", "snark-setup.log");
     let (non_blocking, _guard) = tracing_appender::non_blocking(appender);
     tracing_subscriber::fmt()
