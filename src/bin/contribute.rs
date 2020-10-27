@@ -387,7 +387,7 @@ impl Contribute {
         let chunk_info = self.get_chunk_info().await?;
         let num_chunks = chunk_info.num_chunks;
         progress_bar.set_length(num_chunks as u64);
-        let non_contributed_chunks = self.get_non_contributed_chunks(&chunk_info)?;
+        let num_non_contributed_chunks = chunk_info.num_non_contributed;
 
         let participant_locked_chunks = self.get_participant_locked_chunks_display()?;
         if participant_locked_chunks.len() > 0 {
@@ -404,8 +404,8 @@ impl Contribute {
                 },
                 participant_locked_chunks.join(", "),
             ));
-            progress_bar.set_position((num_chunks - non_contributed_chunks.len()) as u64);
-        } else if non_contributed_chunks.len() == 0 {
+            progress_bar.set_position((num_chunks - num_non_contributed_chunks) as u64);
+        } else if num_non_contributed_chunks == 0 {
             info!("Successfully contributed, thank you for participation! Waiting to see if you're still needed... Don't turn this off! ");
             progress_bar.set_position(num_chunks as u64);
             if !self.exit_when_finished_contributing && !chunk_info.shutdown_signal {
@@ -416,7 +416,7 @@ impl Contribute {
                 return Ok(true);
             }
         } else {
-            progress_bar.set_position((num_chunks - non_contributed_chunks.len()) as u64);
+            progress_bar.set_position((num_chunks - num_non_contributed_chunks) as u64);
             progress_bar.set_message(&format!("Waiting for an available chunk...",));
         }
 
@@ -612,11 +612,11 @@ impl Contribute {
                 .await?;
             let chunk_info = self.get_chunk_info().await?;
 
-            let non_contributed_chunks = self.get_non_contributed_chunks(&chunk_info)?;
+            let num_non_contributed_chunks = chunk_info.num_non_contributed;
 
             let incomplete_chunks = self.get_non_contributed_and_available_chunks(&chunk_info)?;
             if incomplete_chunks.len() == 0 {
-                if non_contributed_chunks.len() == 0 {
+                if num_non_contributed_chunks == 0 {
                     remove_file_if_exists(&self.challenge_filename)?;
                     remove_file_if_exists(&self.challenge_hash_filename)?;
                     remove_file_if_exists(&self.response_filename)?;
@@ -873,16 +873,6 @@ impl Contribute {
             self.unlock_chunk(&chunk_id).await?;
         }
         Ok(())
-    }
-
-    fn get_non_contributed_chunks(&self, ceremony: &FilteredChunks) -> Result<Vec<String>> {
-        let mut non_contributed = vec![];
-
-        for chunk in ceremony.chunks.iter() {
-            non_contributed.push(chunk.chunk_id.clone());
-        }
-
-        Ok(non_contributed)
     }
 
     fn get_non_contributed_and_available_chunks(
