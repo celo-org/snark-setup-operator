@@ -203,10 +203,10 @@ impl Contribute {
     }
 
     async fn run_ceremony_initialization_and_get_max_locks(&self) -> Result<u64> {
-        let ceremony = self.get_ceremony().await?;
+        let ceremony = self.get_chunk_info().await?;
         self.release_locked_chunks(&ceremony).await?;
 
-        Ok(ceremony.max_locks)
+        Ok(ceremony.max_locks as u64)
     }
 
     async fn wait_for_status_update_signal(&self) {
@@ -400,7 +400,7 @@ impl Contribute {
         } else if non_contributed_chunks.len() == 0 {
             info!("Successfully contributed, thank you for participation! Waiting to see if you're still needed... Don't turn this off! ");
             progress_bar.set_position(num_chunks as u64);
-            if !self.exit_when_finished_contributing {
+            if !self.exit_when_finished_contributing && !chunk_info.shutdown_signal {
                 progress_bar.set_message("Successfully contributed, thank you for participation! Waiting to see if you're still needed... Don't turn this off!");
             } else {
                 progress_bar.set_message("Successfully contributed, thank you for participation! Please destroy the USB drive containing your keys.");
@@ -852,7 +852,7 @@ impl Contribute {
         Ok(chunk_ids)
     }
 
-    async fn release_locked_chunks(&self, ceremony: &Ceremony) -> Result<()> {
+    async fn release_locked_chunks(&self, ceremony: &FilteredChunks) -> Result<()> {
         let chunk_ids = ceremony
             .chunks
             .iter()
@@ -928,6 +928,8 @@ impl Contribute {
         Ok((chunk_id.parse::<usize>()?, chunk))
     }
 
+    #[allow(unused)]
+    #[deprecated]
     async fn get_ceremony(&self) -> Result<Ceremony> {
         let ceremony_url = self.server_url.join("ceremony")?;
         let client = reqwest::Client::builder().gzip(true).build()?;

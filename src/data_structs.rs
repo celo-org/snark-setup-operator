@@ -158,6 +158,8 @@ pub struct FilteredChunks {
     pub chunks: Vec<ChunkInfo>,
     pub parameters: Parameters,
     pub num_chunks: usize,
+    pub max_locks: usize,
+    pub shutdown_signal: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
