@@ -85,6 +85,8 @@ pub enum ContributeError {
     CouldNotFindChunkWithIDInAnyLaneError(String),
     #[error("Could not find chunk with ID {0} in the ceremony locked by participant {1}")]
     CouldNotFindChunkWithIDLockedByParticipantError(String, String),
+    #[error("Got exit signal")]
+    GotExitSignalError,
 }
 
 #[derive(Debug, Error)]
@@ -107,6 +109,10 @@ pub enum UtilsError {
     RetryFailedError(String),
     #[error("Could not read passphrase")]
     CouldNotReadPassphraseError,
+    #[error("Could not read entropy")]
+    CouldNotReadEntropyError,
+    #[error("Entropy was none")]
+    EntropyWasNoneError,
     #[error("Unsupported decryptor")]
     UnsupportedDecryptorError,
 }

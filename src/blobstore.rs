@@ -4,16 +4,17 @@
 // Licensed under the MIT License.
 
 pub const ONE_MB: usize = 1024 * 1024;
+pub const MAX_RETRIES: usize = 5;
 
 use crate::error::{HttpError, UtilsError};
-use anyhow::Result;
+use anyhow::{Error, Result};
 use azure_core::{BlobNameSupport, BlockIdSupport, BodySupport, ContainerNameSupport};
 use azure_storage::blob::blob::{BlobBlockType, BlockList, BlockListSupport};
 use azure_storage::blob::container::{PublicAccess, PublicAccessSupport};
 use azure_storage::core::key_client::KeyClient;
 use azure_storage::{client, Blob, Container};
 use byteorder::{LittleEndian, WriteBytesExt};
-use futures_retry::{FutureRetry, RetryPolicy};
+use futures_retry::{ErrorHandler, FutureRetry, RetryPolicy};
 use std::cmp;
 use std::convert::TryFrom;
 use std::fs::File;
@@ -89,15 +90,6 @@ pub async fn upload_access_key(
     upload_with_client_with_retries(&client, container, path, file_path).await
 }
 
-fn handle_error(e: anyhow::Error) -> RetryPolicy<anyhow::Error> {
-    warn!("Failed uploading: {0}, retrying...", e.to_string());
-    RetryPolicy::WaitRetry(
-        chrono::Duration::seconds(5)
-            .to_std()
-            .expect("Should have converted to standard duration"),
-    )
-}
-
 pub async fn upload_with_client_with_retries(
     client: &KeyClient,
     container: &str,
@@ -106,7 +98,7 @@ pub async fn upload_with_client_with_retries(
 ) -> Result<()> {
     FutureRetry::new(
         move || upload_with_client(client, container, path, file_path),
-        handle_error,
+        MaxRetriesHandler::new(MAX_RETRIES),
     )
     .await
     .map_err(|e| UtilsError::RetryFailedError(e.0.to_string()))?;
@@ -163,4 +155,35 @@ pub async fn upload_with_client(
         .await?;
 
     Ok(())
+}
+
+struct MaxRetriesHandler {
+    max_attempts: usize,
+}
+impl MaxRetriesHandler {
+    fn new(max_attempts: usize) -> Self {
+        MaxRetriesHandler { max_attempts }
+    }
+}
+
+impl ErrorHandler<anyhow::Error> for MaxRetriesHandler {
+    type OutError = anyhow::Error;
+
+    fn handle(&mut self, attempt: usize, e: Error) -> RetryPolicy<Self::OutError> {
+        warn!(
+            "Failed uploading: {}, retry {}/{}",
+            e.to_string(),
+            attempt,
+            self.max_attempts,
+        );
+        if attempt > self.max_attempts {
+            RetryPolicy::ForwardError(e)
+        } else {
+            RetryPolicy::WaitRetry(
+                chrono::Duration::seconds(5)
+                    .to_std()
+                    .expect("Should have converted to standard duration"),
+            )
+        }
+    }
 }

@@ -33,6 +33,7 @@ use setup_utils::{
 };
 use std::collections::{HashMap, HashSet};
 use std::ops::Deref;
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering::SeqCst};
 use std::sync::RwLock;
 use tokio::time::Instant;
 use tracing::{debug, error, info, warn};
@@ -47,7 +48,7 @@ const RESPONSE_HASH_FILENAME: &str = "response.hash";
 const NEW_CHALLENGE_FILENAME: &str = "new_challenge";
 const NEW_CHALLENGE_HASH_FILENAME: &str = "new_challenge.hash";
 
-const DELAY_AFTER_ERROR_DURATION_SECS: i64 = 5;
+const DELAY_AFTER_ERROR_DURATION_SECS: i64 = 60;
 const DELAY_WAIT_FOR_PIPELINE_SECS: i64 = 5;
 const DELAY_POLL_CEREMONY_SECS: i64 = 5;
 
@@ -60,7 +61,9 @@ lazy_static! {
         RwLock::new(map)
     };
     static ref SEED: RwLock<Option<SecretVec<u8>>> = RwLock::new(None);
-    static ref EXITING: RwLock<bool> = RwLock::new(false);
+    static ref EXITING: AtomicBool = AtomicBool::new(false);
+    static ref SHOULD_UPDATE_STATUS: AtomicBool = AtomicBool::new(true);
+    static ref EXIT_SIGNAL: AtomicU8 = AtomicU8::new(0);
 }
 
 #[derive(Debug, Options, Clone)]
@@ -200,22 +203,43 @@ impl Contribute {
     }
 
     async fn run_ceremony_initialization_and_get_max_locks(&self) -> Result<u64> {
-        let ceremony = self.get_ceremony().await?;
+        let ceremony = self.get_chunk_info().await?;
         self.release_locked_chunks(&ceremony).await?;
 
         Ok(ceremony.max_locks)
     }
 
+    async fn wait_for_status_update_signal(&self) {
+        loop {
+            if SHOULD_UPDATE_STATUS.load(SeqCst) {
+                SHOULD_UPDATE_STATUS.store(false, SeqCst);
+                return;
+            }
+            tokio::time::delay_for(
+                Duration::seconds(DELAY_POLL_CEREMONY_SECS)
+                    .to_std()
+                    .expect("Should have converted duration to standard"),
+            )
+            .await;
+        }
+    }
+
+    fn set_status_update_signal(&self) {
+        SHOULD_UPDATE_STATUS.store(true, SeqCst);
+    }
+
     async fn run_and_catch_errors<E: PairingEngine>(&self) -> Result<()> {
         let delay_after_error_duration =
             Duration::seconds(DELAY_AFTER_ERROR_DURATION_SECS).to_std()?;
-        let delay_poll_ceremony_duration = Duration::seconds(DELAY_POLL_CEREMONY_SECS).to_std()?;
         let progress_bar = ProgressBar::new(0);
         let progress_style = ProgressStyle::default_bar()
             .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} {msg}")
             .progress_chars("#>-");
         progress_bar.enable_steady_tick(1000);
         progress_bar.set_style(progress_style);
+        progress_bar.println(
+            "Contributing! Please unmount and remove the USB drive containing your keys now.",
+        );
         progress_bar.set_message("Getting initial data from the server...");
         let max_locks_from_ceremony;
         loop {
@@ -248,10 +272,7 @@ impl Contribute {
             loop {
                 match updater.status_updater(progress_bar.clone()).await {
                     Ok(true) => {
-                        let mut exiting = EXITING
-                            .write()
-                            .expect("Should have opened exiting signal for writing");
-                        *exiting = true;
+                        EXITING.store(true, SeqCst);
                         return;
                     }
                     Ok(false) => {}
@@ -263,7 +284,7 @@ impl Contribute {
                         ));
                     }
                 }
-                tokio::time::delay_for(delay_poll_ceremony_duration).await;
+                updater.wait_for_status_update_signal().await;
             }
         });
         for i in 0..total_tasks {
@@ -272,15 +293,11 @@ impl Contribute {
             let jh = tokio::spawn(async move {
                 loop {
                     let result = cloned.run::<E>().await;
+                    if EXITING.load(SeqCst) {
+                        return;
+                    }
                     match result {
-                        Ok(_) => {
-                            let exiting = EXITING
-                                .read()
-                                .expect("Should have opened exiting signal for read");
-                            if *exiting {
-                                return;
-                            }
-                        }
+                        Ok(_) => {}
                         Err(e) => {
                             warn!("Got error from run: {}, retrying...", e);
                             if let Some(chunk_id) = cloned.chosen_chunk_id.as_ref() {
@@ -302,6 +319,7 @@ impl Contribute {
                                         &chunk_id,
                                     )
                                     .expect("Should have removed chunk ID from lane");
+                                cloned.set_status_update_signal();
                             }
                         }
                     }
@@ -323,6 +341,9 @@ impl Contribute {
             PipelineLane::Upload => self.max_in_upload_lane,
         };
         loop {
+            if EXITING.load(SeqCst) {
+                return Err(ContributeError::GotExitSignalError.into());
+            }
             {
                 let pipeline = PIPELINE
                     .read()
@@ -336,7 +357,7 @@ impl Contribute {
                     return Ok(());
                 }
             }
-            tokio::time::delay_for(Duration::seconds(DELAY_POLL_CEREMONY_SECS).to_std()?).await;
+            tokio::time::delay_for(Duration::seconds(DELAY_WAIT_FOR_PIPELINE_SECS).to_std()?).await;
         }
     }
 
@@ -349,12 +370,18 @@ impl Contribute {
     }
 
     async fn status_updater(&self, progress_bar: ProgressBar) -> Result<bool> {
+        if EXIT_SIGNAL.load(SeqCst) > 0 {
+            progress_bar.set_message("Exit detected, handling chunks in buffer. If there was a problem, please contact the coordinator for help. If you got notified by the coordinator, please destroy the USB drive containing your keys. Press 10 times to force quit.");
+            progress_bar.set_length(0);
+            progress_bar.finish();
+            return Ok(true);
+        }
         let chunk_info = self.get_chunk_info().await?;
         let num_chunks = chunk_info.num_chunks;
         progress_bar.set_length(num_chunks as u64);
         let non_contributed_chunks = self.get_non_contributed_chunks(&chunk_info)?;
 
-        let participant_locked_chunks = self.get_participant_locked_chunks_display(&chunk_info)?;
+        let participant_locked_chunks = self.get_participant_locked_chunks_display()?;
         if participant_locked_chunks.len() > 0 {
             progress_bar.set_message(&format!(
                 "{} {} {}...",
@@ -373,10 +400,10 @@ impl Contribute {
         } else if non_contributed_chunks.len() == 0 {
             info!("Successfully contributed, thank you for participation! Waiting to see if you're still needed... Don't turn this off! ");
             progress_bar.set_position(num_chunks as u64);
-            if !self.exit_when_finished_contributing {
+            if !self.exit_when_finished_contributing && !chunk_info.shutdown_signal {
                 progress_bar.set_message("Successfully contributed, thank you for participation! Waiting to see if you're still needed... Don't turn this off!");
             } else {
-                progress_bar.set_message("Successfully contributed, thank you for participation!");
+                progress_bar.set_message("Successfully contributed, thank you for participation! Please destroy the USB drive containing your keys.");
                 progress_bar.finish();
                 return Ok(true);
             }
@@ -550,11 +577,17 @@ impl Contribute {
         chunk_id: &str,
     ) -> Result<()> {
         loop {
+            if EXITING.load(SeqCst) {
+                return Err(ContributeError::GotExitSignalError.into());
+            }
             match self
                 .move_chunk_id_from_lane_to_lane(from, to, chunk_id)
                 .await?
             {
-                true => return Ok(()),
+                true => {
+                    self.set_status_update_signal();
+                    return Ok(());
+                }
                 false => {
                     tokio::time::delay_for(
                         Duration::seconds(DELAY_WAIT_FOR_PIPELINE_SECS).to_std()?,
@@ -597,6 +630,7 @@ impl Contribute {
             }
             self.chosen_chunk_id = Some(chunk_id.to_string());
             self.lock_chunk(&chunk_id).await?;
+            self.set_status_update_signal();
 
             let (chunk_index, chunk) = self.get_chunk_download_info(&chunk_id).await?;
 
@@ -800,10 +834,7 @@ impl Contribute {
         }
     }
 
-    fn get_participant_locked_chunks_display(
-        &self,
-        ceremony: &FilteredChunks,
-    ) -> Result<Vec<String>> {
+    fn get_participant_locked_chunks_display(&self) -> Result<Vec<String>> {
         let mut chunk_ids = vec![];
         let pipeline = self.get_pipeline_snapshot()?;
         for lane in &[
@@ -815,39 +846,13 @@ impl Contribute {
                 .get(lane)
                 .ok_or(ContributeError::LaneWasNullError(lane.to_string()))?
             {
-                if let Some(chunk) = ceremony
-                    .chunks
-                    .iter()
-                    .find(|c| c.chunk_id == chunk_id.clone())
-                {
-                    if chunk.lock_holder.is_some()
-                        && chunk.lock_holder != Some(self.participant_id.clone())
-                    {
-                        return Err(
-                            ContributeError::CouldNotFindChunkWithIDLockedByParticipantError(
-                                chunk_id.clone(),
-                                self.participant_id.clone(),
-                            )
-                            .into(),
-                        );
-                    }
-                } else {
-                    return Err(
-                        ContributeError::CouldNotFindChunkWithIDLockedByParticipantError(
-                            chunk_id.clone(),
-                            self.participant_id.clone(),
-                        )
-                        .into(),
-                    );
-                }
-
                 chunk_ids.push(format!("{} ({})", chunk_id.clone(), lane));
             }
         }
         Ok(chunk_ids)
     }
 
-    async fn release_locked_chunks(&self, ceremony: &Ceremony) -> Result<()> {
+    async fn release_locked_chunks(&self, ceremony: &FilteredChunks) -> Result<()> {
         let chunk_ids = ceremony
             .chunks
             .iter()
@@ -923,6 +928,8 @@ impl Contribute {
         Ok((chunk_id.parse::<usize>()?, chunk))
     }
 
+    #[allow(unused)]
+    #[deprecated]
     async fn get_ceremony(&self) -> Result<Ceremony> {
         let ceremony_url = self.server_url.join("ceremony")?;
         let client = reqwest::Client::builder().gzip(true).build()?;
@@ -1017,6 +1024,16 @@ impl Contribute {
 
 #[tokio::main]
 async fn main() {
+    ctrlc::set_handler(move || {
+        println!("Got ctrl+c...");
+        SHOULD_UPDATE_STATUS.store(true, SeqCst);
+        EXIT_SIGNAL.fetch_add(1, SeqCst);
+        if EXIT_SIGNAL.load(SeqCst) >= 10 {
+            println!("Force quitting...");
+            std::process::exit(0);
+        }
+    })
+    .expect("Error setting Ctrl-C handler");
     let appender = tracing_appender::rolling::never(".", "snark-setup.log");
     let (non_blocking, _guard) = tracing_appender::non_blocking(appender);
     tracing_subscriber::fmt()
@@ -1025,7 +1042,7 @@ async fn main() {
         .init();
 
     let opts: ContributeOpts = ContributeOpts::parse_args_default_or_exit();
-    let (seed, private_key) = read_keys(&opts.keys_path, opts.unsafe_passphrase)
+    let (seed, private_key) = read_keys(&opts.keys_path, opts.unsafe_passphrase, true)
         .expect("Should have loaded Plumo setup keys");
 
     *SEED.write().expect("Should have been able to write seed") = Some(seed);

@@ -129,6 +129,7 @@ pub struct Parameters {
 pub struct Ceremony {
     pub version: u64,
     pub max_locks: u64,
+    pub shutdown_signal: bool,
     pub contributor_ids: Vec<String>,
     pub verifier_ids: Vec<String>,
     pub chunks: Vec<Chunk>,
@@ -158,6 +159,8 @@ pub struct FilteredChunks {
     pub chunks: Vec<ChunkInfo>,
     pub parameters: Parameters,
     pub num_chunks: usize,
+    pub max_locks: u64,
+    pub shutdown_signal: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -217,5 +220,6 @@ pub struct ContributionUploadUrl {
 pub struct PlumoSetupKeys {
     pub encrypted_seed: String,
     pub encrypted_private_key: String,
+    pub encrypted_extra_entropy: Option<String>,
     pub address: String,
 }
