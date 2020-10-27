@@ -1,6 +1,6 @@
 #!/bin/bash -e
 
-ps auwx | grep "./bin/nodemon" | grep -v grep | awk '{print $2}' | xargs kill || true
+ps auwx | grep "nodemon" | grep -v grep | awk '{print $2}' | xargs kill || true
 
 COMMIT="master"
 BASE_DIR=$(pwd)
@@ -14,7 +14,7 @@ npm run build
 
 cp $BASE_DIR/empty.json ceremony
 npm run reset-db
-COORDINATOR_CONFIG_PATH=ceremony/empty.json COORDINATOR_AUTH_TYPE=celo npm run start-nodemon &
+JSON_LOGGING=true COORDINATOR_CONFIG_PATH=ceremony/empty.json COORDINATOR_AUTH_TYPE=celo npm run start-nodemon &
 sleep 5
 popd
 

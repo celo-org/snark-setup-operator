@@ -1,12 +1,13 @@
 use anyhow::Result;
 use gumdrop::Options;
-use phase1::helpers::batch_exp_mode_from_str;
+use phase1::helpers::{batch_exp_mode_from_str, subgroup_check_mode_from_str};
 use phase1_cli::{
     combine, contribute, new_challenge, transform_pok_and_correctness, transform_ratios,
 };
 use setup_utils::{
     derive_rng_from_seed, from_slice, upgrade_correctness_check_config, BatchExpMode,
-    DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS, DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
+    SubgroupCheckMode, DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+    DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
 };
 use snark_setup_operator::{
     data_structs::{Ceremony, Response},
@@ -69,6 +70,12 @@ pub struct VerifyTranscriptOpts {
         parse(try_from_str = "batch_exp_mode_from_str")
     )]
     pub batch_exp_mode: BatchExpMode,
+    #[options(
+        help = "which subgroup check version to use",
+        default = "auto",
+        parse(try_from_str = "subgroup_check_mode_from_str")
+    )]
+    pub subgroup_check_mode: SubgroupCheckMode,
 }
 
 pub struct TranscriptVerifier {
@@ -77,6 +84,7 @@ pub struct TranscriptVerifier {
     pub beacon_hash: Vec<u8>,
     pub force_correctness_checks: bool,
     pub batch_exp_mode: BatchExpMode,
+    pub subgroup_check_mode: SubgroupCheckMode,
 }
 
 impl TranscriptVerifier {
@@ -100,6 +108,7 @@ impl TranscriptVerifier {
             beacon_hash,
             force_correctness_checks: opts.force_correctness_checks,
             batch_exp_mode: opts.batch_exp_mode,
+            subgroup_check_mode: opts.subgroup_check_mode,
         };
         Ok(verifier)
     }
@@ -224,6 +233,7 @@ impl TranscriptVerifier {
                     ),
                     NEW_CHALLENGE_FILENAME,
                     NEW_CHALLENGE_HASH_FILENAME,
+                    self.subgroup_check_mode,
                     &parameters,
                 );
 
@@ -313,6 +323,7 @@ impl TranscriptVerifier {
             ),
             COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME,
             COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME,
+            self.subgroup_check_mode,
             &parameters,
         );
         // Verify the consistency of the entire combined contribution, making sure that the
@@ -351,7 +362,7 @@ impl TranscriptVerifier {
 }
 
 fn main() {
-    tracing_subscriber::fmt::init();
+    tracing_subscriber::fmt().json().init();
 
     let opts: VerifyTranscriptOpts = VerifyTranscriptOpts::parse_args_default_or_exit();
 

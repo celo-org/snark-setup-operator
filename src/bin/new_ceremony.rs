@@ -267,7 +267,7 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
 
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt::init();
+    tracing_subscriber::fmt().json().init();
 
     let opts: NewCeremonyOpts = NewCeremonyOpts::parse_args_default_or_exit();
     let (_, private_key) = read_keys(&opts.keys_path, opts.unsafe_passphrase, false)
