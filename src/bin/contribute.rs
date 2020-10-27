@@ -1,5 +1,6 @@
 use snark_setup_operator::data_structs::{
-    Chunk, ContributedData, ContributionUploadUrl, SignedData, VerifiedData,
+    ChunkDownloadInfo, ContributedData, ContributionUploadUrl, FilteredChunks, SignedData,
+    VerifiedData,
 };
 use snark_setup_operator::utils::{
     address_to_string, collect_processor_data, create_parameters_for_chunk, download_file_async,
@@ -348,12 +349,12 @@ impl Contribute {
     }
 
     async fn status_updater(&self, progress_bar: ProgressBar) -> Result<bool> {
-        let ceremony = self.get_ceremony().await?;
-        progress_bar.set_length(ceremony.chunks.len() as u64);
-        let non_contributed_chunks =
-            self.get_non_contributed_chunks(&ceremony, &self.participation_mode)?;
+        let chunk_info = self.get_chunk_info().await?;
+        let num_chunks = chunk_info.num_chunks;
+        progress_bar.set_length(num_chunks as u64);
+        let non_contributed_chunks = self.get_non_contributed_chunks(&chunk_info)?;
 
-        let participant_locked_chunks = self.get_participant_locked_chunks_display(&ceremony)?;
+        let participant_locked_chunks = self.get_participant_locked_chunks_display(&chunk_info)?;
         if participant_locked_chunks.len() > 0 {
             progress_bar.set_message(&format!(
                 "{} {} {}...",
@@ -368,11 +369,10 @@ impl Contribute {
                 },
                 participant_locked_chunks.join(", "),
             ));
-            progress_bar
-                .set_position((ceremony.chunks.len() - non_contributed_chunks.len()) as u64);
+            progress_bar.set_position((num_chunks - non_contributed_chunks.len()) as u64);
         } else if non_contributed_chunks.len() == 0 {
             info!("Successfully contributed, thank you for participation! Waiting to see if you're still needed... Don't turn this off! ");
-            progress_bar.set_position(ceremony.chunks.len() as u64);
+            progress_bar.set_position(num_chunks as u64);
             if !self.exit_when_finished_contributing {
                 progress_bar.set_message("Successfully contributed, thank you for participation! Waiting to see if you're still needed... Don't turn this off!");
             } else {
@@ -381,15 +381,14 @@ impl Contribute {
                 return Ok(true);
             }
         } else {
-            progress_bar
-                .set_position((ceremony.chunks.len() - non_contributed_chunks.len()) as u64);
+            progress_bar.set_position((num_chunks - non_contributed_chunks.len()) as u64);
             progress_bar.set_message(&format!("Waiting for an available chunk...",));
         }
 
         Ok(false)
     }
 
-    fn choose_chunk_id(&self, ceremony: &Ceremony) -> Result<String> {
+    fn choose_chunk_id(&self, ceremony: &FilteredChunks) -> Result<String> {
         let chunk_ids_from_pipeline: HashSet<String> = {
             let mut chunk_ids = vec![];
             let pipeline = self.get_pipeline_snapshot()?;
@@ -421,8 +420,7 @@ impl Contribute {
             }
         }
 
-        let incomplete_chunks =
-            self.get_non_contributed_and_available_chunks(&ceremony, &self.participation_mode)?;
+        let incomplete_chunks = self.get_non_contributed_and_available_chunks(&ceremony)?;
         Ok(incomplete_chunks
             .choose(&mut rand::thread_rng())
             .ok_or(ContributeError::CouldNotChooseChunkError)?
@@ -571,13 +569,11 @@ impl Contribute {
         loop {
             self.wait_for_available_spot_in_lane(&PipelineLane::Download)
                 .await?;
-            let ceremony = self.get_ceremony().await?;
+            let chunk_info = self.get_chunk_info().await?;
 
-            let non_contributed_chunks =
-                self.get_non_contributed_chunks(&ceremony, &self.participation_mode)?;
+            let non_contributed_chunks = self.get_non_contributed_chunks(&chunk_info)?;
 
-            let incomplete_chunks =
-                self.get_non_contributed_and_available_chunks(&ceremony, &self.participation_mode)?;
+            let incomplete_chunks = self.get_non_contributed_and_available_chunks(&chunk_info)?;
             if incomplete_chunks.len() == 0 {
                 if non_contributed_chunks.len() == 0 {
                     remove_file_if_exists(&self.challenge_filename)?;
@@ -595,14 +591,14 @@ impl Contribute {
                     continue;
                 }
             }
-            let chunk_id = self.choose_chunk_id(&ceremony)?;
+            let chunk_id = self.choose_chunk_id(&chunk_info)?;
             if !self.add_chunk_id_to_download_lane(&chunk_id)? {
                 continue;
             }
             self.chosen_chunk_id = Some(chunk_id.to_string());
             self.lock_chunk(&chunk_id).await?;
 
-            let (chunk_index, chunk) = self.get_chunk(&ceremony, &chunk_id)?;
+            let (chunk_index, chunk) = self.get_chunk_download_info(&chunk_id).await?;
 
             let (file_to_upload, contributed_or_verified_data) = match self.participation_mode {
                 ParticipationMode::Contribute => {
@@ -626,7 +622,8 @@ impl Contribute {
                     let start = Instant::now();
                     remove_file_if_exists(&self.response_filename)?;
                     remove_file_if_exists(&self.response_hash_filename)?;
-                    let parameters = create_parameters_for_chunk::<E>(&ceremony, chunk_index)?;
+                    let parameters =
+                        create_parameters_for_chunk::<E>(&chunk_info.parameters, chunk_index)?;
                     let (
                         challenge_filename,
                         challenge_hash_filename,
@@ -701,7 +698,8 @@ impl Contribute {
                     let start = Instant::now();
                     remove_file_if_exists(&self.new_challenge_filename)?;
                     remove_file_if_exists(&self.new_challenge_hash_filename)?;
-                    let parameters = create_parameters_for_chunk::<E>(&ceremony, chunk_index)?;
+                    let parameters =
+                        create_parameters_for_chunk::<E>(&chunk_info.parameters, chunk_index)?;
 
                     let (
                         challenge_filename,
@@ -771,7 +769,7 @@ impl Contribute {
             let authorization = get_authorization_value(
                 &self.private_key,
                 "POST",
-                Url::parse(&upload_url)?.path(),
+                &Url::parse(&upload_url)?.path().trim_start_matches("/"),
             )?;
 
             match self.upload_mode {
@@ -802,7 +800,10 @@ impl Contribute {
         }
     }
 
-    fn get_participant_locked_chunks_display(&self, ceremony: &Ceremony) -> Result<Vec<String>> {
+    fn get_participant_locked_chunks_display(
+        &self,
+        ceremony: &FilteredChunks,
+    ) -> Result<Vec<String>> {
         let mut chunk_ids = vec![];
         let pipeline = self.get_pipeline_snapshot()?;
         for lane in &[
@@ -858,40 +859,11 @@ impl Contribute {
         Ok(())
     }
 
-    fn get_non_contributed_chunks(
-        &self,
-        ceremony: &Ceremony,
-        participation_mode: &ParticipationMode,
-    ) -> Result<Vec<String>> {
+    fn get_non_contributed_chunks(&self, ceremony: &FilteredChunks) -> Result<Vec<String>> {
         let mut non_contributed = vec![];
 
         for chunk in ceremony.chunks.iter() {
-            match participation_mode {
-                ParticipationMode::Contribute => {
-                    let participant_ids_in_chunk: HashSet<_> = chunk
-                        .contributions
-                        .iter()
-                        .map(|c| c.contributor_id.as_ref())
-                        .filter_map(|e| e)
-                        .collect();
-                    if !participant_ids_in_chunk.contains(&self.participant_id) {
-                        non_contributed.push(chunk.chunk_id.clone());
-                    }
-                }
-                ParticipationMode::Verify => {
-                    if !chunk
-                        .contributions
-                        .iter()
-                        .last()
-                        .ok_or(ContributeError::ContributionListWasEmptyForChunkID(
-                            chunk.chunk_id.to_string(),
-                        ))?
-                        .verified
-                    {
-                        non_contributed.push(chunk.chunk_id.clone());
-                    }
-                }
-            }
+            non_contributed.push(chunk.chunk_id.clone());
         }
 
         Ok(non_contributed)
@@ -899,111 +871,56 @@ impl Contribute {
 
     fn get_non_contributed_and_available_chunks(
         &self,
-        ceremony: &Ceremony,
-        participation_mode: &ParticipationMode,
+        ceremony: &FilteredChunks,
     ) -> Result<Vec<String>> {
         let mut non_contributed = vec![];
 
-        for chunk in ceremony.chunks.iter().filter(|c| c.lock_holder.is_none()) {
-            if *participation_mode == ParticipationMode::Contribute
-                && !chunk.contributions.iter().all(|c| c.verified)
-            {
-                continue;
-            }
-            match participation_mode {
-                ParticipationMode::Contribute => {
-                    let participant_ids_in_chunk: HashSet<_> = chunk
-                        .contributions
-                        .iter()
-                        .map(|c| match participation_mode {
-                            ParticipationMode::Contribute => c.contributor_id.as_ref(),
-                            ParticipationMode::Verify => c.verifier_id.as_ref(),
-                        })
-                        .filter_map(|e| e)
-                        .collect();
-                    if !participant_ids_in_chunk.contains(&self.participant_id) {
-                        non_contributed.push(chunk.chunk_id.clone());
-                    }
-                }
-                ParticipationMode::Verify => {
-                    if !chunk
-                        .contributions
-                        .iter()
-                        .last()
-                        .ok_or(ContributeError::ContributionListWasEmptyForChunkID(
-                            chunk.chunk_id.to_string(),
-                        ))?
-                        .verified
-                    {
-                        non_contributed.push(chunk.chunk_id.clone());
-                    }
-                }
+        for chunk in ceremony.chunks.iter() {
+            if chunk.lock_holder.is_none() {
+                non_contributed.push(chunk.chunk_id.clone());
             }
         }
 
         Ok(non_contributed)
     }
 
-    fn get_download_url_of_last_challenge(&self, chunk: &Chunk) -> Result<String> {
-        let url = chunk
-            .contributions
-            .iter()
-            .last()
-            .ok_or(ContributeError::ContributionListWasEmptyForChunkID(
-                chunk.chunk_id.to_string(),
-            ))?
-            .verified_location
-            .clone()
-            .ok_or(ContributeError::VerifiedLocationWasNoneForChunkID(
-                chunk.chunk_id.to_string(),
-            ))?;
+    fn get_download_url_of_last_challenge(&self, chunk: &ChunkDownloadInfo) -> Result<String> {
+        let url = chunk.last_challenge_url.clone().ok_or(
+            ContributeError::VerifiedLocationWasNoneForChunkID(chunk.chunk_id.to_string()),
+        )?;
         Ok(url)
     }
 
-    fn get_download_url_of_last_challenge_for_verifying(&self, chunk: &Chunk) -> Result<String> {
-        let url = chunk
-            .contributions
-            .iter()
-            .rev()
-            .skip(1)
-            .rev()
-            .last()
-            .ok_or(ContributeError::ContributionListWasEmptyForChunkID(
-                chunk.chunk_id.to_string(),
-            ))?
-            .verified_location
-            .clone()
-            .ok_or(ContributeError::VerifiedLocationWasNoneForChunkID(
-                chunk.chunk_id.to_string(),
-            ))?;
+    fn get_download_url_of_last_challenge_for_verifying(
+        &self,
+        chunk: &ChunkDownloadInfo,
+    ) -> Result<String> {
+        let url = chunk.previous_challenge_url.clone().ok_or(
+            ContributeError::VerifiedLocationWasNoneForChunkID(chunk.chunk_id.to_string()),
+        )?;
         Ok(url)
     }
 
-    fn get_download_url_of_last_response(&self, chunk: &Chunk) -> Result<String> {
-        let url = chunk
-            .contributions
-            .iter()
-            .last()
-            .ok_or(ContributeError::ContributionListWasEmptyForChunkID(
-                chunk.chunk_id.to_string(),
-            ))?
-            .contributed_location
-            .clone()
-            .ok_or(ContributeError::VerifiedLocationWasNoneForChunkID(
-                chunk.chunk_id.to_string(),
-            ))?;
+    fn get_download_url_of_last_response(&self, chunk: &ChunkDownloadInfo) -> Result<String> {
+        let url = chunk.last_response_url.clone().ok_or(
+            ContributeError::ContributedLocationWasNoneForChunkID(chunk.chunk_id.to_string()),
+        )?;
         Ok(url)
     }
 
-    fn get_chunk(&self, ceremony: &Ceremony, chunk_id: &str) -> Result<(usize, Chunk)> {
-        let chunk = ceremony
-            .chunks
-            .iter()
-            .find(|c| c.chunk_id == chunk_id)
-            .ok_or(ContributeError::CouldNotFindChunkWithIDError(
-                chunk_id.to_string(),
-            ))?;
-        Ok((chunk_id.parse::<usize>()?, chunk.clone()))
+    async fn get_chunk_download_info(&self, chunk_id: &str) -> Result<(usize, ChunkDownloadInfo)> {
+        let get_path = format!("chunks/{}/info", chunk_id);
+        let get_chunk_url = self.server_url.join(&get_path)?;
+        let client = reqwest::Client::new();
+        let response = client
+            .get(get_chunk_url.as_str())
+            .send()
+            .await?
+            .error_for_status()?;
+        let data = response.text().await?;
+        let chunk: ChunkDownloadInfo =
+            serde_json::from_str::<Response<ChunkDownloadInfo>>(&data)?.result;
+        Ok((chunk_id.parse::<usize>()?, chunk))
     }
 
     async fn get_ceremony(&self) -> Result<Ceremony> {
@@ -1019,8 +936,26 @@ impl Contribute {
         Ok(ceremony)
     }
 
+    async fn get_chunk_info(&self) -> Result<FilteredChunks> {
+        let get_path = match self.participation_mode {
+            ParticipationMode::Contribute => format!("contributor/{}/chunks", self.participant_id),
+            ParticipationMode::Verify => format!("verifier/chunks"),
+        };
+        let ceremony_url = self.server_url.join(&get_path)?;
+        let client = reqwest::Client::builder().gzip(true).build()?;
+        let response = client
+            .get(ceremony_url.as_str())
+            .send()
+            .await?
+            .error_for_status()?;
+        let data = response.text().await?;
+        let ceremony: FilteredChunks =
+            serde_json::from_str::<Response<FilteredChunks>>(&data)?.result;
+        Ok(ceremony)
+    }
+
     async fn lock_chunk(&self, chunk_id: &str) -> Result<()> {
-        let lock_path = format!("/chunks/{}/lock", chunk_id);
+        let lock_path = format!("chunks/{}/lock", chunk_id);
         let lock_chunk_url = self.server_url.join(&lock_path)?;
         let client = reqwest::Client::new();
         let authorization = get_authorization_value(&self.private_key, "POST", &lock_path)?;
@@ -1034,7 +969,7 @@ impl Contribute {
     }
 
     async fn unlock_chunk(&self, chunk_id: &str) -> Result<()> {
-        let unlock_path = format!("/chunks/{}/unlock", chunk_id);
+        let unlock_path = format!("chunks/{}/unlock", chunk_id);
         let unlock_chunk_url = self.server_url.join(&unlock_path)?;
         let client = reqwest::Client::new();
         let authorization = get_authorization_value(&self.private_key, "POST", &unlock_path)?;
@@ -1048,7 +983,7 @@ impl Contribute {
     }
 
     async fn get_upload_url(&self, chunk_id: &str) -> Result<String> {
-        let upload_request_path = format!("/chunks/{}/contribution", chunk_id);
+        let upload_request_path = format!("chunks/{}/contribution", chunk_id);
         let upload_request_url = self.server_url.join(&upload_request_path)?;
         let client = reqwest::Client::new();
         let authorization =
@@ -1061,12 +996,11 @@ impl Contribute {
             .error_for_status()?
             .json()
             .await?;
-
         Ok(response.result.write_url)
     }
 
     async fn notify_contribution(&self, chunk_id: &str, body: serde_json::Value) -> Result<()> {
-        let notify_path = format!("/chunks/{}/contribution", chunk_id);
+        let notify_path = format!("chunks/{}/contribution", chunk_id);
         let notify_url = self.server_url.join(&notify_path)?;
         let client = reqwest::Client::new();
         let authorization = get_authorization_value(&self.private_key, "POST", &notify_path)?;

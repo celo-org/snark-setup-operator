@@ -8,7 +8,7 @@ use std::{
 };
 
 use crate::blobstore::{upload_access_key, upload_sas};
-use crate::data_structs::{Ceremony, PlumoSetupKeys, ProcessorData};
+use crate::data_structs::{Parameters, PlumoSetupKeys, ProcessorData};
 use crate::error::{UtilsError, VerifyTranscriptError};
 use anyhow::Result;
 use ethers::types::{Address, Signature};
@@ -167,36 +167,36 @@ pub fn get_authorization_value(
     path: &str,
 ) -> Result<String> {
     let address = private_key.address().encode_hex::<String>();
-    let message = format!("{} {}", method.to_lowercase(), path.to_lowercase());
+    let message = format!("{} /{}", method.to_lowercase(), path.to_lowercase());
     let signature: Signature = futures::executor::block_on(private_key.sign_message(message))?;
     let authorization = format!("Celo 0x{}:0x{}", address, signature.to_string());
     Ok(authorization)
 }
 
 pub fn create_parameters_for_chunk<E: PairingEngine>(
-    ceremony: &Ceremony,
+    ceremony_parameters: &Parameters,
     chunk_index: usize,
 ) -> Result<Phase1Parameters<E>> {
-    let proving_system = proving_system_from_str(ceremony.parameters.proving_system.as_str())?;
+    let proving_system = proving_system_from_str(ceremony_parameters.proving_system.as_str())?;
     let parameters = Phase1Parameters::<E>::new_chunk(
         ContributionMode::Chunked,
         chunk_index,
-        ceremony.parameters.chunk_size,
+        ceremony_parameters.chunk_size,
         proving_system,
-        ceremony.parameters.power,
-        ceremony.parameters.batch_size,
+        ceremony_parameters.power,
+        ceremony_parameters.batch_size,
     );
     Ok(parameters)
 }
 
 pub fn create_full_parameters<E: PairingEngine>(
-    ceremony: &Ceremony,
+    ceremony_parameters: &Parameters,
 ) -> Result<Phase1Parameters<E>> {
-    let proving_system = proving_system_from_str(ceremony.parameters.proving_system.as_str())?;
+    let proving_system = proving_system_from_str(ceremony_parameters.proving_system.as_str())?;
     let parameters = Phase1Parameters::<E>::new_full(
         proving_system,
-        ceremony.parameters.power,
-        ceremony.parameters.batch_size,
+        ceremony_parameters.power,
+        ceremony_parameters.batch_size,
     );
     Ok(parameters)
 }

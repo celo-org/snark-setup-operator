@@ -1,2 +1,7 @@
 /target
 .idea
+ceremony_*
+*.log
+*.keys
+new_challenge
+new_challenge.hash
