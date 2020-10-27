@@ -206,7 +206,7 @@ impl Contribute {
         let ceremony = self.get_chunk_info().await?;
         self.release_locked_chunks(&ceremony).await?;
 
-        Ok(ceremony.max_locks as u64)
+        Ok(ceremony.max_locks)
     }
 
     async fn wait_for_status_update_signal(&self) {

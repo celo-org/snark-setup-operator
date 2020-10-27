@@ -129,6 +129,7 @@ pub struct Parameters {
 pub struct Ceremony {
     pub version: u64,
     pub max_locks: u64,
+    pub shutdown_signal: bool,
     pub contributor_ids: Vec<String>,
     pub verifier_ids: Vec<String>,
     pub chunks: Vec<Chunk>,
@@ -158,7 +159,7 @@ pub struct FilteredChunks {
     pub chunks: Vec<ChunkInfo>,
     pub parameters: Parameters,
     pub num_chunks: usize,
-    pub max_locks: usize,
+    pub max_locks: u64,
     pub shutdown_signal: bool,
 }
 

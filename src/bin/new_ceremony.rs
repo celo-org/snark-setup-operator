@@ -71,6 +71,7 @@ fn build_ceremony_from_chunks(opts: &NewCeremonyOpts, chunks: &[Chunk]) -> Resul
     let ceremony = Ceremony {
         version: 0,
         max_locks: opts.max_locks,
+        shutdown_signal: false,
         contributor_ids: opts.participant.clone(),
         verifier_ids: opts.verifier.clone(),
         parameters: Parameters {
