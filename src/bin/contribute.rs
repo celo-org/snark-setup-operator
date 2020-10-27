@@ -231,7 +231,6 @@ impl Contribute {
     async fn run_and_catch_errors<E: PairingEngine>(&self) -> Result<()> {
         let delay_after_error_duration =
             Duration::seconds(DELAY_AFTER_ERROR_DURATION_SECS).to_std()?;
-        let delay_poll_ceremony_duration = Duration::seconds(DELAY_POLL_CEREMONY_SECS).to_std()?;
         let progress_bar = ProgressBar::new(0);
         let progress_style = ProgressStyle::default_bar()
             .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} {msg}")
@@ -382,7 +381,7 @@ impl Contribute {
         progress_bar.set_length(num_chunks as u64);
         let non_contributed_chunks = self.get_non_contributed_chunks(&chunk_info)?;
 
-        let participant_locked_chunks = self.get_participant_locked_chunks_display(&chunk_info)?;
+        let participant_locked_chunks = self.get_participant_locked_chunks_display()?;
         if participant_locked_chunks.len() > 0 {
             progress_bar.set_message(&format!(
                 "{} {} {}...",

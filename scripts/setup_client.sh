@@ -5,7 +5,7 @@ IP=$2
 COORDINATOR_IP=$3
 PARTICIPATION_MODE=$4
 
-export COMMIT="feat/setup_scripts"
+export COMMIT="main"
 
 ssh -i "$KEYFILE" -o LogLevel=quiet -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null azureuser@$IP <<ENDSSH
 touch .hushlogin

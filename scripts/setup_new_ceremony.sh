@@ -7,7 +7,7 @@ POWERS=$4
 CHUNK_SIZE=$5
 STORAGE_KEY=$(cat storage_access_key)
 
-export COMMIT="feat/setup_scripts"
+export COMMIT="main"
 export VERIFIER_KEYS=$(cat ../e2e/plumo-verifier.keys)
 export CONTRIBUTORS=""
 export VERIFIERS=""

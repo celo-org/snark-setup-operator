@@ -5,7 +5,7 @@ IP=$2
 COORDINATOR_IP=$3
 PARTICIPATION_MODE=$4
 
-export COMMIT="feat/setup_scripts"
+export COMMIT="main"
 
 echo Upgrading client
 
