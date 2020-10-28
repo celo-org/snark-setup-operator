@@ -1,5 +1,9 @@
 pub const PLUMO_SETUP_PERSONALIZATION: &[u8] = b"PLUMOSET";
-const ADDRESS_LENGTH: usize = 20;
+pub const ADDRESS_LENGTH: usize = 20;
+pub const DEFAULT_MAX_RETRIES: usize = 5;
+pub const ONE_MB: usize = 1024 * 1024;
+pub const DEFAULT_CHUNK_SIZE: u64 = 10 * (ONE_MB as u64);
+pub const DEFAULT_CHUNK_TIMEOUT_IN_SECONDS: usize = 300;
 
 use crate::blobstore::{upload_access_key, upload_sas};
 use crate::data_structs::{Parameters, PlumoSetupKeys, ProcessorData};
@@ -12,7 +16,7 @@ use anyhow::Result;
 use ethers::types::{Address, Signature};
 use hex::ToHex;
 use phase1::{ContributionMode, Phase1Parameters, ProvingSystem};
-use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
+use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, RANGE};
 use secrecy::{ExposeSecret, SecretString, SecretVec};
 use serde::Serialize;
 use std::{
@@ -22,6 +26,7 @@ use std::{
     str::FromStr,
 };
 use sysinfo::{ProcessorExt, System, SystemExt};
+use tracing::warn;
 use zexe_algebra::PairingEngine;
 
 pub fn copy_file_if_exists(file_path: &str, dest_path: &str) -> Result<()> {
@@ -39,12 +44,79 @@ pub fn download_file(url: &str, file_path: &str) -> Result<()> {
     Ok(())
 }
 
-pub async fn download_file_async(url: &str, file_path: &str) -> Result<()> {
+pub async fn download_file_direct_async(url: &str, file_path: &str) -> Result<()> {
     remove_file_if_exists(file_path)?;
     let mut resp = reqwest::get(url).await?.error_for_status()?;
     let mut out = File::create(file_path)?;
     while let Some(chunk) = resp.chunk().await? {
-        out.write(&chunk)?;
+        out.write_all(&chunk)?;
+    }
+    Ok(())
+}
+
+pub async fn download_file_from_azure_async(
+    url: &str,
+    expected_length: u64,
+    file_path: &str,
+) -> Result<()> {
+    remove_file_if_exists(file_path)?;
+    let mut out = File::create(file_path)?;
+    let num_chunks = (expected_length + DEFAULT_CHUNK_SIZE - 1) / DEFAULT_CHUNK_SIZE;
+    for chunk_index in 0..num_chunks {
+        let start = chunk_index * DEFAULT_CHUNK_SIZE;
+        let end = if chunk_index == num_chunks - 1 {
+            expected_length - 1
+        } else {
+            (chunk_index + 1) * DEFAULT_CHUNK_SIZE - 1
+        };
+        let client = reqwest::Client::new();
+        let mut resp = client
+            .get(url)
+            .header(CONTENT_TYPE, "application/octet-stream")
+            .header(RANGE, format!("bytes={}-{}", start, end))
+            .timeout(std::time::Duration::from_secs(
+                DEFAULT_CHUNK_TIMEOUT_IN_SECONDS as u64,
+            ))
+            .send()
+            .await?
+            .error_for_status()?;
+        while let Some(chunk) = resp.chunk().await? {
+            out.write_all(&chunk)?;
+        }
+    }
+
+    Ok(())
+}
+
+pub async fn download_file_async_with_retries(url: &str, file_path: &str) -> Result<()> {
+    FutureRetry::new(
+        || download_file_direct_async(url, file_path),
+        MaxRetriesHandler::new(DEFAULT_MAX_RETRIES),
+    )
+    .await
+    .map_err(|e| UtilsError::RetryFailedError(e.0.to_string()))?;
+    Ok(())
+}
+
+pub async fn download_file_from_azure_async_with_retries(
+    url: &str,
+    expected_length: u64,
+    file_path: &str,
+) -> Result<()> {
+    for i in 0..DEFAULT_MAX_RETRIES {
+        let result = download_file_from_azure_async(url, expected_length, file_path).await;
+        match result {
+            Ok(_) => break,
+            Err(e) => {
+                warn!(
+                    "Failed: {}, retry {}/{}",
+                    e.to_string(),
+                    i,
+                    DEFAULT_MAX_RETRIES,
+                );
+            }
+        }
+        tokio::time::delay_for(std::time::Duration::from_secs(5)).await;
     }
     Ok(())
 }
@@ -99,6 +171,7 @@ pub fn remove_file_if_exists(file_path: &str) -> Result<()> {
 
 use blake2::{Blake2s, Digest};
 use ethers::signers::{LocalWallet, Signer};
+use futures_retry::{ErrorHandler, FutureRetry, RetryPolicy};
 use rand::rngs::OsRng;
 use rand::RngCore;
 
@@ -348,4 +421,43 @@ pub fn collect_processor_data() -> Result<Vec<ProcessorData>> {
         })
         .collect();
     Ok(processors)
+}
+
+pub struct MaxRetriesHandler {
+    max_attempts: usize,
+}
+impl MaxRetriesHandler {
+    pub fn new(max_attempts: usize) -> Self {
+        MaxRetriesHandler { max_attempts }
+    }
+}
+
+impl ErrorHandler<anyhow::Error> for MaxRetriesHandler {
+    type OutError = anyhow::Error;
+
+    fn handle(&mut self, attempt: usize, e: anyhow::Error) -> RetryPolicy<Self::OutError> {
+        warn!(
+            "Failed: {}, retry {}/{}",
+            e.to_string(),
+            attempt,
+            self.max_attempts,
+        );
+        if attempt > self.max_attempts {
+            RetryPolicy::ForwardError(e)
+        } else {
+            RetryPolicy::WaitRetry(
+                chrono::Duration::seconds(5)
+                    .to_std()
+                    .expect("Should have converted to standard duration"),
+            )
+        }
+    }
+}
+
+pub fn challenge_size<E: PairingEngine>(parameters: &Phase1Parameters<E>) -> u64 {
+    parameters.accumulator_size as u64
+}
+
+pub fn response_size<E: PairingEngine>(parameters: &Phase1Parameters<E>) -> u64 {
+    parameters.contribution_size as u64
 }
