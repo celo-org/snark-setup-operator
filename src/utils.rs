@@ -3,7 +3,7 @@ pub const ADDRESS_LENGTH: usize = 20;
 pub const DEFAULT_MAX_RETRIES: usize = 5;
 pub const ONE_MB: usize = 1024 * 1024;
 pub const DEFAULT_CHUNK_SIZE: u64 = 10 * (ONE_MB as u64);
-pub const DEFAULT_CHUNK_TIMEOUT_IN_SECONDS: usize = 300;
+pub const DEFAULT_CHUNK_TIMEOUT_IN_SECONDS: u64 = 300;
 
 use crate::blobstore::{upload_access_key, upload_sas};
 use crate::data_structs::{Parameters, PlumoSetupKeys, ProcessorData};
@@ -62,27 +62,38 @@ pub async fn download_file_from_azure_async(
     remove_file_if_exists(file_path)?;
     let mut out = File::create(file_path)?;
     let num_chunks = (expected_length + DEFAULT_CHUNK_SIZE - 1) / DEFAULT_CHUNK_SIZE;
+    let mut futures = vec![];
     for chunk_index in 0..num_chunks {
-        let start = chunk_index * DEFAULT_CHUNK_SIZE;
-        let end = if chunk_index == num_chunks - 1 {
-            expected_length - 1
-        } else {
-            (chunk_index + 1) * DEFAULT_CHUNK_SIZE - 1
+        let future = async move {
+            let start = chunk_index * DEFAULT_CHUNK_SIZE;
+            let end = if chunk_index == num_chunks - 1 {
+                expected_length - 1
+            } else {
+                (chunk_index + 1) * DEFAULT_CHUNK_SIZE - 1
+            };
+            let client = reqwest::Client::new();
+            let mut resp = client
+                .get(url)
+                .header(CONTENT_TYPE, "application/octet-stream")
+                .header(RANGE, format!("bytes={}-{}", start, end))
+                .timeout(std::time::Duration::from_secs(
+                    DEFAULT_CHUNK_TIMEOUT_IN_SECONDS,
+                ))
+                .send()
+                .await?
+                .error_for_status()?;
+            let mut bytes = Vec::with_capacity((end - start + 1) as usize);
+            while let Some(chunk) = resp.chunk().await? {
+                bytes.write_all(&chunk)?;
+            }
+
+            Ok::<Vec<u8>, anyhow::Error>(bytes)
         };
-        let client = reqwest::Client::new();
-        let mut resp = client
-            .get(url)
-            .header(CONTENT_TYPE, "application/octet-stream")
-            .header(RANGE, format!("bytes={}-{}", start, end))
-            .timeout(std::time::Duration::from_secs(
-                DEFAULT_CHUNK_TIMEOUT_IN_SECONDS as u64,
-            ))
-            .send()
-            .await?
-            .error_for_status()?;
-        while let Some(chunk) = resp.chunk().await? {
-            out.write_all(&chunk)?;
-        }
+        futures.push(future);
+    }
+    let bytes_list = futures::future::try_join_all(futures).await?;
+    for bytes in bytes_list {
+        out.write_all(&bytes)?;
     }
 
     Ok(())
