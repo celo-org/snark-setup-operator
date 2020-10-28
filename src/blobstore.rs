@@ -5,10 +5,15 @@
 
 use crate::{
     error::{HttpError, UtilsError},
-    utils::{MaxRetriesHandler, DEFAULT_MAX_RETRIES, ONE_MB},
+    utils::{
+        MaxRetriesHandler, DEFAULT_CHUNK_SIZE, DEFAULT_CHUNK_TIMEOUT_IN_SECONDS,
+        DEFAULT_MAX_RETRIES,
+    },
 };
 use anyhow::Result;
-use azure_core::{BlobNameSupport, BlockIdSupport, BodySupport, ContainerNameSupport};
+use azure_core::{
+    BlobNameSupport, BlockIdSupport, BodySupport, ContainerNameSupport, TimeoutSupport,
+};
 use azure_storage::blob::blob::{BlobBlockType, BlockList, BlockListSupport};
 use azure_storage::blob::container::{PublicAccess, PublicAccessSupport};
 use azure_storage::core::key_client::KeyClient;
@@ -21,8 +26,6 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::ops::Deref;
 use url::Url;
-
-const MAX_BLOCK_SIZE: usize = ONE_MB * 100;
 
 /// Converts the block index into an block_id
 fn to_id(count: u64) -> Result<Vec<u8>> {
@@ -110,17 +113,17 @@ pub async fn upload_with_client(
     path: &str,
     file_path: &str,
 ) -> Result<()> {
-    let block_size = MAX_BLOCK_SIZE;
+    let block_size = DEFAULT_CHUNK_SIZE;
 
     let mut file = File::open(file_path)?;
-    let size = usize::try_from(file.metadata()?.len())?;
+    let size = u64::try_from(file.metadata()?.len())?;
     let mut sent = 0;
     let mut blocks = BlockList { blocks: Vec::new() };
     let mut futures = vec![];
     while sent < size {
         let send_size = cmp::min(block_size, size - sent);
         let block_id = to_id(sent as u64)?;
-        let mut data = vec![0; send_size];
+        let mut data = vec![0; send_size as usize];
         file.read_exact(&mut data)?;
 
         let client = client.clone();
@@ -134,6 +137,7 @@ pub async fn upload_with_client(
                 .with_blob_name(&path)
                 .with_body(&data)
                 .with_block_id(&block_id_for_spawn)
+                .with_timeout(DEFAULT_CHUNK_TIMEOUT_IN_SECONDS)
                 .finalize()
                 .await
         });
