@@ -193,9 +193,10 @@ checksum = "cdb031dd78e28731d87d56cc8ffef4a8f36ca26c38fe2de700543e627f8a464a"
 [[package]]
 name = "azure_core"
 version = "0.1.0"
-source = "git+https://github.com/Azure/azure-sdk-for-rust#e19ffb08996e348785b72f8dbf3e922af0101e89"
+source = "git+https://github.com/Azure/azure-sdk-for-rust#10e48f6962d35f07a51457ac12d4c64595f9f066"
 dependencies = [
  "RustyXML",
+ "async-trait",
  "base64 0.13.0",
  "bytes",
  "chrono",
@@ -205,6 +206,7 @@ dependencies = [
  "hyper",
  "hyper-rustls",
  "log",
+ "oauth2",
  "quick-error",
  "serde",
  "serde-xml-rs",
@@ -217,7 +219,7 @@ dependencies = [
 [[package]]
 name = "azure_storage"
 version = "0.1.0"
-source = "git+https://github.com/Azure/azure-sdk-for-rust#e19ffb08996e348785b72f8dbf3e922af0101e89"
+source = "git+https://github.com/Azure/azure-sdk-for-rust#10e48f6962d35f07a51457ac12d4c64595f9f066"
 dependencies = [
  "RustyXML",
  "azure_core",
@@ -1830,6 +1832,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "17b02fc0ff9a9e4b35b3342880f48e896ebf69f2967921fe8646bf5b7125956a"
 
 [[package]]
+name = "oauth2"
+version = "4.0.0-alpha.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ffa352d61442f0db747af933c28873ebe78f75c99274a1e368b77eb5a59ba57c"
+dependencies = [
+ "base64 0.12.3",
+ "chrono",
+ "http",
+ "rand 0.7.3",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror",
+ "url",
+]
+
+[[package]]
 name = "object"
 version = "0.21.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3383,6 +3403,7 @@ dependencies = [
  "idna",
  "matches",
  "percent-encoding",
+ "serde",
 ]
 
 [[package]]

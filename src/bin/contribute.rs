@@ -3,10 +3,11 @@ use snark_setup_operator::data_structs::{
     VerifiedData,
 };
 use snark_setup_operator::utils::{
-    address_to_string, collect_processor_data, create_parameters_for_chunk, download_file_async,
+    address_to_string, challenge_size, collect_processor_data, create_parameters_for_chunk,
+    download_file_direct_async, download_file_from_azure_async_with_retries,
     get_authorization_value, participation_mode_from_str, read_hash_from_file, read_keys,
-    remove_file_if_exists, sign_json, upload_file_direct_async, upload_file_to_azure_async,
-    upload_mode_from_str, ParticipationMode, UploadMode,
+    remove_file_if_exists, response_size, sign_json, upload_file_direct_async,
+    upload_file_to_azure_async, upload_mode_from_str, ParticipationMode, UploadMode,
 };
 use snark_setup_operator::{
     data_structs::{Ceremony, Response},
@@ -646,8 +647,36 @@ impl Contribute {
                 ParticipationMode::Contribute => {
                     remove_file_if_exists(&self.challenge_filename)?;
                     remove_file_if_exists(&self.challenge_hash_filename)?;
+                    let parameters =
+                        create_parameters_for_chunk::<E>(&chunk_info.parameters, chunk_index)?;
                     let download_url = self.get_download_url_of_last_challenge(&chunk)?;
-                    download_file_async(&download_url, &self.challenge_filename).await?;
+                    match self.upload_mode {
+                        UploadMode::Auto => {
+                            if download_url.contains("blob.core.windows.net") {
+                                download_file_from_azure_async_with_retries(
+                                    &download_url,
+                                    challenge_size(&parameters),
+                                    &self.challenge_filename,
+                                )
+                                .await?;
+                            } else {
+                                download_file_direct_async(&download_url, &self.challenge_filename)
+                                    .await?;
+                            }
+                        }
+                        UploadMode::Azure => {
+                            download_file_from_azure_async_with_retries(
+                                &download_url,
+                                challenge_size(&parameters),
+                                &self.challenge_filename,
+                            )
+                            .await?;
+                        }
+                        UploadMode::Direct => {
+                            download_file_direct_async(&download_url, &self.challenge_filename)
+                                .await?;
+                        }
+                    }
                     self.wait_and_move_chunk_id_from_lane_to_lane(
                         &PipelineLane::Download,
                         &PipelineLane::Process,
@@ -664,8 +693,6 @@ impl Contribute {
                     let start = Instant::now();
                     remove_file_if_exists(&self.response_filename)?;
                     remove_file_if_exists(&self.response_hash_filename)?;
-                    let parameters =
-                        create_parameters_for_chunk::<E>(&chunk_info.parameters, chunk_index)?;
                     let (
                         challenge_filename,
                         challenge_hash_filename,
@@ -726,11 +753,69 @@ impl Contribute {
                     remove_file_if_exists(&self.challenge_hash_filename)?;
                     remove_file_if_exists(&self.response_filename)?;
                     remove_file_if_exists(&self.response_hash_filename)?;
+                    let parameters =
+                        create_parameters_for_chunk::<E>(&chunk_info.parameters, chunk_index)?;
                     let challenge_download_url =
                         self.get_download_url_of_last_challenge_for_verifying(&chunk)?;
-                    download_file_async(&challenge_download_url, &self.challenge_filename).await?;
                     let response_download_url = self.get_download_url_of_last_response(&chunk)?;
-                    download_file_async(&response_download_url, &self.response_filename).await?;
+                    match self.upload_mode {
+                        UploadMode::Auto => {
+                            if challenge_download_url.contains("blob.core.windows.net") {
+                                download_file_from_azure_async_with_retries(
+                                    &challenge_download_url,
+                                    challenge_size(&parameters),
+                                    &self.challenge_filename,
+                                )
+                                .await?;
+                            } else {
+                                download_file_direct_async(
+                                    &challenge_download_url,
+                                    &self.challenge_filename,
+                                )
+                                .await?;
+                            }
+                            if response_download_url.contains("blob.core.windows.net") {
+                                download_file_from_azure_async_with_retries(
+                                    &response_download_url,
+                                    response_size(&parameters),
+                                    &self.response_filename,
+                                )
+                                .await?;
+                            } else {
+                                download_file_direct_async(
+                                    &response_download_url,
+                                    &self.response_filename,
+                                )
+                                .await?;
+                            }
+                        }
+                        UploadMode::Azure => {
+                            download_file_from_azure_async_with_retries(
+                                &challenge_download_url,
+                                challenge_size(&parameters),
+                                &self.challenge_filename,
+                            )
+                            .await?;
+                            download_file_from_azure_async_with_retries(
+                                &response_download_url,
+                                response_size(&parameters),
+                                &self.response_filename,
+                            )
+                            .await?;
+                        }
+                        UploadMode::Direct => {
+                            download_file_direct_async(
+                                &challenge_download_url,
+                                &self.challenge_filename,
+                            )
+                            .await?;
+                            download_file_direct_async(
+                                &response_download_url,
+                                &self.response_filename,
+                            )
+                            .await?;
+                        }
+                    }
                     self.wait_and_move_chunk_id_from_lane_to_lane(
                         &PipelineLane::Download,
                         &PipelineLane::Process,
@@ -740,8 +825,6 @@ impl Contribute {
                     let start = Instant::now();
                     remove_file_if_exists(&self.new_challenge_filename)?;
                     remove_file_if_exists(&self.new_challenge_hash_filename)?;
-                    let parameters =
-                        create_parameters_for_chunk::<E>(&chunk_info.parameters, chunk_index)?;
 
                     let (
                         challenge_filename,

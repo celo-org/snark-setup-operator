@@ -3,24 +3,23 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
 
-pub const ONE_MB: usize = 1024 * 1024;
-pub const MAX_RETRIES: usize = 5;
-
-use crate::error::{HttpError, UtilsError};
-use anyhow::{Error, Result};
+use crate::{
+    error::{HttpError, UtilsError},
+    utils::{MaxRetriesHandler, DEFAULT_MAX_RETRIES, ONE_MB},
+};
+use anyhow::Result;
 use azure_core::{BlobNameSupport, BlockIdSupport, BodySupport, ContainerNameSupport};
 use azure_storage::blob::blob::{BlobBlockType, BlockList, BlockListSupport};
 use azure_storage::blob::container::{PublicAccess, PublicAccessSupport};
 use azure_storage::core::key_client::KeyClient;
 use azure_storage::{client, Blob, Container};
 use byteorder::{LittleEndian, WriteBytesExt};
-use futures_retry::{ErrorHandler, FutureRetry, RetryPolicy};
+use futures_retry::FutureRetry;
 use std::cmp;
 use std::convert::TryFrom;
 use std::fs::File;
 use std::io::prelude::*;
 use std::ops::Deref;
-use tracing::warn;
 use url::Url;
 
 const MAX_BLOCK_SIZE: usize = ONE_MB * 100;
@@ -98,7 +97,7 @@ pub async fn upload_with_client_with_retries(
 ) -> Result<()> {
     FutureRetry::new(
         move || upload_with_client(client, container, path, file_path),
-        MaxRetriesHandler::new(MAX_RETRIES),
+        MaxRetriesHandler::new(DEFAULT_MAX_RETRIES),
     )
     .await
     .map_err(|e| UtilsError::RetryFailedError(e.0.to_string()))?;
@@ -155,35 +154,4 @@ pub async fn upload_with_client(
         .await?;
 
     Ok(())
-}
-
-struct MaxRetriesHandler {
-    max_attempts: usize,
-}
-impl MaxRetriesHandler {
-    fn new(max_attempts: usize) -> Self {
-        MaxRetriesHandler { max_attempts }
-    }
-}
-
-impl ErrorHandler<anyhow::Error> for MaxRetriesHandler {
-    type OutError = anyhow::Error;
-
-    fn handle(&mut self, attempt: usize, e: Error) -> RetryPolicy<Self::OutError> {
-        warn!(
-            "Failed uploading: {}, retry {}/{}",
-            e.to_string(),
-            attempt,
-            self.max_attempts,
-        );
-        if attempt > self.max_attempts {
-            RetryPolicy::ForwardError(e)
-        } else {
-            RetryPolicy::WaitRetry(
-                chrono::Duration::seconds(5)
-                    .to_std()
-                    .expect("Should have converted to standard duration"),
-            )
-        }
-    }
 }
