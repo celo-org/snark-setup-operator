@@ -28,8 +28,8 @@ Tools included:
 
 Generate keys for verifier and contributor:
 ```
-cargo run --release --bin generate -- -f plumo-verifier.keys
-cargo run --release --bin generate -- -f plumo-contributor.keys
+cargo run --release --bin generate -- -k plumo-verifier.keys
+cargo run --release --bin generate -- -k plumo-contributor.keys
 ```
 
 Sample test file:
