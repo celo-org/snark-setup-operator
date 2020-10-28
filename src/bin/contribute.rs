@@ -316,18 +316,24 @@ impl Contribute {
                                         &chunk_id,
                                     )
                                     .expect("Should have removed chunk ID from lane");
-                                cloned
+                                if cloned
                                     .remove_chunk_id_from_lane_if_exists(
                                         &PipelineLane::Process,
                                         &chunk_id,
                                     )
-                                    .expect("Should have removed chunk ID from lane");
-                                cloned
+                                    .expect("Should have removed chunk ID from lane")
+                                {
+                                    let _ = cloned.unlock_chunk(&chunk_id).await;
+                                }
+                                if cloned
                                     .remove_chunk_id_from_lane_if_exists(
                                         &PipelineLane::Upload,
                                         &chunk_id,
                                     )
-                                    .expect("Should have removed chunk ID from lane");
+                                    .expect("Should have removed chunk ID from lane")
+                                {
+                                    let _ = cloned.unlock_chunk(&chunk_id).await;
+                                }
                                 cloned.set_status_update_signal();
                             }
                         }
@@ -494,7 +500,7 @@ impl Contribute {
         &self,
         lane: &PipelineLane,
         chunk_id: &str,
-    ) -> Result<()> {
+    ) -> Result<bool> {
         let mut pipeline = PIPELINE
             .write()
             .expect("Should have opened pipeline for writing");
@@ -503,7 +509,7 @@ impl Contribute {
             .get_mut(lane)
             .ok_or(ContributeError::LaneWasNullError(lane.to_string()))?;
         if !lane_list.contains(&chunk_id.to_string()) {
-            return Ok(());
+            return Ok(false);
         }
         lane_list.retain(|c| c.as_str() != chunk_id);
         debug!(
@@ -512,7 +518,7 @@ impl Contribute {
             lane,
             pipeline.deref()
         );
-        Ok(())
+        Ok(true)
     }
 
     async fn move_chunk_id_from_lane_to_lane(
