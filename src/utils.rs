@@ -372,9 +372,9 @@ pub fn read_keys(
         std::fs::File::open(&keys_path)?.read_to_string(&mut contents)?;
     }
     let mut keys: PlumoSetupKeys = serde_json::from_str(&contents)?;
-    let description = "Enter your Plumo setup passphrase:";
+    let description = "Enter your Plumo setup passphrase";
     let passphrase = if should_use_stdin {
-        println!("{}", description);
+        println!("{}:", description);
         SecretString::new(rpassword::read_password()?)
     } else {
         age::cli_common::read_secret(description, "Passphrase", None)
@@ -385,7 +385,7 @@ pub fn read_keys(
         SecretVec::new(decrypt(&passphrase, &keys.encrypted_private_key)?);
 
     if should_collect_extra_entropy && keys.encrypted_extra_entropy.is_none() && !should_use_stdin {
-        let description = "Enter some extra entropy (this should only be done at the first time you run the contribute binary!):";
+        let description = "Enter some extra entropy (this should only be done at the first time you run the contribute binary!)";
         let entered_entropy = age::cli_common::read_secret(description, "Entropy", None)
             .map_err(|_| UtilsError::CouldNotReadEntropyError)?;
         let encryptor = age::Encryptor::with_user_passphrase(passphrase.clone());
