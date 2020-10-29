@@ -226,8 +226,12 @@ impl Control {
             .map(|c| {
                 if c.lock_holder == Some(participant_id.clone()) {
                     c.lock_holder = None;
+                    Some(c.chunk_id.clone())
+                } else {
+                    None
                 }
             })
+            .filter_map(|e| e)
             .collect::<Vec<_>>();
         info!("chunk IDs unlocked: {:?}", chunk_ids);
         self.put_ceremony(&ceremony).await?;
