@@ -121,7 +121,7 @@ impl Monitor {
             } else {
                 participant_ids
                     .iter()
-                    .filter(|x| !verified_participant_ids_in_chunk.contains(*x))
+                    .filter(|x| verified_participant_ids_in_chunk.contains(*x))
                     .for_each(|p| {
                         participant_ids_incomplete.push(p);
                     });
