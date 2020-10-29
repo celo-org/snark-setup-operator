@@ -18,6 +18,8 @@ pub struct MonitorOpts {
         default = "http://localhost:8080"
     )]
     pub coordinator_url: String,
+    #[options(help = "polling interval in minutes", default = "1")]
+    pub polling_interval: u64,
     #[options(help = "timeout in minutes", default = "1")]
     pub timeout: i64,
 }
@@ -101,6 +103,7 @@ impl Monitor {
 
         let mut chunks_complete = vec![];
         let mut chunks_incomplete = vec![];
+        let mut participant_ids_incomplete = vec![];
 
         for chunk in ceremony.chunks.iter() {
             let verified_participant_ids_in_chunk: HashSet<_> = chunk
@@ -116,12 +119,19 @@ impl Monitor {
             {
                 chunks_complete.push(chunk.chunk_id.clone())
             } else {
+                participant_ids
+                    .iter()
+                    .filter(|x| verified_participant_ids_in_chunk.contains(*x))
+                    .for_each(|p| {
+                        participant_ids_incomplete.push(p);
+                    });
                 chunks_incomplete.push(chunk.chunk_id.clone())
             }
         }
 
         info!("complete chunks: {:?}", chunks_complete);
         info!("incomplete chunks: {:?}", chunks_incomplete);
+        info!("incomplete participants: {:?}", participant_ids_incomplete);
 
         Ok(())
     }
@@ -134,7 +144,8 @@ async fn main() {
     let opts: MonitorOpts = MonitorOpts::parse_args_default_or_exit();
 
     let monitor = Monitor::new(&opts).expect("Should have been able to create a monitor.");
-    let mut monitor_interval = tokio::time::interval(std::time::Duration::from_secs(5));
+    let mut monitor_interval =
+        tokio::time::interval(std::time::Duration::from_secs(60 * opts.polling_interval));
     loop {
         monitor_interval.tick().await;
 

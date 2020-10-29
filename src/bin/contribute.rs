@@ -931,6 +931,7 @@ impl Contribute {
                 .await?;
 
             self.remove_chunk_id_from_lane_if_exists(&PipelineLane::Upload, &chunk_id)?;
+            self.set_status_update_signal();
         }
     }
 

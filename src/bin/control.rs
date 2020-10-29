@@ -32,6 +32,12 @@ pub struct SignalShutdownOpts {
     pub shutdown_signal: bool,
 }
 
+#[derive(Debug, Options, Clone)]
+pub struct UnlockParticipantOpts {
+    #[options(help = "participant ID", required)]
+    pub participant_id: String,
+}
+
 // The supported commands
 #[derive(Debug, Options, Clone)]
 pub enum Command {
@@ -40,6 +46,7 @@ pub enum Command {
     RemoveParticipant(RemoveParticipantOpts),
     AddVerifier(AddParticipantOpts),
     RemoveVerifier(RemoveParticipantOpts),
+    UnlockParticipantChunks(UnlockParticipantOpts),
     SignalShutdown(SignalShutdownOpts),
 }
 
@@ -211,6 +218,26 @@ impl Control {
         Ok(())
     }
 
+    async fn unlock_participant(&self, participant_id: String) -> Result<()> {
+        let mut ceremony = self.get_ceremony().await?;
+        let chunk_ids = ceremony
+            .chunks
+            .iter_mut()
+            .map(|c| {
+                if c.lock_holder == Some(participant_id.clone()) {
+                    c.lock_holder = None;
+                    Some(c.chunk_id.clone())
+                } else {
+                    None
+                }
+            })
+            .filter_map(|e| e)
+            .collect::<Vec<_>>();
+        info!("chunk IDs unlocked: {:?}", chunk_ids);
+        self.put_ceremony(&ceremony).await?;
+        Ok(())
+    }
+
     async fn signal_shutdown(&self, shutdown_signal: bool) -> Result<()> {
         let mut ceremony = self.get_ceremony().await?;
         ceremony.shutdown_signal = shutdown_signal;
@@ -255,6 +282,10 @@ async fn main() {
             .expect("Should have run command successfully"),
         Command::SignalShutdown(opts) => control
             .signal_shutdown(opts.shutdown_signal)
+            .await
+            .expect("Should have run command successfully"),
+        Command::UnlockParticipantChunks(opts) => control
+            .unlock_participant(opts.participant_id)
             .await
             .expect("Should have run command successfully"),
     });
