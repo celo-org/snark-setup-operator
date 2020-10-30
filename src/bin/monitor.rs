@@ -103,7 +103,7 @@ impl Monitor {
 
         let mut chunks_complete = vec![];
         let mut chunks_incomplete = vec![];
-        let mut participant_ids_incomplete = vec![];
+        let mut participant_ids_incomplete = HashSet::new();
 
         for chunk in ceremony.chunks.iter() {
             let verified_participant_ids_in_chunk: HashSet<_> = chunk
@@ -121,9 +121,9 @@ impl Monitor {
             } else {
                 participant_ids
                     .iter()
-                    .filter(|x| verified_participant_ids_in_chunk.contains(*x))
+                    .filter(|x| !verified_participant_ids_in_chunk.contains(*x))
                     .for_each(|p| {
-                        participant_ids_incomplete.push(p);
+                        participant_ids_incomplete.insert(p);
                     });
                 chunks_incomplete.push(chunk.chunk_id.clone())
             }
