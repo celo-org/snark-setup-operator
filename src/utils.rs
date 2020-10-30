@@ -44,16 +44,6 @@ pub fn download_file(url: &str, file_path: &str) -> Result<()> {
     Ok(())
 }
 
-pub async fn download_file_direct_async(url: &str, file_path: &str) -> Result<()> {
-    remove_file_if_exists(file_path)?;
-    let mut resp = reqwest::get(url).await?.error_for_status()?;
-    let mut out = File::create(file_path)?;
-    while let Some(chunk) = resp.chunk().await? {
-        out.write_all(&chunk)?;
-    }
-    Ok(())
-}
-
 pub async fn download_file_from_azure_async(
     url: &str,
     expected_length: u64,
@@ -64,34 +54,46 @@ pub async fn download_file_from_azure_async(
     let num_chunks = (expected_length + DEFAULT_CHUNK_SIZE - 1) / DEFAULT_CHUNK_SIZE;
     let mut futures = vec![];
     for chunk_index in 0..num_chunks {
-        let future = async move {
-            let start = chunk_index * DEFAULT_CHUNK_SIZE;
-            let end = if chunk_index == num_chunks - 1 {
-                expected_length - 1
-            } else {
-                (chunk_index + 1) * DEFAULT_CHUNK_SIZE - 1
-            };
-            let client = reqwest::Client::new();
-            let mut resp = client
-                .get(url)
-                .header(CONTENT_TYPE, "application/octet-stream")
-                .header(RANGE, format!("bytes={}-{}", start, end))
-                .timeout(std::time::Duration::from_secs(
-                    DEFAULT_CHUNK_TIMEOUT_IN_SECONDS,
-                ))
-                .send()
-                .await?
-                .error_for_status()?;
-            let mut bytes = Vec::with_capacity((end - start + 1) as usize);
-            while let Some(chunk) = resp.chunk().await? {
-                bytes.write_all(&chunk)?;
-            }
+        let url = url.to_string();
+        futures.push(tokio::spawn(FutureRetry::new(
+            move || {
+                let url = url.clone();
+                async move {
+                    let start = chunk_index * DEFAULT_CHUNK_SIZE;
+                    let end = if chunk_index == num_chunks - 1 {
+                        expected_length - 1
+                    } else {
+                        (chunk_index + 1) * DEFAULT_CHUNK_SIZE - 1
+                    };
+                    let client = reqwest::Client::new();
+                    let mut resp = client
+                        .get(&url)
+                        .header(CONTENT_TYPE, "application/octet-stream")
+                        .header(RANGE, format!("bytes={}-{}", start, end))
+                        .timeout(std::time::Duration::from_secs(
+                            DEFAULT_CHUNK_TIMEOUT_IN_SECONDS,
+                        ))
+                        .send()
+                        .await?
+                        .error_for_status()?;
+                    let mut bytes = Vec::with_capacity((end - start + 1) as usize);
+                    while let Some(chunk) = resp.chunk().await? {
+                        bytes.write_all(&chunk)?;
+                    }
 
-            Ok::<Vec<u8>, anyhow::Error>(bytes)
-        };
-        futures.push(future);
+                    Ok::<Vec<u8>, anyhow::Error>(bytes)
+                }
+            },
+            MaxRetriesHandler::new(DEFAULT_MAX_RETRIES),
+        )));
     }
-    let bytes_list = futures::future::try_join_all(futures).await?;
+    let bytes_list = futures::future::try_join_all(futures)
+        .await?
+        .into_iter()
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| UtilsError::RetryFailedError(e.0.to_string()))?
+        .into_iter()
+        .map(|(v, _)| v);
     for bytes in bytes_list {
         out.write_all(&bytes)?;
     }
@@ -99,36 +101,23 @@ pub async fn download_file_from_azure_async(
     Ok(())
 }
 
-pub async fn download_file_async_with_retries(url: &str, file_path: &str) -> Result<()> {
+pub async fn download_file_direct_async(url: &str, file_path: &str) -> Result<()> {
+    let url = url.to_string();
+    let file_path = file_path.to_string();
     FutureRetry::new(
-        || download_file_direct_async(url, file_path),
+        || async {
+            remove_file_if_exists(&file_path)?;
+            let mut resp = reqwest::get(&url).await?.error_for_status()?;
+            let mut out = File::create(&file_path)?;
+            while let Some(chunk) = resp.chunk().await? {
+                out.write_all(&chunk)?;
+            }
+            Ok(())
+        },
         MaxRetriesHandler::new(DEFAULT_MAX_RETRIES),
     )
     .await
     .map_err(|e| UtilsError::RetryFailedError(e.0.to_string()))?;
-    Ok(())
-}
-
-pub async fn download_file_from_azure_async_with_retries(
-    url: &str,
-    expected_length: u64,
-    file_path: &str,
-) -> Result<()> {
-    for i in 0..DEFAULT_MAX_RETRIES {
-        let result = download_file_from_azure_async(url, expected_length, file_path).await;
-        match result {
-            Ok(_) => break,
-            Err(e) => {
-                warn!(
-                    "Failed: {}, retry {}/{}",
-                    e.to_string(),
-                    i,
-                    DEFAULT_MAX_RETRIES,
-                );
-            }
-        }
-        tokio::time::delay_for(std::time::Duration::from_secs(5)).await;
-    }
     Ok(())
 }
 
