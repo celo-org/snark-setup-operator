@@ -4,10 +4,10 @@ use snark_setup_operator::data_structs::{
 };
 use snark_setup_operator::utils::{
     address_to_string, challenge_size, collect_processor_data, create_parameters_for_chunk,
-    download_file_direct_async, download_file_from_azure_async_with_retries,
-    get_authorization_value, participation_mode_from_str, read_hash_from_file, read_keys,
-    remove_file_if_exists, response_size, sign_json, upload_file_direct_async,
-    upload_file_to_azure_async, upload_mode_from_str, ParticipationMode, UploadMode,
+    download_file_direct_async, download_file_from_azure_async, get_authorization_value,
+    participation_mode_from_str, read_hash_from_file, read_keys, remove_file_if_exists,
+    response_size, sign_json, upload_file_direct_async, upload_file_to_azure_async,
+    upload_mode_from_str, ParticipationMode, UploadMode,
 };
 use snark_setup_operator::{
     data_structs::{Ceremony, Response},
@@ -659,7 +659,7 @@ impl Contribute {
                     match self.upload_mode {
                         UploadMode::Auto => {
                             if download_url.contains("blob.core.windows.net") {
-                                download_file_from_azure_async_with_retries(
+                                download_file_from_azure_async(
                                     &download_url,
                                     challenge_size(&parameters),
                                     &self.challenge_filename,
@@ -671,7 +671,7 @@ impl Contribute {
                             }
                         }
                         UploadMode::Azure => {
-                            download_file_from_azure_async_with_retries(
+                            download_file_from_azure_async(
                                 &download_url,
                                 challenge_size(&parameters),
                                 &self.challenge_filename,
@@ -767,7 +767,7 @@ impl Contribute {
                     match self.upload_mode {
                         UploadMode::Auto => {
                             if challenge_download_url.contains("blob.core.windows.net") {
-                                download_file_from_azure_async_with_retries(
+                                download_file_from_azure_async(
                                     &challenge_download_url,
                                     challenge_size(&parameters),
                                     &self.challenge_filename,
@@ -781,7 +781,7 @@ impl Contribute {
                                 .await?;
                             }
                             if response_download_url.contains("blob.core.windows.net") {
-                                download_file_from_azure_async_with_retries(
+                                download_file_from_azure_async(
                                     &response_download_url,
                                     response_size(&parameters),
                                     &self.response_filename,
@@ -796,13 +796,13 @@ impl Contribute {
                             }
                         }
                         UploadMode::Azure => {
-                            download_file_from_azure_async_with_retries(
+                            download_file_from_azure_async(
                                 &challenge_download_url,
                                 challenge_size(&parameters),
                                 &self.challenge_filename,
                             )
                             .await?;
-                            download_file_from_azure_async_with_retries(
+                            download_file_from_azure_async(
                                 &response_download_url,
                                 response_size(&parameters),
                                 &self.response_filename,
