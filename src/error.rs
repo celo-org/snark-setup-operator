@@ -116,3 +116,11 @@ pub enum UtilsError {
     #[error("Unsupported decryptor")]
     UnsupportedDecryptorError,
 }
+
+#[derive(Debug, Error)]
+pub enum NewRoundError {
+    #[error("Versions were the same: {0}")]
+    VersionSameError(u64),
+    #[error("Versions were the same: current {0:?}, expected {1:?}")]
+    DifferentExpectedParticipantsError(HashSet<String>, HashSet<String>),
+}

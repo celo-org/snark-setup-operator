@@ -442,7 +442,7 @@ impl ErrorHandler<anyhow::Error> for MaxRetriesHandler {
             attempt,
             self.max_attempts,
         );
-        if attempt > self.max_attempts {
+        if attempt >= self.max_attempts {
             RetryPolicy::ForwardError(e)
         } else {
             RetryPolicy::WaitRetry(
