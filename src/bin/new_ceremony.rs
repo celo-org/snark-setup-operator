@@ -209,7 +209,7 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
                 std::fs::copy(NEW_CHALLENGE_FILENAME, output_path)?;
                 format!(
                     "{}/chunks/{}/{}/contribution/0",
-                    round, opts.server_url, chunk_index
+                    opts.server_url, round, chunk_index
                 )
             }
             UploadMode::Auto => {
