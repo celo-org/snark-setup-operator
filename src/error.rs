@@ -76,10 +76,10 @@ pub enum ContributeError {
     UnsupportedDecryptorError,
     #[error("Could not read passphrase")]
     CouldNotReadPassphraseError,
-    #[error("Failed running contribute")]
-    FailedRunningContributeError,
-    #[error("Failed running verification")]
-    FailedRunningVerificationError,
+    #[error("Failed running contribute: {0}")]
+    FailedRunningContributeError(String),
+    #[error("Failed running verification: {0}")]
+    FailedRunningVerificationError(String),
     #[error("Seed was none")]
     SeedWasNoneError,
     #[error("Lane was null: {0}")]

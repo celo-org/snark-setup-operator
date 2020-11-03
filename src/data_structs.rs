@@ -225,3 +225,9 @@ pub struct PlumoSetupKeys {
     pub encrypted_extra_entropy: Option<String>,
     pub address: String,
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct UnlockBody {
+    pub error: Option<String>,
+}
