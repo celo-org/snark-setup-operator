@@ -1,4 +1,5 @@
 {
+  "round": 0,
   "version": 0,
   "maxLocks": 3,
   "shutdownSignal": false,

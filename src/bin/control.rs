@@ -7,20 +7,22 @@ use anyhow::Result;
 use ethers::core::k256::ecdsa::SigningKey;
 use ethers::signers::LocalWallet;
 use gumdrop::Options;
-use phase1_cli::{combine, transform_ratios};
+use phase1_cli::{combine, contribute, transform_pok_and_correctness, transform_ratios};
 use reqwest::header::AUTHORIZATION;
 use secrecy::ExposeSecret;
-use setup_utils::DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS;
+use setup_utils::{
+    derive_rng_from_seed, from_slice, BatchExpMode, SubgroupCheckMode,
+    DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS, DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
+};
 use snark_setup_operator::data_structs::{
     Chunk, ChunkMetadata, Contribution, ContributionMetadata,
 };
-use snark_setup_operator::error::NewRoundError;
-use snark_setup_operator::transcript_data_structs::Transcript;
+use snark_setup_operator::error::{NewRoundError, VerifyTranscriptError};
 use snark_setup_operator::utils::{
-    create_full_parameters, create_parameters_for_chunk, download_file, get_authorization_value,
-    read_keys, remove_file_if_exists,
+    backup_transcript, create_full_parameters, create_parameters_for_chunk, download_file,
+    get_authorization_value, load_transcript, read_hash_from_file, read_keys,
+    remove_file_if_exists, save_transcript, BEACON_HASH_LENGTH,
 };
-use std::io::Read;
 use std::{
     collections::HashSet,
     fs::{copy, File},
@@ -36,6 +38,14 @@ const RESPONSE_PREFIX_FOR_AGGREGATION: &str = "response";
 const RESPONSE_LIST_FILENAME: &str = "response_list";
 const COMBINED_FILENAME: &str = "combined";
 const COMBINED_HASH_FILENAME: &str = "combined.hash";
+const COMBINED_VERIFIED_POK_AND_CORRECTNESS_FILENAME: &str =
+    "combined_verified_pok_and_correctness";
+const COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME: &str =
+    "combined_verified_pok_and_correctness.hash";
+const COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME: &str =
+    "combined_new_verified_pok_and_correctness_new_challenge";
+const COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME: &str =
+    "combined_verified_pok_and_correctness_new_challenge.hash";
 
 #[derive(Debug, Options, Clone)]
 pub struct AddParticipantOpts {
@@ -88,7 +98,11 @@ pub struct NewRoundOpts {
 #[derive(Debug, Options, Clone)]
 pub struct ApplyBeaconOpts {
     #[options(help = "beacon value", required)]
-    pub beacon_value: String,
+    pub beacon_hash: String,
+    #[options(help = "expected participants")]
+    pub expected_participant: Vec<String>,
+    #[options(help = "verify transcript")]
+    pub verify_transcript: bool,
 }
 
 #[derive(Debug, Options, Clone)]
@@ -106,14 +120,6 @@ pub struct ControlOpts {
     pub keys_path: String,
     #[options(help = "read passphrase from stdin. THIS IS UNSAFE as it doesn't use pinentry!")]
     pub unsafe_passphrase: bool,
-    #[options(help = "storage account in azure mode")]
-    pub storage_account: Option<String>,
-    #[options(help = "container name in azure mode")]
-    pub container: Option<String>,
-    #[options(help = "access key in azure mode")]
-    pub access_key: Option<String>,
-    #[options(help = "the upload mode", required)]
-    pub upload_mode: String,
     #[options(help = "curve", default = "bw6")]
     pub curve: String,
     #[options(command, required)]
@@ -181,42 +187,6 @@ impl Control {
         let filename = format!("ceremony_{}", chrono::Utc::now().timestamp_nanos());
         let mut file = File::create(filename)?;
         file.write_all(serde_json::to_string_pretty(ceremony)?.as_bytes())?;
-
-        Ok(())
-    }
-
-    fn load_transcript(&self) -> Result<Transcript> {
-        let filename = "transcript";
-        if !std::path::Path::new(filename).exists() {
-            let mut file = File::create(filename)?;
-            file.write_all(
-                serde_json::to_string_pretty(&Transcript {
-                    rounds: vec![],
-                    beacon_value: None,
-                    final_hash: None,
-                })?
-                .as_bytes(),
-            )?;
-        }
-        let mut file = File::open(filename)?;
-        let mut contents = String::new();
-        file.read_to_string(&mut contents)?;
-        let transcript: Transcript = serde_json::from_str::<Transcript>(&contents)?;
-        Ok(transcript)
-    }
-
-    fn save_transcript(&self, transcript: &Transcript) -> Result<()> {
-        let filename = "transcript";
-        let mut file = File::create(filename)?;
-        file.write_all(serde_json::to_string_pretty(transcript)?.as_bytes())?;
-
-        Ok(())
-    }
-
-    fn backup_transcript(&self, transcript: &Transcript) -> Result<()> {
-        let filename = format!("transcript_{}", chrono::Utc::now().timestamp_nanos());
-        let mut file = File::create(filename)?;
-        file.write_all(serde_json::to_string_pretty(transcript)?.as_bytes())?;
 
         Ok(())
     }
@@ -325,19 +295,49 @@ impl Control {
         Ok(())
     }
 
+    async fn verify_round<E: PairingEngine>(&self, ceremony: &Ceremony) -> Result<()> {
+        let mut response_list_file = File::create(RESPONSE_LIST_FILENAME)?;
+        for (chunk_index, contribution) in ceremony
+            .chunks
+            .iter()
+            .enumerate()
+            .map(|(chunk_index, chunk)| (chunk_index, chunk.contributions.iter().last().unwrap()))
+        {
+            remove_file_if_exists(RESPONSE_FILENAME)?;
+            let contributed_location = contribution.contributed_location()?;
+            download_file(contributed_location, RESPONSE_FILENAME)?;
+            let response_filename = format!("{}_{}", RESPONSE_PREFIX_FOR_AGGREGATION, chunk_index);
+            copy(RESPONSE_FILENAME, &response_filename)?;
+            response_list_file.write(format!("{}\n", response_filename).as_bytes())?;
+        }
+        drop(response_list_file);
+        remove_file_if_exists(COMBINED_FILENAME)?;
+        let parameters = create_parameters_for_chunk::<E>(&ceremony.parameters, 0)?;
+        combine(RESPONSE_LIST_FILENAME, COMBINED_FILENAME, &parameters);
+        let parameters = create_full_parameters::<E>(&ceremony.parameters)?;
+        remove_file_if_exists(COMBINED_HASH_FILENAME)?;
+        transform_ratios(
+            COMBINED_FILENAME,
+            DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+            &parameters,
+        );
+
+        Ok(())
+    }
+
     async fn new_round<E: PairingEngine>(
         &self,
         expected_participants: &[String],
         new_participants: &[String],
         verify_transcript: bool,
     ) -> Result<()> {
-        let mut transcript = self.load_transcript()?;
-        self.backup_transcript(&transcript)?;
+        let mut transcript = load_transcript()?;
+        backup_transcript(&transcript)?;
 
         let mut ceremony = self.get_ceremony().await?;
         if let Some(round) = transcript.rounds.iter().last() {
-            if round.version == ceremony.version {
-                return Err(NewRoundError::VersionSameError(round.version).into());
+            if round.round == ceremony.round {
+                return Err(NewRoundError::RoundSameError(round.round).into());
             }
         }
         let expected_participants_set: HashSet<_> = expected_participants.iter().cloned().collect();
@@ -351,36 +351,9 @@ impl Control {
             .into());
         }
         self.backup_ceremony(&ceremony)?;
+        transcript.rounds.push(ceremony.clone());
         if verify_transcript {
-            let mut response_list_file = File::create(RESPONSE_LIST_FILENAME)?;
-            for (chunk_index, contribution) in
-                ceremony
-                    .chunks
-                    .iter()
-                    .enumerate()
-                    .map(|(chunk_index, chunk)| {
-                        (chunk_index, chunk.contributions.iter().last().unwrap())
-                    })
-            {
-                remove_file_if_exists(RESPONSE_FILENAME)?;
-                let contributed_location = contribution.contributed_location()?;
-                download_file(contributed_location, RESPONSE_FILENAME)?;
-                let response_filename =
-                    format!("{}_{}", RESPONSE_PREFIX_FOR_AGGREGATION, chunk_index);
-                copy(RESPONSE_FILENAME, &response_filename)?;
-                response_list_file.write(format!("{}\n", response_filename).as_bytes())?;
-            }
-            drop(response_list_file);
-            remove_file_if_exists(COMBINED_FILENAME)?;
-            let parameters = create_parameters_for_chunk::<E>(&ceremony.parameters, 0)?;
-            combine(RESPONSE_LIST_FILENAME, COMBINED_FILENAME, &parameters);
-            let parameters = create_full_parameters::<E>(&ceremony.parameters)?;
-            remove_file_if_exists(COMBINED_HASH_FILENAME)?;
-            transform_ratios(
-                COMBINED_FILENAME,
-                DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
-                &parameters,
-            );
+            self.verify_round::<E>(&ceremony).await?;
         }
         let new_chunks = ceremony
             .chunks
@@ -411,16 +384,89 @@ impl Control {
                 }
             })
             .collect::<Vec<_>>();
+        ceremony.round += 1;
         ceremony.chunks = new_chunks;
         ceremony.contributor_ids = new_participants.to_vec();
 
-        transcript.rounds.push(ceremony.clone());
-        self.save_transcript(&transcript)?;
+        save_transcript(&transcript)?;
         self.put_ceremony(&ceremony).await?;
         Ok(())
     }
 
-    async fn apply_beacon(&self, _beacon_value: &str) -> Result<()> {
+    async fn apply_beacon<E: PairingEngine>(
+        &self,
+        beacon_hash: &str,
+        expected_participants: &[String],
+        verify_transcript: bool,
+    ) -> Result<()> {
+        let mut transcript = load_transcript()?;
+        backup_transcript(&transcript)?;
+
+        let ceremony = self.get_ceremony().await?;
+        transcript.rounds.push(ceremony.clone());
+        let beacon_hash = hex::decode(beacon_hash)?;
+        if beacon_hash.len() != BEACON_HASH_LENGTH {
+            return Err(
+                VerifyTranscriptError::BeaconHashWrongLengthError(beacon_hash.len()).into(),
+            );
+        }
+        let expected_participants_set: HashSet<_> = expected_participants.iter().cloned().collect();
+        let current_participants_set: HashSet<_> =
+            ceremony.contributor_ids.iter().cloned().collect();
+        if current_participants_set != expected_participants_set {
+            return Err(NewRoundError::DifferentExpectedParticipantsError(
+                current_participants_set,
+                expected_participants_set,
+            )
+            .into());
+        }
+        if verify_transcript {
+            self.verify_round::<E>(&ceremony).await?;
+        }
+
+        let parameters = create_full_parameters::<E>(&ceremony.parameters)?;
+        remove_file_if_exists(COMBINED_HASH_FILENAME)?;
+        remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_FILENAME)?;
+        remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME)?;
+        let rng = derive_rng_from_seed(&from_slice(&beacon_hash));
+        contribute(
+            COMBINED_FILENAME,
+            COMBINED_HASH_FILENAME,
+            COMBINED_VERIFIED_POK_AND_CORRECTNESS_FILENAME,
+            COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME,
+            DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+            BatchExpMode::Auto,
+            &parameters,
+            rng,
+        );
+        info!("applied beacon, verifying");
+        remove_file_if_exists(COMBINED_HASH_FILENAME)?;
+        remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME)?;
+        remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME)?;
+        remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME)?;
+        transform_pok_and_correctness(
+            COMBINED_FILENAME,
+            COMBINED_HASH_FILENAME,
+            DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+            COMBINED_VERIFIED_POK_AND_CORRECTNESS_FILENAME,
+            COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME,
+            DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
+            COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME,
+            COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME,
+            SubgroupCheckMode::Auto,
+            &parameters,
+        );
+        transform_ratios(
+            COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME,
+            DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+            &parameters,
+        );
+
+        let response_hash_from_file =
+            read_hash_from_file(COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME)?;
+        transcript.beacon_hash = Some(hex::encode(&beacon_hash));
+        transcript.final_hash = Some(response_hash_from_file);
+        save_transcript(&transcript)?;
         Ok(())
     }
 
@@ -497,9 +543,28 @@ async fn main() {
             }
             c => panic!("Unsupported curve {}", c),
         },
-        Command::ApplyBeacon(opts) => control
-            .apply_beacon(&opts.beacon_value)
-            .await
-            .expect("Should have run command successfully"),
+        Command::ApplyBeacon(opts) => match main_opts.curve.as_str() {
+            "bw6" => {
+                control
+                    .apply_beacon::<BW6_761>(
+                        &opts.beacon_hash,
+                        &opts.expected_participant,
+                        opts.verify_transcript,
+                    )
+                    .await
+                    .expect("Should have run command successfully");
+            }
+            "bls12_377" => {
+                control
+                    .apply_beacon::<Bls12_377>(
+                        &opts.beacon_hash,
+                        &opts.expected_participant,
+                        opts.verify_transcript,
+                    )
+                    .await
+                    .expect("Should have run command successfully");
+            }
+            c => panic!("Unsupported curve {}", c),
+        },
     });
 }

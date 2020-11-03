@@ -114,7 +114,7 @@ pub struct Chunk {
     pub metadata: Option<ChunkMetadata>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Parameters {
     pub proving_system: String,
@@ -127,6 +127,7 @@ pub struct Parameters {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Ceremony {
+    pub round: u64,
     pub version: u64,
     pub max_locks: u64,
     pub shutdown_signal: bool,
