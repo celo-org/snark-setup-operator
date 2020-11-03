@@ -1,6 +1,6 @@
 use snark_setup_operator::data_structs::{
     ChunkDownloadInfo, ContributedData, ContributionUploadUrl, FilteredChunks, SignedData,
-    VerifiedData,
+    UnlockBody, VerifiedData,
 };
 use snark_setup_operator::utils::{
     address_to_string, challenge_size, collect_processor_data, create_parameters_for_chunk,
@@ -310,12 +310,16 @@ impl Contribute {
                         Err(e) => {
                             warn!("Got error from run: {}, retrying...", e);
                             if let Some(chunk_id) = cloned.chosen_chunk_id.as_ref() {
-                                cloned
+                                if cloned
                                     .remove_chunk_id_from_lane_if_exists(
                                         &PipelineLane::Download,
                                         &chunk_id,
                                     )
-                                    .expect("Should have removed chunk ID from lane");
+                                    .expect("Should have removed chunk ID from lane")
+                                {
+                                    let _ =
+                                        cloned.unlock_chunk(&chunk_id, Some(e.to_string())).await;
+                                }
                                 if cloned
                                     .remove_chunk_id_from_lane_if_exists(
                                         &PipelineLane::Process,
@@ -323,7 +327,8 @@ impl Contribute {
                                     )
                                     .expect("Should have removed chunk ID from lane")
                                 {
-                                    let _ = cloned.unlock_chunk(&chunk_id).await;
+                                    let _ =
+                                        cloned.unlock_chunk(&chunk_id, Some(e.to_string())).await;
                                 }
                                 if cloned
                                     .remove_chunk_id_from_lane_if_exists(
@@ -332,7 +337,8 @@ impl Contribute {
                                     )
                                     .expect("Should have removed chunk ID from lane")
                                 {
-                                    let _ = cloned.unlock_chunk(&chunk_id).await;
+                                    let _ =
+                                        cloned.unlock_chunk(&chunk_id, Some(e.to_string())).await;
                                 }
                                 cloned.set_status_update_signal();
                             }
@@ -733,8 +739,17 @@ impl Contribute {
                     if !result.is_ok() {
                         if let Some(panic_value) = result.panic_value_as_str() {
                             error!("Contribute failed: {}", panic_value);
+                            return Err(ContributeError::FailedRunningContributeError(
+                                panic_value.to_string(),
+                            )
+                            .into());
+                        } else {
+                            error!("Contribute failed: no panic value");
+                            return Err(ContributeError::FailedRunningContributeError(
+                                "no panic value".to_string(),
+                            )
+                            .into());
                         }
-                        return Err(ContributeError::FailedRunningContributeError.into());
                     }
                     let duration = start.elapsed();
                     let processor_data = if !self.disable_sysinfo {
@@ -875,8 +890,17 @@ impl Contribute {
                     if !result.is_ok() {
                         if let Some(panic_value) = result.panic_value_as_str() {
                             error!("Verification failed: {}", panic_value);
+                            return Err(ContributeError::FailedRunningVerificationError(
+                                panic_value.to_string(),
+                            )
+                            .into());
+                        } else {
+                            error!("Verification failed: no panic value");
+                            return Err(ContributeError::FailedRunningVerificationError(
+                                "no panic value".to_string(),
+                            )
+                            .into());
                         }
-                        return Err(ContributeError::FailedRunningVerificationError.into());
                     }
                     let duration = start.elapsed();
                     let verified_data = VerifiedData {
@@ -960,7 +984,7 @@ impl Contribute {
             .filter(|c| c.lock_holder == Some(self.participant_id.clone()))
             .map(|c| c.chunk_id.clone());
         for chunk_id in chunk_ids {
-            self.unlock_chunk(&chunk_id).await?;
+            self.unlock_chunk(&chunk_id, None).await?;
         }
         Ok(())
     }
@@ -1066,7 +1090,7 @@ impl Contribute {
         Ok(())
     }
 
-    async fn unlock_chunk(&self, chunk_id: &str) -> Result<()> {
+    async fn unlock_chunk(&self, chunk_id: &str, error: Option<String>) -> Result<()> {
         let unlock_path = format!("chunks/{}/unlock", chunk_id);
         let unlock_chunk_url = self.server_url.join(&unlock_path)?;
         let client = reqwest::Client::new();
@@ -1074,6 +1098,7 @@ impl Contribute {
         client
             .post(unlock_chunk_url.as_str())
             .header(AUTHORIZATION, authorization)
+            .json(&UnlockBody { error })
             .send()
             .await?
             .error_for_status()?;
