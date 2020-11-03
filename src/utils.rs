@@ -4,6 +4,7 @@ pub const DEFAULT_MAX_RETRIES: usize = 5;
 pub const ONE_MB: usize = 1024 * 1024;
 pub const DEFAULT_CHUNK_SIZE: u64 = 10 * (ONE_MB as u64);
 pub const DEFAULT_CHUNK_TIMEOUT_IN_SECONDS: u64 = 300;
+pub const BEACON_HASH_LENGTH: usize = 32;
 
 use crate::blobstore::{upload_access_key, upload_sas};
 use crate::data_structs::{Parameters, PlumoSetupKeys, ProcessorData};
@@ -169,6 +170,7 @@ pub fn remove_file_if_exists(file_path: &str) -> Result<()> {
     Ok(())
 }
 
+use crate::transcript_data_structs::Transcript;
 use blake2::{Blake2s, Digest};
 use ethers::signers::{LocalWallet, Signer};
 use futures_retry::{ErrorHandler, FutureRetry, RetryPolicy};
@@ -442,7 +444,7 @@ impl ErrorHandler<anyhow::Error> for MaxRetriesHandler {
             attempt,
             self.max_attempts,
         );
-        if attempt > self.max_attempts {
+        if attempt >= self.max_attempts {
             RetryPolicy::ForwardError(e)
         } else {
             RetryPolicy::WaitRetry(
@@ -460,4 +462,40 @@ pub fn challenge_size<E: PairingEngine>(parameters: &Phase1Parameters<E>) -> u64
 
 pub fn response_size<E: PairingEngine>(parameters: &Phase1Parameters<E>) -> u64 {
     parameters.contribution_size as u64
+}
+
+pub fn load_transcript() -> Result<Transcript> {
+    let filename = "transcript";
+    if !std::path::Path::new(filename).exists() {
+        let mut file = File::create(filename)?;
+        file.write_all(
+            serde_json::to_string_pretty(&Transcript {
+                rounds: vec![],
+                beacon_hash: None,
+                final_hash: None,
+            })?
+            .as_bytes(),
+        )?;
+    }
+    let mut file = File::open(filename)?;
+    let mut contents = String::new();
+    file.read_to_string(&mut contents)?;
+    let transcript: Transcript = serde_json::from_str::<Transcript>(&contents)?;
+    Ok(transcript)
+}
+
+pub fn save_transcript(transcript: &Transcript) -> Result<()> {
+    let filename = "transcript";
+    let mut file = File::create(filename)?;
+    file.write_all(serde_json::to_string_pretty(transcript)?.as_bytes())?;
+
+    Ok(())
+}
+
+pub fn backup_transcript(transcript: &Transcript) -> Result<()> {
+    let filename = format!("transcript_{}", chrono::Utc::now().timestamp_nanos());
+    let mut file = File::create(filename)?;
+    file.write_all(serde_json::to_string_pretty(transcript)?.as_bytes())?;
+
+    Ok(())
 }
