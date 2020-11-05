@@ -1,14 +1,17 @@
 use age::cli_common::read_secret;
 use age::cli_common::Passphrase;
 use blake2::{Blake2s, Digest};
-use ethers::signers::LocalWallet;
+use ethers::signers::{LocalWallet, Signer};
+use futures::executor::block_on;
 use gumdrop::Options;
 use rand::rngs::OsRng;
 use rand::RngCore;
 use secrecy::{ExposeSecret, SecretString, SecretVec};
 use snark_setup_operator::data_structs::PlumoSetupKeys;
-use snark_setup_operator::utils::{address_to_string, encrypt, PLUMO_SETUP_PERSONALIZATION};
-use std::io::Write;
+use snark_setup_operator::utils::{
+    address_to_string, encrypt, format_attestation, trim_newline, PLUMO_SETUP_PERSONALIZATION,
+};
+use std::io::{self, Write};
 
 #[derive(Debug, Options, Clone)]
 pub struct GenerateOpts {
@@ -22,7 +25,18 @@ pub struct GenerateOpts {
 fn main() {
     let opts: GenerateOpts = GenerateOpts::parse_args_default_or_exit();
     let mut file = std::fs::File::create(&opts.keys_path).expect("Should have created keys file");
-    let (entropy, plumo_encryptor, private_key_encryptor) = if !opts.unsafe_passphrase {
+    let (entropy, attestation_message, plumo_encryptor, private_key_encryptor) = if !opts
+        .unsafe_passphrase
+    {
+        println!(
+            "Enter some identifying information, such as your Twitter, GitHub or Keybase handle (up to 106 characters):"
+        );
+        let mut attestation_message = String::new();
+        io::stdin()
+            .read_line(&mut attestation_message)
+            .expect("Should have read attestation message");
+        trim_newline(&mut attestation_message);
+
         let entropy = read_secret("Enter some entropy for your Plumo seed", "Entropy", None)
             .expect("Should have read entropy");
 
@@ -44,13 +58,19 @@ fn main() {
                 }
                 Err(_) => panic!("Should have read or generated passphrase"),
             };
-        (entropy, plumo_encryptor, private_key_encryptor)
+        (
+            entropy,
+            attestation_message,
+            plumo_encryptor,
+            private_key_encryptor,
+        )
     } else {
         println!("Enter passphrase:");
         let passphrase =
             SecretString::new(rpassword::read_password().expect("Should have read passphrase"));
         (
             SecretString::new(String::new()),
+            String::new(),
             age::Encryptor::with_user_passphrase(passphrase.clone()),
             age::Encryptor::with_user_passphrase(passphrase.clone()),
         )
@@ -66,6 +86,8 @@ fn main() {
     hasher.update(plumo_seed.expose_secret());
 
     let private_key = LocalWallet::new(&mut rng);
+    let attestation_signature = block_on(private_key.sign_message(&attestation_message))
+        .expect("Should have signed attestation");
     let address = address_to_string(&private_key.address());
     let private_key = private_key.signer().to_bytes();
 
@@ -78,6 +100,11 @@ fn main() {
         encrypted_seed: encrypted_plumo_seed.to_string(),
         encrypted_private_key: encrypted_plumo_private_key.to_string(),
         encrypted_extra_entropy: None,
+        attestation: format_attestation(
+            &attestation_message,
+            &address,
+            &attestation_signature.to_string(),
+        ),
         address,
     };
     file.write_all(
@@ -86,7 +113,7 @@ fn main() {
     .expect("Should have written setup keys successfully to file");
     file.sync_all().expect("Should have synced to disk");
     println!(
-        "Done! Your keys are ready in {}. Your address is : {}.",
+        "Done! Your keys are ready in {}. Your address is : {}",
         &opts.keys_path, plumo_setup_keys.address
     );
 }

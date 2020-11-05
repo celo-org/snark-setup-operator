@@ -223,6 +223,7 @@ pub struct PlumoSetupKeys {
     pub encrypted_seed: String,
     pub encrypted_private_key: String,
     pub encrypted_extra_entropy: Option<String>,
+    pub attestation: String,
     pub address: String,
 }
 
