@@ -1,3 +1,4 @@
+use crate::data_structs::Parameters;
 use std::collections::HashSet;
 use thiserror::Error;
 
@@ -33,6 +34,12 @@ pub enum VerifyTranscriptError {
     NotAllChunksHaveSameNumberOfContributionsError,
     #[error("Beacon hash had wrong length: {0}")]
     BeaconHashWrongLengthError(usize),
+    #[error("Beacon hash was different: expected {0}, got {1}")]
+    BeaconHashWasDifferentError(String, String),
+    #[error("Parameters were different between rounds: expected {0:?}, got {1:?}")]
+    ParametersDifferentBetweenRounds(Parameters, Parameters),
+    #[error("Round index was wrong: expected {0}, got {1}")]
+    RoundWrongIndexError(u64, u64),
 }
 
 #[derive(Debug, Error)]
@@ -69,10 +76,10 @@ pub enum ContributeError {
     UnsupportedDecryptorError,
     #[error("Could not read passphrase")]
     CouldNotReadPassphraseError,
-    #[error("Failed running contribute")]
-    FailedRunningContributeError,
-    #[error("Failed running verification")]
-    FailedRunningVerificationError,
+    #[error("Failed running contribute: {0}")]
+    FailedRunningContributeError(String),
+    #[error("Failed running verification: {0}")]
+    FailedRunningVerificationError(String),
     #[error("Seed was none")]
     SeedWasNoneError,
     #[error("Lane was null: {0}")]
@@ -115,4 +122,14 @@ pub enum UtilsError {
     EntropyWasNoneError,
     #[error("Unsupported decryptor")]
     UnsupportedDecryptorError,
+    #[error("Attestation too short, got length {0}")]
+    AttestationTooShort(usize),
+}
+
+#[derive(Debug, Error)]
+pub enum NewRoundError {
+    #[error("Versions were the same: {0}")]
+    RoundSameError(u64),
+    #[error("Versions were the same: current {0:?}, expected {1:?}")]
+    DifferentExpectedParticipantsError(HashSet<String>, HashSet<String>),
 }

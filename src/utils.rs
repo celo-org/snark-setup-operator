@@ -1,9 +1,12 @@
 pub const PLUMO_SETUP_PERSONALIZATION: &[u8] = b"PLUMOSET";
 pub const ADDRESS_LENGTH: usize = 20;
+pub const ADDRESS_LENGTH_IN_HEX: usize = 42;
+pub const SIGNATURE_LENGTH_IN_HEX: usize = 130;
 pub const DEFAULT_MAX_RETRIES: usize = 5;
 pub const ONE_MB: usize = 1024 * 1024;
 pub const DEFAULT_CHUNK_SIZE: u64 = 10 * (ONE_MB as u64);
 pub const DEFAULT_CHUNK_TIMEOUT_IN_SECONDS: u64 = 300;
+pub const BEACON_HASH_LENGTH: usize = 32;
 
 use crate::blobstore::{upload_access_key, upload_sas};
 use crate::data_structs::{Parameters, PlumoSetupKeys, ProcessorData};
@@ -44,16 +47,6 @@ pub fn download_file(url: &str, file_path: &str) -> Result<()> {
     Ok(())
 }
 
-pub async fn download_file_direct_async(url: &str, file_path: &str) -> Result<()> {
-    remove_file_if_exists(file_path)?;
-    let mut resp = reqwest::get(url).await?.error_for_status()?;
-    let mut out = File::create(file_path)?;
-    while let Some(chunk) = resp.chunk().await? {
-        out.write_all(&chunk)?;
-    }
-    Ok(())
-}
-
 pub async fn download_file_from_azure_async(
     url: &str,
     expected_length: u64,
@@ -64,34 +57,46 @@ pub async fn download_file_from_azure_async(
     let num_chunks = (expected_length + DEFAULT_CHUNK_SIZE - 1) / DEFAULT_CHUNK_SIZE;
     let mut futures = vec![];
     for chunk_index in 0..num_chunks {
-        let future = async move {
-            let start = chunk_index * DEFAULT_CHUNK_SIZE;
-            let end = if chunk_index == num_chunks - 1 {
-                expected_length - 1
-            } else {
-                (chunk_index + 1) * DEFAULT_CHUNK_SIZE - 1
-            };
-            let client = reqwest::Client::new();
-            let mut resp = client
-                .get(url)
-                .header(CONTENT_TYPE, "application/octet-stream")
-                .header(RANGE, format!("bytes={}-{}", start, end))
-                .timeout(std::time::Duration::from_secs(
-                    DEFAULT_CHUNK_TIMEOUT_IN_SECONDS,
-                ))
-                .send()
-                .await?
-                .error_for_status()?;
-            let mut bytes = Vec::with_capacity((end - start + 1) as usize);
-            while let Some(chunk) = resp.chunk().await? {
-                bytes.write_all(&chunk)?;
-            }
+        let url = url.to_string();
+        futures.push(tokio::spawn(FutureRetry::new(
+            move || {
+                let url = url.clone();
+                async move {
+                    let start = chunk_index * DEFAULT_CHUNK_SIZE;
+                    let end = if chunk_index == num_chunks - 1 {
+                        expected_length - 1
+                    } else {
+                        (chunk_index + 1) * DEFAULT_CHUNK_SIZE - 1
+                    };
+                    let client = reqwest::Client::new();
+                    let mut resp = client
+                        .get(&url)
+                        .header(CONTENT_TYPE, "application/octet-stream")
+                        .header(RANGE, format!("bytes={}-{}", start, end))
+                        .timeout(std::time::Duration::from_secs(
+                            DEFAULT_CHUNK_TIMEOUT_IN_SECONDS,
+                        ))
+                        .send()
+                        .await?
+                        .error_for_status()?;
+                    let mut bytes = Vec::with_capacity((end - start + 1) as usize);
+                    while let Some(chunk) = resp.chunk().await? {
+                        bytes.write_all(&chunk)?;
+                    }
 
-            Ok::<Vec<u8>, anyhow::Error>(bytes)
-        };
-        futures.push(future);
+                    Ok::<Vec<u8>, anyhow::Error>(bytes)
+                }
+            },
+            MaxRetriesHandler::new(DEFAULT_MAX_RETRIES),
+        )));
     }
-    let bytes_list = futures::future::try_join_all(futures).await?;
+    let bytes_list = futures::future::try_join_all(futures)
+        .await?
+        .into_iter()
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| UtilsError::RetryFailedError(e.0.to_string()))?
+        .into_iter()
+        .map(|(v, _)| v);
     for bytes in bytes_list {
         out.write_all(&bytes)?;
     }
@@ -99,36 +104,23 @@ pub async fn download_file_from_azure_async(
     Ok(())
 }
 
-pub async fn download_file_async_with_retries(url: &str, file_path: &str) -> Result<()> {
+pub async fn download_file_direct_async(url: &str, file_path: &str) -> Result<()> {
+    let url = url.to_string();
+    let file_path = file_path.to_string();
     FutureRetry::new(
-        || download_file_direct_async(url, file_path),
+        || async {
+            remove_file_if_exists(&file_path)?;
+            let mut resp = reqwest::get(&url).await?.error_for_status()?;
+            let mut out = File::create(&file_path)?;
+            while let Some(chunk) = resp.chunk().await? {
+                out.write_all(&chunk)?;
+            }
+            Ok(())
+        },
         MaxRetriesHandler::new(DEFAULT_MAX_RETRIES),
     )
     .await
     .map_err(|e| UtilsError::RetryFailedError(e.0.to_string()))?;
-    Ok(())
-}
-
-pub async fn download_file_from_azure_async_with_retries(
-    url: &str,
-    expected_length: u64,
-    file_path: &str,
-) -> Result<()> {
-    for i in 0..DEFAULT_MAX_RETRIES {
-        let result = download_file_from_azure_async(url, expected_length, file_path).await;
-        match result {
-            Ok(_) => break,
-            Err(e) => {
-                warn!(
-                    "Failed: {}, retry {}/{}",
-                    e.to_string(),
-                    i,
-                    DEFAULT_MAX_RETRIES,
-                );
-            }
-        }
-        tokio::time::delay_for(std::time::Duration::from_secs(5)).await;
-    }
     Ok(())
 }
 
@@ -180,6 +172,7 @@ pub fn remove_file_if_exists(file_path: &str) -> Result<()> {
     Ok(())
 }
 
+use crate::transcript_data_structs::Transcript;
 use blake2::{Blake2s, Digest};
 use ethers::signers::{LocalWallet, Signer};
 use futures_retry::{ErrorHandler, FutureRetry, RetryPolicy};
@@ -366,15 +359,15 @@ pub fn read_keys(
     keys_path: &str,
     should_use_stdin: bool,
     should_collect_extra_entropy: bool,
-) -> Result<(SecretVec<u8>, SecretVec<u8>)> {
+) -> Result<(SecretVec<u8>, SecretVec<u8>, String)> {
     let mut contents = String::new();
     {
         std::fs::File::open(&keys_path)?.read_to_string(&mut contents)?;
     }
     let mut keys: PlumoSetupKeys = serde_json::from_str(&contents)?;
-    let description = "Enter your Plumo setup passphrase:";
+    let description = "Enter your Plumo setup passphrase";
     let passphrase = if should_use_stdin {
-        println!("{}", description);
+        println!("{}:", description);
         SecretString::new(rpassword::read_password()?)
     } else {
         age::cli_common::read_secret(description, "Passphrase", None)
@@ -385,7 +378,7 @@ pub fn read_keys(
         SecretVec::new(decrypt(&passphrase, &keys.encrypted_private_key)?);
 
     if should_collect_extra_entropy && keys.encrypted_extra_entropy.is_none() && !should_use_stdin {
-        let description = "Enter some extra entropy (this should only be done at the first time you run the contribute binary!):";
+        let description = "Enter some extra entropy (this should only be done at the first time you run the contribute binary!)";
         let entered_entropy = age::cli_common::read_secret(description, "Entropy", None)
             .map_err(|_| UtilsError::CouldNotReadEntropyError)?;
         let encryptor = age::Encryptor::with_user_passphrase(passphrase.clone());
@@ -417,7 +410,7 @@ pub fn read_keys(
         }
     };
 
-    Ok((plumo_seed, plumo_private_key_from_file))
+    Ok((plumo_seed, plumo_private_key_from_file, keys.attestation))
 }
 
 pub fn collect_processor_data() -> Result<Vec<ProcessorData>> {
@@ -453,7 +446,7 @@ impl ErrorHandler<anyhow::Error> for MaxRetriesHandler {
             attempt,
             self.max_attempts,
         );
-        if attempt > self.max_attempts {
+        if attempt >= self.max_attempts {
             RetryPolicy::ForwardError(e)
         } else {
             RetryPolicy::WaitRetry(
@@ -471,4 +464,74 @@ pub fn challenge_size<E: PairingEngine>(parameters: &Phase1Parameters<E>) -> u64
 
 pub fn response_size<E: PairingEngine>(parameters: &Phase1Parameters<E>) -> u64 {
     parameters.contribution_size as u64
+}
+
+pub fn load_transcript() -> Result<Transcript> {
+    let filename = "transcript";
+    if !std::path::Path::new(filename).exists() {
+        let mut file = File::create(filename)?;
+        file.write_all(
+            serde_json::to_string_pretty(&Transcript {
+                rounds: vec![],
+                beacon_hash: None,
+                final_hash: None,
+            })?
+            .as_bytes(),
+        )?;
+    }
+    let mut file = File::open(filename)?;
+    let mut contents = String::new();
+    file.read_to_string(&mut contents)?;
+    let transcript: Transcript = serde_json::from_str::<Transcript>(&contents)?;
+    Ok(transcript)
+}
+
+pub fn save_transcript(transcript: &Transcript) -> Result<()> {
+    let filename = "transcript";
+    let mut file = File::create(filename)?;
+    file.write_all(serde_json::to_string_pretty(transcript)?.as_bytes())?;
+
+    Ok(())
+}
+
+pub fn backup_transcript(transcript: &Transcript) -> Result<()> {
+    let filename = format!("transcript_{}", chrono::Utc::now().timestamp_nanos());
+    let mut file = File::create(filename)?;
+    file.write_all(serde_json::to_string_pretty(transcript)?.as_bytes())?;
+
+    Ok(())
+}
+
+pub fn format_attestation(attestation_message: &str, address: &str, signature: &str) -> String {
+    format!("{} {} {}", attestation_message, address, signature)
+}
+
+pub fn extract_signature_from_attestation(attestation: &str) -> Result<(String, String, String)> {
+    // Address, signature and two spaces is the minimum
+    if attestation.len() < SIGNATURE_LENGTH_IN_HEX + ADDRESS_LENGTH_IN_HEX + 2 {
+        return Err(UtilsError::AttestationTooShort(attestation.len()).into());
+    } else {
+        Ok((
+            attestation[..attestation.len() - SIGNATURE_LENGTH_IN_HEX - ADDRESS_LENGTH_IN_HEX - 2]
+                .to_string(),
+            attestation[attestation.len() - SIGNATURE_LENGTH_IN_HEX - ADDRESS_LENGTH_IN_HEX - 1
+                ..attestation.len() - SIGNATURE_LENGTH_IN_HEX - 1]
+                .to_string(),
+            attestation[attestation.len() - SIGNATURE_LENGTH_IN_HEX..attestation.len()].to_string(),
+        ))
+    }
+}
+
+pub fn write_attestation_to_file(attestation: &str, path: &str) -> Result<()> {
+    File::create(path)?.write_all(attestation.as_bytes())?;
+    Ok(())
+}
+
+pub fn trim_newline(s: &mut String) {
+    if s.ends_with('\n') {
+        s.pop();
+        if s.ends_with('\r') {
+            s.pop();
+        }
+    }
 }

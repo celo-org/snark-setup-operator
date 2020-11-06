@@ -69,6 +69,7 @@ pub struct NewCeremonyOpts {
 fn build_ceremony_from_chunks(opts: &NewCeremonyOpts, chunks: &[Chunk]) -> Result<Ceremony> {
     let chunk_size = 1 << opts.chunk_size;
     let ceremony = Ceremony {
+        round: 0,
         version: 0,
         max_locks: opts.max_locks,
         shutdown_signal: false,
@@ -168,7 +169,8 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
 
         let new_challenge_hash_from_file = read_hash_from_file(NEW_CHALLENGE_HASH_FILENAME)?;
 
-        let path = format!("{}.0", chunk_index);
+        let round = 0;
+        let path = format!("{}.{}.0", round, chunk_index);
         let location = match upload_mode {
             UploadMode::Azure => {
                 let access_key = opts
@@ -205,7 +207,10 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
                 )
                 .join(path);
                 std::fs::copy(NEW_CHALLENGE_FILENAME, output_path)?;
-                format!("{}/chunks/{}/contribution/0", opts.server_url, chunk_index)
+                format!(
+                    "{}/chunks/{}/{}/contribution/0",
+                    opts.server_url, round, chunk_index
+                )
             }
             UploadMode::Auto => {
                 return Err(anyhow!(
@@ -270,7 +275,7 @@ async fn main() {
     tracing_subscriber::fmt().json().init();
 
     let opts: NewCeremonyOpts = NewCeremonyOpts::parse_args_default_or_exit();
-    let (_, private_key) = read_keys(&opts.keys_path, opts.unsafe_passphrase, false)
+    let (_, private_key, _) = read_keys(&opts.keys_path, opts.unsafe_passphrase, false)
         .expect("Should have loaded Plumo setup keys");
     match opts.curve.as_str() {
         "bw6" => {

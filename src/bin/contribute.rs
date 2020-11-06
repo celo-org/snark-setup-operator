@@ -1,13 +1,13 @@
 use snark_setup_operator::data_structs::{
     ChunkDownloadInfo, ContributedData, ContributionUploadUrl, FilteredChunks, SignedData,
-    VerifiedData,
+    UnlockBody, VerifiedData,
 };
 use snark_setup_operator::utils::{
     address_to_string, challenge_size, collect_processor_data, create_parameters_for_chunk,
-    download_file_direct_async, download_file_from_azure_async_with_retries,
-    get_authorization_value, participation_mode_from_str, read_hash_from_file, read_keys,
-    remove_file_if_exists, response_size, sign_json, upload_file_direct_async,
-    upload_file_to_azure_async, upload_mode_from_str, ParticipationMode, UploadMode,
+    download_file_direct_async, download_file_from_azure_async, get_authorization_value,
+    participation_mode_from_str, read_hash_from_file, read_keys, remove_file_if_exists,
+    response_size, sign_json, upload_file_direct_async, upload_file_to_azure_async,
+    upload_mode_from_str, write_attestation_to_file, ParticipationMode, UploadMode,
 };
 use snark_setup_operator::{
     data_structs::{Ceremony, Response},
@@ -80,6 +80,11 @@ pub struct ContributeOpts {
         default = "plumo.keys"
     )]
     pub keys_path: String,
+    #[options(
+        help = "the attestation for the Plumo setup",
+        default = "plumo.attestation"
+    )]
+    pub attestation_path: String,
     #[options(
         help = "the storage upload mode",
         default = "auto",
@@ -310,12 +315,16 @@ impl Contribute {
                         Err(e) => {
                             warn!("Got error from run: {}, retrying...", e);
                             if let Some(chunk_id) = cloned.chosen_chunk_id.as_ref() {
-                                cloned
+                                if cloned
                                     .remove_chunk_id_from_lane_if_exists(
                                         &PipelineLane::Download,
                                         &chunk_id,
                                     )
-                                    .expect("Should have removed chunk ID from lane");
+                                    .expect("Should have removed chunk ID from lane")
+                                {
+                                    let _ =
+                                        cloned.unlock_chunk(&chunk_id, Some(e.to_string())).await;
+                                }
                                 if cloned
                                     .remove_chunk_id_from_lane_if_exists(
                                         &PipelineLane::Process,
@@ -323,7 +332,8 @@ impl Contribute {
                                     )
                                     .expect("Should have removed chunk ID from lane")
                                 {
-                                    let _ = cloned.unlock_chunk(&chunk_id).await;
+                                    let _ =
+                                        cloned.unlock_chunk(&chunk_id, Some(e.to_string())).await;
                                 }
                                 if cloned
                                     .remove_chunk_id_from_lane_if_exists(
@@ -332,7 +342,8 @@ impl Contribute {
                                     )
                                     .expect("Should have removed chunk ID from lane")
                                 {
-                                    let _ = cloned.unlock_chunk(&chunk_id).await;
+                                    let _ =
+                                        cloned.unlock_chunk(&chunk_id, Some(e.to_string())).await;
                                 }
                                 cloned.set_status_update_signal();
                             }
@@ -659,7 +670,7 @@ impl Contribute {
                     match self.upload_mode {
                         UploadMode::Auto => {
                             if download_url.contains("blob.core.windows.net") {
-                                download_file_from_azure_async_with_retries(
+                                download_file_from_azure_async(
                                     &download_url,
                                     challenge_size(&parameters),
                                     &self.challenge_filename,
@@ -671,7 +682,7 @@ impl Contribute {
                             }
                         }
                         UploadMode::Azure => {
-                            download_file_from_azure_async_with_retries(
+                            download_file_from_azure_async(
                                 &download_url,
                                 challenge_size(&parameters),
                                 &self.challenge_filename,
@@ -733,8 +744,17 @@ impl Contribute {
                     if !result.is_ok() {
                         if let Some(panic_value) = result.panic_value_as_str() {
                             error!("Contribute failed: {}", panic_value);
+                            return Err(ContributeError::FailedRunningContributeError(
+                                panic_value.to_string(),
+                            )
+                            .into());
+                        } else {
+                            error!("Contribute failed: no panic value");
+                            return Err(ContributeError::FailedRunningContributeError(
+                                "no panic value".to_string(),
+                            )
+                            .into());
                         }
-                        return Err(ContributeError::FailedRunningContributeError.into());
                     }
                     let duration = start.elapsed();
                     let processor_data = if !self.disable_sysinfo {
@@ -767,7 +787,7 @@ impl Contribute {
                     match self.upload_mode {
                         UploadMode::Auto => {
                             if challenge_download_url.contains("blob.core.windows.net") {
-                                download_file_from_azure_async_with_retries(
+                                download_file_from_azure_async(
                                     &challenge_download_url,
                                     challenge_size(&parameters),
                                     &self.challenge_filename,
@@ -781,7 +801,7 @@ impl Contribute {
                                 .await?;
                             }
                             if response_download_url.contains("blob.core.windows.net") {
-                                download_file_from_azure_async_with_retries(
+                                download_file_from_azure_async(
                                     &response_download_url,
                                     response_size(&parameters),
                                     &self.response_filename,
@@ -796,13 +816,13 @@ impl Contribute {
                             }
                         }
                         UploadMode::Azure => {
-                            download_file_from_azure_async_with_retries(
+                            download_file_from_azure_async(
                                 &challenge_download_url,
                                 challenge_size(&parameters),
                                 &self.challenge_filename,
                             )
                             .await?;
-                            download_file_from_azure_async_with_retries(
+                            download_file_from_azure_async(
                                 &response_download_url,
                                 response_size(&parameters),
                                 &self.response_filename,
@@ -875,8 +895,17 @@ impl Contribute {
                     if !result.is_ok() {
                         if let Some(panic_value) = result.panic_value_as_str() {
                             error!("Verification failed: {}", panic_value);
+                            return Err(ContributeError::FailedRunningVerificationError(
+                                panic_value.to_string(),
+                            )
+                            .into());
+                        } else {
+                            error!("Verification failed: no panic value");
+                            return Err(ContributeError::FailedRunningVerificationError(
+                                "no panic value".to_string(),
+                            )
+                            .into());
                         }
-                        return Err(ContributeError::FailedRunningVerificationError.into());
                     }
                     let duration = start.elapsed();
                     let verified_data = VerifiedData {
@@ -960,7 +989,7 @@ impl Contribute {
             .filter(|c| c.lock_holder == Some(self.participant_id.clone()))
             .map(|c| c.chunk_id.clone());
         for chunk_id in chunk_ids {
-            self.unlock_chunk(&chunk_id).await?;
+            self.unlock_chunk(&chunk_id, None).await?;
         }
         Ok(())
     }
@@ -1066,7 +1095,7 @@ impl Contribute {
         Ok(())
     }
 
-    async fn unlock_chunk(&self, chunk_id: &str) -> Result<()> {
+    async fn unlock_chunk(&self, chunk_id: &str, error: Option<String>) -> Result<()> {
         let unlock_path = format!("chunks/{}/unlock", chunk_id);
         let unlock_chunk_url = self.server_url.join(&unlock_path)?;
         let client = reqwest::Client::new();
@@ -1074,6 +1103,7 @@ impl Contribute {
         client
             .post(unlock_chunk_url.as_str())
             .header(AUTHORIZATION, authorization)
+            .json(&UnlockBody { error })
             .send()
             .await?
             .error_for_status()?;
@@ -1135,11 +1165,13 @@ async fn main() {
         .init();
 
     let opts: ContributeOpts = ContributeOpts::parse_args_default_or_exit();
-    let (seed, private_key) = read_keys(&opts.keys_path, opts.unsafe_passphrase, true)
+    let (seed, private_key, attestation) = read_keys(&opts.keys_path, opts.unsafe_passphrase, true)
         .expect("Should have loaded Plumo setup keys");
 
     *SEED.write().expect("Should have been able to write seed") = Some(seed);
 
+    write_attestation_to_file(&attestation, &opts.attestation_path)
+        .expect("Should have written attestation to file");
     let contribute = Contribute::new(&opts, private_key.expose_secret())
         .expect("Should have been able to create a contribute.");
     match contribute.run_and_catch_errors::<BW6_761>().await {

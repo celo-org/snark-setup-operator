@@ -56,7 +56,7 @@ pub async fn upload_sas(file_path: &str, sas: &str) -> Result<()> {
     let (account, container, path) = parse_sas(sas)?;
     let client = client::with_azure_sas(&account, sas);
 
-    upload_with_client_with_retries(&client, &container, &path, file_path).await
+    upload_with_client(&client, &container, &path, file_path).await
 }
 
 pub async fn upload_access_key(
@@ -89,22 +89,7 @@ pub async fn upload_access_key(
             .finalize()
             .await?;
     }
-    upload_with_client_with_retries(&client, container, path, file_path).await
-}
-
-pub async fn upload_with_client_with_retries(
-    client: &KeyClient,
-    container: &str,
-    path: &str,
-    file_path: &str,
-) -> Result<()> {
-    FutureRetry::new(
-        move || upload_with_client(client, container, path, file_path),
-        MaxRetriesHandler::new(DEFAULT_MAX_RETRIES),
-    )
-    .await
-    .map_err(|e| UtilsError::RetryFailedError(e.0.to_string()))?;
-    Ok(())
+    upload_with_client(&client, container, path, file_path).await
 }
 
 pub async fn upload_with_client(
@@ -130,24 +115,37 @@ pub async fn upload_with_client(
         let container = container.to_string();
         let path = path.to_string();
         let block_id_for_spawn = block_id.clone();
-        let jh = tokio::spawn(async move {
-            client
-                .put_block()
-                .with_container_name(&container)
-                .with_blob_name(&path)
-                .with_body(&data)
-                .with_block_id(&block_id_for_spawn)
-                .with_timeout(DEFAULT_CHUNK_TIMEOUT_IN_SECONDS)
-                .finalize()
-                .await
-        });
+        let jh = tokio::spawn(FutureRetry::new(
+            move || {
+                let data = data.clone();
+                let client = client.clone();
+                let container = container.clone();
+                let path = path.clone();
+                let block_id_for_spawn = block_id_for_spawn.clone();
+                async move {
+                    client
+                        .put_block()
+                        .with_container_name(&container)
+                        .with_blob_name(&path)
+                        .with_body(&data)
+                        .with_block_id(&block_id_for_spawn)
+                        .with_timeout(DEFAULT_CHUNK_TIMEOUT_IN_SECONDS)
+                        .finalize()
+                        .await
+                        .map_err(|e| e.into())
+                }
+            },
+            MaxRetriesHandler::new(DEFAULT_MAX_RETRIES),
+        ));
         futures.push(jh);
 
         blocks.blocks.push(BlobBlockType::Uncommitted(block_id));
         sent += send_size;
     }
 
-    futures::future::try_join_all(futures).await?;
+    futures::future::try_join_all(futures)
+        .await
+        .map_err(|e| UtilsError::RetryFailedError(e.to_string()))?;
 
     client
         .put_block_list()
