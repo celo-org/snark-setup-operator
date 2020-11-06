@@ -7,7 +7,7 @@ use snark_setup_operator::utils::{
     download_file_direct_async, download_file_from_azure_async, get_authorization_value,
     participation_mode_from_str, read_hash_from_file, read_keys, remove_file_if_exists,
     response_size, sign_json, upload_file_direct_async, upload_file_to_azure_async,
-    upload_mode_from_str, ParticipationMode, UploadMode,
+    upload_mode_from_str, write_attestation_to_file, ParticipationMode, UploadMode,
 };
 use snark_setup_operator::{
     data_structs::{Ceremony, Response},
@@ -80,6 +80,11 @@ pub struct ContributeOpts {
         default = "plumo.keys"
     )]
     pub keys_path: String,
+    #[options(
+        help = "the attestation for the Plumo setup",
+        default = "plumo.attestation"
+    )]
+    pub attestation_path: String,
     #[options(
         help = "the storage upload mode",
         default = "auto",
@@ -1159,11 +1164,13 @@ async fn main() {
         .init();
 
     let opts: ContributeOpts = ContributeOpts::parse_args_default_or_exit();
-    let (seed, private_key) = read_keys(&opts.keys_path, opts.unsafe_passphrase, true)
+    let (seed, private_key, attestation) = read_keys(&opts.keys_path, opts.unsafe_passphrase, true)
         .expect("Should have loaded Plumo setup keys");
 
     *SEED.write().expect("Should have been able to write seed") = Some(seed);
 
+    write_attestation_to_file(&attestation, &opts.attestation_path)
+        .expect("Should have written attestation to file");
     let contribute = Contribute::new(&opts, private_key.expose_secret())
         .expect("Should have been able to create a contribute.");
     match contribute.run_and_catch_errors::<BW6_761>().await {

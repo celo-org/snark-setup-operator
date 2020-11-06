@@ -275,7 +275,7 @@ async fn main() {
     tracing_subscriber::fmt().json().init();
 
     let opts: NewCeremonyOpts = NewCeremonyOpts::parse_args_default_or_exit();
-    let (_, private_key) = read_keys(&opts.keys_path, opts.unsafe_passphrase, false)
+    let (_, private_key, _) = read_keys(&opts.keys_path, opts.unsafe_passphrase, false)
         .expect("Should have loaded Plumo setup keys");
     match opts.curve.as_str() {
         "bw6" => {

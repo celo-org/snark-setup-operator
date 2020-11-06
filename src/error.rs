@@ -122,6 +122,8 @@ pub enum UtilsError {
     EntropyWasNoneError,
     #[error("Unsupported decryptor")]
     UnsupportedDecryptorError,
+    #[error("Attestation too short, got length {0}")]
+    AttestationTooShort(usize),
 }
 
 #[derive(Debug, Error)]

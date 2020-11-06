@@ -1,5 +1,7 @@
 pub const PLUMO_SETUP_PERSONALIZATION: &[u8] = b"PLUMOSET";
 pub const ADDRESS_LENGTH: usize = 20;
+pub const ADDRESS_LENGTH_IN_HEX: usize = 42;
+pub const SIGNATURE_LENGTH_IN_HEX: usize = 130;
 pub const DEFAULT_MAX_RETRIES: usize = 5;
 pub const ONE_MB: usize = 1024 * 1024;
 pub const DEFAULT_CHUNK_SIZE: u64 = 10 * (ONE_MB as u64);
@@ -357,7 +359,7 @@ pub fn read_keys(
     keys_path: &str,
     should_use_stdin: bool,
     should_collect_extra_entropy: bool,
-) -> Result<(SecretVec<u8>, SecretVec<u8>)> {
+) -> Result<(SecretVec<u8>, SecretVec<u8>, String)> {
     let mut contents = String::new();
     {
         std::fs::File::open(&keys_path)?.read_to_string(&mut contents)?;
@@ -408,7 +410,7 @@ pub fn read_keys(
         }
     };
 
-    Ok((plumo_seed, plumo_private_key_from_file))
+    Ok((plumo_seed, plumo_private_key_from_file, keys.attestation))
 }
 
 pub fn collect_processor_data() -> Result<Vec<ProcessorData>> {
@@ -498,4 +500,38 @@ pub fn backup_transcript(transcript: &Transcript) -> Result<()> {
     file.write_all(serde_json::to_string_pretty(transcript)?.as_bytes())?;
 
     Ok(())
+}
+
+pub fn format_attestation(attestation_message: &str, address: &str, signature: &str) -> String {
+    format!("{} {} {}", attestation_message, address, signature)
+}
+
+pub fn extract_signature_from_attestation(attestation: &str) -> Result<(String, String, String)> {
+    // Address, signature and two spaces is the minimum
+    if attestation.len() < SIGNATURE_LENGTH_IN_HEX + ADDRESS_LENGTH_IN_HEX + 2 {
+        return Err(UtilsError::AttestationTooShort(attestation.len()).into());
+    } else {
+        Ok((
+            attestation[..attestation.len() - SIGNATURE_LENGTH_IN_HEX - ADDRESS_LENGTH_IN_HEX - 2]
+                .to_string(),
+            attestation[attestation.len() - SIGNATURE_LENGTH_IN_HEX - ADDRESS_LENGTH_IN_HEX - 1
+                ..attestation.len() - SIGNATURE_LENGTH_IN_HEX - 1]
+                .to_string(),
+            attestation[attestation.len() - SIGNATURE_LENGTH_IN_HEX..attestation.len()].to_string(),
+        ))
+    }
+}
+
+pub fn write_attestation_to_file(attestation: &str, path: &str) -> Result<()> {
+    File::create(path)?.write_all(attestation.as_bytes())?;
+    Ok(())
+}
+
+pub fn trim_newline(s: &mut String) {
+    if s.ends_with('\n') {
+        s.pop();
+        if s.ends_with('\r') {
+            s.pop();
+        }
+    }
 }
