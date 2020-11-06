@@ -19,7 +19,7 @@ RUN mkdir src/
 
 RUN echo "fn main() {println!(\"if you see this, the build cache was invalidated\")}" > src/main.rs
 
-RUN RUSTFLAGS=-Clinker=musl-gcc cargo build --release --target=x86_64-unknown-linux-musl
+RUN cargo build --release --target=x86_64-unknown-linux-musl
 
 RUN rm -f target/x86_64-unknown-linux-musl/release/deps/snark-setup-operator*
 
@@ -28,12 +28,12 @@ COPY LICENSE .
 COPY Cargo.lock .
 COPY README.md .
 
-RUN RUSTFLAGS=-Clinker=musl-gcc cargo build --release --bin generate --target=x86_64-unknown-linux-musl
-RUN RUSTFLAGS=-Clinker=musl-gcc cargo build --release --bin contribute --target=x86_64-unknown-linux-musl
-RUN RUSTFLAGS=-Clinker=musl-gcc cargo build --release --bin control --target=x86_64-unknown-linux-musl
-RUN RUSTFLAGS=-Clinker=musl-gcc cargo build --release --bin monitor --target=x86_64-unknown-linux-musl
-RUN RUSTFLAGS=-Clinker=musl-gcc cargo build --release --bin new_ceremony --target=x86_64-unknown-linux-musl
-RUN RUSTFLAGS=-Clinker=musl-gcc cargo build --release --bin verify_transcript --target=x86_64-unknown-linux-musl
+RUN cargo build --release --bin generate --target=x86_64-unknown-linux-musl
+RUN cargo build --release --bin contribute --target=x86_64-unknown-linux-musl
+RUN cargo build --release --bin control --target=x86_64-unknown-linux-musl
+RUN cargo build --release --bin monitor --target=x86_64-unknown-linux-musl
+RUN cargo build --release --bin new_ceremony --target=x86_64-unknown-linux-musl
+RUN cargo build --release --bin verify_transcript --target=x86_64-unknown-linux-musl
 
 # ------------------------------------------------------------------------------
 # Final Stage
@@ -56,6 +56,11 @@ COPY --from=cargo-build /usr/src/main/target/x86_64-unknown-linux-musl/release/v
 
 RUN chown main:main contribute
 RUN chown main:main generate
+RUN chown main:main control
+RUN chown main:main monitor
+RUN chown main:main new_ceremony
+RUN chown main:main verify_transcript
+RUN chown main:main .
 
 USER main
 
