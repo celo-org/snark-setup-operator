@@ -1,3 +1,4 @@
+# Dockerfile format ripped from here: https://shaneutt.com/blog/rust-fast-small-docker-image-builds/
 # ------------------------------------------------------------------------------
 # Cargo Build Stage
 # ------------------------------------------------------------------------------
@@ -22,12 +23,17 @@ RUN RUSTFLAGS=-Clinker=musl-gcc cargo build --release --target=x86_64-unknown-li
 
 RUN rm -f target/x86_64-unknown-linux-musl/release/deps/snark-setup-operator*
 
-COPY src .
+COPY src ./src
 COPY LICENSE .
 COPY Cargo.lock .
 COPY README.md .
 
-RUN RUSTFLAGS=-Clinker=musl-gcc cargo build --release --target=x86_64-unknown-linux-musl
+RUN RUSTFLAGS=-Clinker=musl-gcc cargo build --release --bin generate --target=x86_64-unknown-linux-musl
+RUN RUSTFLAGS=-Clinker=musl-gcc cargo build --release --bin contribute --target=x86_64-unknown-linux-musl
+RUN RUSTFLAGS=-Clinker=musl-gcc cargo build --release --bin control --target=x86_64-unknown-linux-musl
+RUN RUSTFLAGS=-Clinker=musl-gcc cargo build --release --bin monitor --target=x86_64-unknown-linux-musl
+RUN RUSTFLAGS=-Clinker=musl-gcc cargo build --release --bin new_ceremony --target=x86_64-unknown-linux-musl
+RUN RUSTFLAGS=-Clinker=musl-gcc cargo build --release --bin verify_transcript --target=x86_64-unknown-linux-musl
 
 # ------------------------------------------------------------------------------
 # Final Stage
@@ -41,10 +47,16 @@ RUN adduser -D -s /bin/sh -u 1000 -G main main
 
 WORKDIR /home/main/bin/
 
-COPY --from=cargo-build /usr/src/main/target/x86_64-unknown-linux-musl/release/snark-setup-operator .
+COPY --from=cargo-build /usr/src/main/target/x86_64-unknown-linux-musl/release/contribute .
+COPY --from=cargo-build /usr/src/main/target/x86_64-unknown-linux-musl/release/generate .
+COPY --from=cargo-build /usr/src/main/target/x86_64-unknown-linux-musl/release/control .
+COPY --from=cargo-build /usr/src/main/target/x86_64-unknown-linux-musl/release/monitor .
+COPY --from=cargo-build /usr/src/main/target/x86_64-unknown-linux-musl/release/new_ceremony .
+COPY --from=cargo-build /usr/src/main/target/x86_64-unknown-linux-musl/release/verify_transcript .
 
-RUN chown main:main snark-setup-operator
+RUN chown main:main contribute
+RUN chown main:main generate
 
 USER main
 
-CMD ["./snark-setup-operator"]
+CMD ["./contribute"]
