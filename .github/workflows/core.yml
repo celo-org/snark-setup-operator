@@ -113,12 +113,6 @@ jobs:
           toolchain: ${{ matrix.rust }}
           override: true
 
-      - name: Compile for musl
-        run: |
-          sudo apt-get install musl-tools libdbus-1-dev
-          rustup target install x86_64-unknown-linux-musl
-          cargo build --bin contribute --release --target x86_64-unknown-linux-musl
-
       - name: Compile for MacOS
         run: |
           sudo apt install gcc-mingw-w64-x86-64
@@ -135,3 +129,9 @@ jobs:
         run: |
           rustup target install x86_64-pc-windows-gnu
           cargo build --bin contribute --release --target x86_64-pc-windows-gnu
+
+      - name: Compile for musl
+        run: |
+          sudo apt-get install musl-tools libdbus-1-dev
+          rustup target install x86_64-unknown-linux-musl
+          cargo build --bin contribute --release --target x86_64-unknown-linux-musl
