@@ -686,7 +686,7 @@ version = "3.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b57a92e9749e10f25a171adcebfafe72991d45e7ec2dcb853e8f83d9dafaeb08"
 dependencies = [
- "nix",
+ "nix 0.18.0",
  "winapi 0.3.9",
 ]
 
@@ -701,16 +701,6 @@ dependencies = [
  "rand_core 0.5.1",
  "subtle 2.3.0",
  "zeroize",
-]
-
-[[package]]
-name = "dbus"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22c08adfeb70c940c14d8af988fa854dcb5529e6141f2397e4e0fa4c9375d094"
-dependencies = [
- "libc",
- "libdbus-sys",
 ]
 
 [[package]]
@@ -827,6 +817,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a51b8cf747471cb9499b6d59e59b0444f4c90eba8968c4e44874e92b5b64ace2"
 dependencies = [
  "cfg-if 0.1.10",
+]
+
+[[package]]
+name = "enumflags2"
+version = "0.6.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "83c8d82922337cd23a15f88b70d8e4ef5f11da38dd7cdb55e84dd5de99695da0"
+dependencies = [
+ "enumflags2_derive",
+ "serde",
+]
+
+[[package]]
+name = "enumflags2_derive"
+version = "0.6.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "946ee94e3dbf58fdd324f9ce245c7b238d46a66f00e86a020b71996349e46cce"
+dependencies = [
+ "proc-macro2 1.0.24",
+ "quote 1.0.7",
+ "syn 1.0.44",
 ]
 
 [[package]]
@@ -995,6 +1006,15 @@ dependencies = [
  "quote 1.0.7",
  "syn 1.0.44",
  "synstructure",
+]
+
+[[package]]
+name = "fastrand"
+version = "1.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ca5faf057445ce5c9d4329e382b2ce7ca38550ef3b73a5348362d5f24e0c7fe3"
+dependencies = [
+ "instant",
 ]
 
 [[package]]
@@ -1510,6 +1530,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "instant"
+version = "0.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb1fc4429a33e1f80d41dc9fea4d108a88bec1de8053878898ae448a0b52f613"
+dependencies = [
+ "cfg-if 1.0.0",
+]
+
+[[package]]
 name = "iovec"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1578,13 +1607,13 @@ checksum = "67c21572b4949434e4fc1e1978b99c5f77064153c59d998bf13ecd96fb5ecba7"
 [[package]]
 name = "keep-awake"
 version = "0.1.0"
-source = "git+https://github.com/mrsmkl/keep-awake-rs?rev=9a6959464ee4542a7b39ef0bd714ef930798b13d#9a6959464ee4542a7b39ef0bd714ef930798b13d"
+source = "git+https://github.com/mrsmkl/keep-awake-rs?rev=f62ef9de3a110028de0a013ac7920b781da00692#f62ef9de3a110028de0a013ac7920b781da00692"
 dependencies = [
  "core-foundation 0.9.1",
- "dbus",
  "libc",
  "mach",
  "winapi 0.3.9",
+ "zbus",
 ]
 
 [[package]]
@@ -1621,15 +1650,6 @@ name = "libc"
 version = "0.2.79"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2448f6066e80e3bfc792e9c98bf705b4b0fc6e8ef5b43e5889aff0eaa9c58743"
-
-[[package]]
-name = "libdbus-sys"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc12a3bc971424edbbf7edaf6e5740483444db63aa8e23d3751ff12a30f306f0"
-dependencies = [
- "pkg-config",
-]
 
 [[package]]
 name = "log"
@@ -1818,6 +1838,19 @@ dependencies = [
  "cfg-if 0.1.10",
  "libc",
  "winapi 0.3.9",
+]
+
+[[package]]
+name = "nix"
+version = "0.17.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "50e4785f2c3b7589a0d0c1dd60285e1188adac4006e8abd6dd578e1567027363"
+dependencies = [
+ "bitflags",
+ "cc",
+ "cfg-if 0.1.10",
+ "libc",
+ "void",
 ]
 
 [[package]]
@@ -2138,6 +2171,15 @@ dependencies = [
  "impl-rlp",
  "impl-serde",
  "uint",
+]
+
+[[package]]
+name = "proc-macro-crate"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d6ea3c4595b96363c13943497db34af4460fb474a95c43f4446ad341b8c9785"
+dependencies = [
+ "toml",
 ]
 
 [[package]]
@@ -2558,6 +2600,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "scoped-tls"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ea6a9290e3c9cf0f18145ef7ffa62d68ee0bf5fcd651017e586dc7fd5da448c2"
+
+[[package]]
 name = "scopeguard"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2708,6 +2756,17 @@ dependencies = [
  "itoa",
  "ryu",
  "serde",
+]
+
+[[package]]
+name = "serde_repr"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2dc6b7951b17b051f3210b063f12cc17320e2fe30ae05b0fe2a3abb068551c76"
+dependencies = [
+ "proc-macro2 1.0.24",
+ "quote 1.0.7",
+ "syn 1.0.44",
 ]
 
 [[package]]
@@ -3244,6 +3303,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "toml"
+version = "0.5.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "75cf45bb0bef80604d001caaec0d09da99611b3c0fd39d3080468875cdb65645"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "tower-service"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3491,6 +3559,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b5a972e5669d67ba988ce3dc826706fb0a8b01471c088cb0b6110b805cc36aed"
 
 [[package]]
+name = "void"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a02e4885ed3bc0f2de90ea6dd45ebcbb66dacffe03547fadbb0eeae2770887d"
+
+[[package]]
 name = "voracious_radix_sort"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3711,6 +3785,37 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b07db065a5cf61a7e4ba64f29e67db906fb1787316516c4e6e5ff0fea1efcd8a"
 
 [[package]]
+name = "zbus"
+version = "1.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3a8a1a98eac87778308d7b2725cee6543a13936a3913b98e37fcf8ce9e4362da"
+dependencies = [
+ "byteorder",
+ "derivative",
+ "enumflags2",
+ "fastrand",
+ "nix 0.17.0",
+ "once_cell",
+ "scoped-tls",
+ "serde",
+ "serde_repr",
+ "zbus_macros",
+ "zvariant",
+]
+
+[[package]]
+name = "zbus_macros"
+version = "1.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9ca4d050be67f3b7a29878a6f0788a8dcd100c7297e619dcb91051f94679a8a4"
+dependencies = [
+ "proc-macro-crate",
+ "proc-macro2 1.0.24",
+ "quote 1.0.7",
+ "syn 1.0.44",
+]
+
+[[package]]
 name = "zeroize"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3729,4 +3834,28 @@ dependencies = [
  "quote 1.0.7",
  "syn 1.0.44",
  "synstructure",
+]
+
+[[package]]
+name = "zvariant"
+version = "2.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fb79b31a454101beda19e64082dfd9ad59c5ff8afa41e1de1065333105b02740"
+dependencies = [
+ "byteorder",
+ "enumflags2",
+ "serde",
+ "zvariant_derive",
+]
+
+[[package]]
+name = "zvariant_derive"
+version = "2.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "605bf414a59d93a3d55055e72ea066c5c0bc578ed2227df15c407207b1c780ef"
+dependencies = [
+ "proc-macro-crate",
+ "proc-macro2 1.0.24",
+ "quote 1.0.7",
+ "syn 1.0.44",
 ]
