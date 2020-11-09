@@ -72,6 +72,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
 
+      - name: Install dependencies
+        run: sudo apt-get install libdbus-1-dev
+
       - name: Install Rust (${{ matrix.rust }})
         uses: actions-rs/toolchain@v1
         with:
@@ -112,7 +115,7 @@ jobs:
 
       - name: Compile for musl
         run: |
-          sudo apt install musl-tools
+          sudo apt-get install musl-tools libdbus-1-dev
           rustup target install x86_64-unknown-linux-musl
           cargo build --bin contribute --release --target x86_64-unknown-linux-musl
 
