@@ -1607,7 +1607,7 @@ checksum = "67c21572b4949434e4fc1e1978b99c5f77064153c59d998bf13ecd96fb5ecba7"
 [[package]]
 name = "keep-awake"
 version = "0.1.0"
-source = "git+https://github.com/mrsmkl/keep-awake-rs?rev=f62ef9de3a110028de0a013ac7920b781da00692#f62ef9de3a110028de0a013ac7920b781da00692"
+source = "git+https://github.com/mrsmkl/keep-awake-rs?rev=63da170407e4ced0e9bbaf42b380fceea6436ea6#63da170407e4ced0e9bbaf42b380fceea6436ea6"
 dependencies = [
  "core-foundation 0.9.1",
  "libc",
