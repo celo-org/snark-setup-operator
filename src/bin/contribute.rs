@@ -25,7 +25,7 @@ use panic_control::{spawn_quiet, ThreadResultExt};
 use phase1::helpers::{batch_exp_mode_from_str, subgroup_check_mode_from_str};
 use phase1_cli::{contribute, transform_pok_and_correctness};
 use rand::prelude::SliceRandom;
-use reqwest::header::AUTHORIZATION;
+use reqwest::header::{AUTHORIZATION, CONTENT_LENGTH};
 use secrecy::{ExposeSecret, SecretVec};
 use setup_utils::{
     derive_rng_from_seed, upgrade_correctness_check_config, BatchExpMode, SubgroupCheckMode,
@@ -1039,6 +1039,7 @@ impl Contribute {
         let client = reqwest::Client::new();
         let response = client
             .get(get_chunk_url.as_str())
+            .header(CONTENT_LENGTH, 0)
             .send()
             .await?
             .error_for_status()?;
@@ -1055,6 +1056,7 @@ impl Contribute {
         let client = reqwest::Client::builder().gzip(true).build()?;
         let response = client
             .get(ceremony_url.as_str())
+            .header(CONTENT_LENGTH, 0)
             .send()
             .await?
             .error_for_status()?;
@@ -1072,6 +1074,7 @@ impl Contribute {
         let client = reqwest::Client::builder().gzip(true).build()?;
         let response = client
             .get(ceremony_url.as_str())
+            .header(CONTENT_LENGTH, 0)
             .send()
             .await?
             .error_for_status()?;
@@ -1089,6 +1092,7 @@ impl Contribute {
         client
             .post(lock_chunk_url.as_str())
             .header(AUTHORIZATION, authorization)
+            .header(CONTENT_LENGTH, 0)
             .send()
             .await?
             .error_for_status()?;
@@ -1119,6 +1123,7 @@ impl Contribute {
         let response: Response<ContributionUploadUrl> = client
             .get(upload_request_url.as_str())
             .header(AUTHORIZATION, authorization)
+            .header(CONTENT_LENGTH, 0)
             .send()
             .await?
             .error_for_status()?
