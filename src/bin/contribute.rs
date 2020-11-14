@@ -86,6 +86,11 @@ pub struct ContributeOpts {
     )]
     pub attestation_path: String,
     #[options(
+        help = "the log path of the Plumo setup",
+        default = "./snark-setup.log"
+    )]
+    pub log_path: String,
+    #[options(
         help = "the storage upload mode",
         default = "auto",
         parse(try_from_str = "upload_mode_from_str")
@@ -247,7 +252,9 @@ impl Contribute {
             Duration::seconds(DELAY_AFTER_ERROR_DURATION_SECS).to_std()?;
         let progress_bar = ProgressBar::new(0);
         let progress_style = ProgressStyle::default_bar()
-            .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} {msg}")
+            .template(
+                "{spinner:.green} [{elapsed_precise}] [{bar:20.cyan/blue}] {pos}/{len} {wide_msg}",
+            )
             .progress_chars("#>-");
         progress_bar.enable_steady_tick(1000);
         progress_bar.set_style(progress_style);
@@ -397,7 +404,8 @@ impl Contribute {
 
     async fn status_updater(&self, progress_bar: ProgressBar) -> Result<bool> {
         if EXIT_SIGNAL.load(SeqCst) > 0 {
-            progress_bar.set_message("Exit detected, handling chunks in buffer. If there was a problem, please contact the coordinator for help. If you got notified by the coordinator, please destroy the USB drive containing your keys. Press 10 times to force quit.");
+            progress_bar.println("Exit detected, handling chunks in buffer. If there was a problem, please contact the coordinator for help. If you got notified by the coordinator, please destroy the USB drive containing your keys. Press 10 times to force quit.");
+            progress_bar.set_message("");
             progress_bar.set_length(0);
             progress_bar.finish();
             return Ok(true);
@@ -427,9 +435,9 @@ impl Contribute {
             info!("Successfully contributed, thank you for participation! Waiting to see if you're still needed... Don't turn this off! ");
             progress_bar.set_position(num_chunks as u64);
             if !self.exit_when_finished_contributing && !chunk_info.shutdown_signal {
-                progress_bar.set_message("Successfully contributed, thank you for participation! Waiting to see if you're still needed... Don't turn this off!");
+                progress_bar.set_message("Successfully contributed! Don't turn this off yet, you might still be needed. Thank you for participating!");
             } else {
-                progress_bar.set_message("Successfully contributed, thank you for participation! Please destroy the USB drive containing your keys.");
+                progress_bar.set_message("Successfully contributed! Please destroy the USB drive containing your keys. Thank you for participating!");
                 progress_bar.finish();
                 return Ok(true);
             }
@@ -1160,7 +1168,11 @@ async fn main() {
         }
     })
     .expect("Error setting Ctrl-C handler");
-    let appender = tracing_appender::rolling::never(".", "snark-setup.log");
+
+    let opts: ContributeOpts = ContributeOpts::parse_args_default_or_exit();
+    let log_path = std::path::Path::new(&opts.log_path);
+    let appender =
+        tracing_appender::rolling::never(log_path.parent().unwrap(), log_path.file_name().unwrap());
     let (non_blocking, _guard) = tracing_appender::non_blocking(appender);
     tracing_subscriber::fmt()
         .json()
@@ -1168,7 +1180,6 @@ async fn main() {
         .with_writer(non_blocking)
         .init();
 
-    let opts: ContributeOpts = ContributeOpts::parse_args_default_or_exit();
     let (seed, private_key, attestation) = read_keys(&opts.keys_path, opts.unsafe_passphrase, true)
         .expect("Should have loaded Plumo setup keys");
 
