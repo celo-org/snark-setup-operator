@@ -92,9 +92,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       RUSTFLAGS: -Dwarnings -C target-featurez=+bmi2,+adx
-      CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_RUSTFLAGS: -C target-featurez=+bmi2,+adx
-      CARGO_TARGET_X86_64_APPLE_DARWIN_RUSTFLAGS: -C target-feature=+bmi2,+adx
-      CARGO_TARGET_X86_64_PC_WINDOWS_GNU_RUSTFLAGS: -C target-feature=+bmi2,+adx
+      CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_RUSTFLAGS: -C target-feature=+bmi2,+adx
+      CARGO_TARGET_X86_64_APPLE_DARWIN_RUSTFLAGS: -C target-featurez=+bmi2,+adx
+      CARGO_TARGET_X86_64_PC_WINDOWS_GNU_RUSTFLAGS: -C target-featurez=+bmi2,+adx
     strategy:
       matrix:
         rust:
