@@ -66,15 +66,20 @@ pub struct NewCeremonyOpts {
     pub prepared_ceremony: Option<String>,
 }
 
-fn build_ceremony_from_chunks(opts: &NewCeremonyOpts, chunks: &[Chunk]) -> Result<Ceremony> {
+fn build_ceremony_from_chunks(
+    opts: &NewCeremonyOpts,
+    chunks: &[Chunk],
+    existing_contributor_ids: &[String],
+    existing_verifier_ids: &[String],
+) -> Result<Ceremony> {
     let chunk_size = 1 << opts.chunk_size;
     let ceremony = Ceremony {
         round: 0,
         version: 0,
         max_locks: opts.max_locks,
         shutdown_signal: false,
-        contributor_ids: opts.participant.clone(),
-        verifier_ids: opts.verifier.clone(),
+        contributor_ids: [&opts.participant, existing_contributor_ids].concat(),
+        verifier_ids: [&opts.verifier, existing_verifier_ids].concat(),
         parameters: Parameters {
             proving_system: opts.proving_system.clone(),
             curve_kind: opts.curve.clone(),
@@ -251,10 +256,20 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
             ],
         };
         chunks.push(chunk);
-        build_ceremony_from_chunks(&opts, &chunks)?;
+        build_ceremony_from_chunks(
+            &opts,
+            &chunks,
+            &ceremony.contributor_ids,
+            &ceremony.verifier_ids,
+        )?;
     }
 
-    let ceremony = build_ceremony_from_chunks(&opts, &chunks)?;
+    let ceremony = build_ceremony_from_chunks(
+        &opts,
+        &chunks,
+        &ceremony.contributor_ids,
+        &ceremony.verifier_ids,
+    )?;
     info!("Updating ceremony");
     let client = reqwest::Client::new();
     let authorization = get_authorization_value(&private_key, "PUT", "ceremony")?;
