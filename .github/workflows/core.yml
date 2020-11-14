@@ -91,7 +91,10 @@ jobs:
     name: Cross compile
     runs-on: ubuntu-latest
     env:
-      RUSTFLAGS: -Dwarnings
+      RUSTFLAGS: -Dwarnings -C target-feature=+bmi2,+adx
+      CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_RUSTFLAGS: -C target-featurez=+bmi2,+adx
+      CARGO_TARGET_X86_64_APPLE_DARWIN_RUSTFLAGS: -C target-feature=+bmi2,+adx
+      CARGO_TARGET_X86_64_PC_WINDOWS_GNU_RUSTFLAGS: -C target-feature=+bmi2,+adx
     strategy:
       matrix:
         rust:
@@ -109,8 +112,6 @@ jobs:
 
       - name: Compile for musl
         run: |
-          export RUSTFLAGS="-C target-feature=+bmi2,+adx"
-          export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_RUSTFLAGS="-C target-featurez=+bmi2,+adx"
           sudo apt install musl-tools
           rustup target install x86_64-unknown-linux-musl
           cargo build --bin contribute --release --target x86_64-unknown-linux-musl
@@ -120,8 +121,6 @@ jobs:
 
       - name: Compile for MacOS
         run: |
-          export RUSTFLAGS="-C target-feature=+bmi2,+adx"
-          export CARGO_TARGET_X86_64_APPLE_DARWIN_RUSTFLAGS="-C target-feature=+bmi2,+adx"
           sudo apt install gcc-mingw-w64-x86-64
           rustup target install x86_64-apple-darwin
           git clone https://github.com/tpoechtrager/osxcross
@@ -137,8 +136,6 @@ jobs:
 
       - name: Compile for Windows
         run: |
-          export RUSTFLAGS="-C target-feature=+bmi2,+adx"
-          export CARGO_TARGET_X86_64_PC_WINDOWS_GNU_RUSTFLAGS="-C target-feature=+bmi2,+adx"
           rustup target install x86_64-pc-windows-gnu
           cargo build --bin contribute --release --target x86_64-pc-windows-gnu
           b2sum ./target/x86_64-pc-windows-gnu/release/contribute.exe
