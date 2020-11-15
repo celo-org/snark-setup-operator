@@ -239,7 +239,7 @@ impl Contribute {
                 SHOULD_UPDATE_STATUS.store(false, SeqCst);
                 return;
             }
-            tokio::time::sleep(
+            tokio::time::delay_for(
                 Duration::seconds(DELAY_POLL_CEREMONY_SECS)
                     .to_std()
                     .expect("Should have converted duration to standard"),
@@ -279,7 +279,7 @@ impl Contribute {
                     warn!("Got error from ceremony initialization: {}", e);
                     progress_bar
                         .set_message(&format!("Got error from ceremony initialization: {}", e));
-                    tokio::time::sleep(delay_after_error_duration).await;
+                    tokio::time::delay_for(delay_after_error_duration).await;
                 }
             }
         }
@@ -361,7 +361,7 @@ impl Contribute {
                             }
                         }
                     }
-                    tokio::time::sleep(delay_duration).await;
+                    tokio::time::delay_for(delay_duration).await;
                 }
             });
             futures.push(jh);
@@ -395,7 +395,7 @@ impl Contribute {
                     return Ok(());
                 }
             }
-            tokio::time::sleep(Duration::seconds(DELAY_WAIT_FOR_PIPELINE_SECS).to_std()?).await;
+            tokio::time::delay_for(Duration::seconds(DELAY_WAIT_FOR_PIPELINE_SECS).to_std()?).await;
         }
     }
 
@@ -628,8 +628,10 @@ impl Contribute {
                     return Ok(());
                 }
                 false => {
-                    tokio::time::sleep(Duration::seconds(DELAY_WAIT_FOR_PIPELINE_SECS).to_std()?)
-                        .await;
+                    tokio::time::delay_for(
+                        Duration::seconds(DELAY_WAIT_FOR_PIPELINE_SECS).to_std()?,
+                    )
+                    .await;
                 }
             }
         }
@@ -654,8 +656,10 @@ impl Contribute {
                     remove_file_if_exists(&self.new_challenge_hash_filename)?;
                     return Ok(());
                 } else {
-                    tokio::time::sleep(Duration::seconds(DELAY_WAIT_FOR_PIPELINE_SECS).to_std()?)
-                        .await;
+                    tokio::time::delay_for(
+                        Duration::seconds(DELAY_WAIT_FOR_PIPELINE_SECS).to_std()?,
+                    )
+                    .await;
                     continue;
                 }
             }
@@ -1170,20 +1174,22 @@ fn main() {
     .expect("Error setting Ctrl-C handler");
 
     let opts: ContributeOpts = ContributeOpts::parse_args_default_or_exit();
-    let rt = if opts.free_threads > 0 {
+    let mut rt = if opts.free_threads > 0 {
         let max_threads = num_cpus::get();
         let threads = max_threads - opts.free_threads;
         rayon::ThreadPoolBuilder::new()
             .num_threads(threads)
             .build_global()
             .unwrap();
-        tokio::runtime::Builder::new_multi_thread()
+        tokio::runtime::Builder::new()
+            .threaded_scheduler()
             .enable_all()
-            .worker_threads(threads)
+            .core_threads(threads)
             .build()
             .unwrap()
     } else {
-        tokio::runtime::Builder::new_multi_thread()
+        tokio::runtime::Builder::new()
+            .threaded_scheduler()
             .enable_all()
             .build()
             .unwrap()
