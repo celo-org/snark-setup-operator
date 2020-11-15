@@ -111,6 +111,11 @@ pub struct ContributeOpts {
     #[options(help = "maximum tasks in the upload lane", default = "1")]
     pub max_in_upload_lane: usize,
     #[options(
+        help = "number of threads to leave free for other tasks",
+        default = "0"
+    )]
+    pub free_threads: usize,
+    #[options(
         help = "whether to always check whether incoming challenges are in correct subgroup and non-zero",
         default = "false"
     )]
@@ -234,7 +239,7 @@ impl Contribute {
                 SHOULD_UPDATE_STATUS.store(false, SeqCst);
                 return;
             }
-            tokio::time::delay_for(
+            tokio::time::sleep(
                 Duration::seconds(DELAY_POLL_CEREMONY_SECS)
                     .to_std()
                     .expect("Should have converted duration to standard"),
@@ -274,7 +279,7 @@ impl Contribute {
                     warn!("Got error from ceremony initialization: {}", e);
                     progress_bar
                         .set_message(&format!("Got error from ceremony initialization: {}", e));
-                    tokio::time::delay_for(delay_after_error_duration).await;
+                    tokio::time::sleep(delay_after_error_duration).await;
                 }
             }
         }
@@ -356,7 +361,7 @@ impl Contribute {
                             }
                         }
                     }
-                    tokio::time::delay_for(delay_duration).await;
+                    tokio::time::sleep(delay_duration).await;
                 }
             });
             futures.push(jh);
@@ -390,7 +395,7 @@ impl Contribute {
                     return Ok(());
                 }
             }
-            tokio::time::delay_for(Duration::seconds(DELAY_WAIT_FOR_PIPELINE_SECS).to_std()?).await;
+            tokio::time::sleep(Duration::seconds(DELAY_WAIT_FOR_PIPELINE_SECS).to_std()?).await;
         }
     }
 
@@ -623,10 +628,8 @@ impl Contribute {
                     return Ok(());
                 }
                 false => {
-                    tokio::time::delay_for(
-                        Duration::seconds(DELAY_WAIT_FOR_PIPELINE_SECS).to_std()?,
-                    )
-                    .await;
+                    tokio::time::sleep(Duration::seconds(DELAY_WAIT_FOR_PIPELINE_SECS).to_std()?)
+                        .await;
                 }
             }
         }
@@ -651,10 +654,8 @@ impl Contribute {
                     remove_file_if_exists(&self.new_challenge_hash_filename)?;
                     return Ok(());
                 } else {
-                    tokio::time::delay_for(
-                        Duration::seconds(DELAY_WAIT_FOR_PIPELINE_SECS).to_std()?,
-                    )
-                    .await;
+                    tokio::time::sleep(Duration::seconds(DELAY_WAIT_FOR_PIPELINE_SECS).to_std()?)
+                        .await;
                     continue;
                 }
             }
@@ -1156,8 +1157,7 @@ impl Contribute {
     }
 }
 
-#[tokio::main]
-async fn main() {
+fn main() {
     ctrlc::set_handler(move || {
         println!("Got ctrl+c...");
         SHOULD_UPDATE_STATUS.store(true, SeqCst);
@@ -1170,27 +1170,50 @@ async fn main() {
     .expect("Error setting Ctrl-C handler");
 
     let opts: ContributeOpts = ContributeOpts::parse_args_default_or_exit();
-    let log_path = std::path::Path::new(&opts.log_path);
-    let appender =
-        tracing_appender::rolling::never(log_path.parent().unwrap(), log_path.file_name().unwrap());
-    let (non_blocking, _guard) = tracing_appender::non_blocking(appender);
-    tracing_subscriber::fmt()
-        .json()
-        .with_env_filter(EnvFilter::from_default_env())
-        .with_writer(non_blocking)
-        .init();
+    let rt = if opts.free_threads > 0 {
+        let max_threads = num_cpus::get();
+        let threads = max_threads - opts.free_threads;
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(threads)
+            .build_global()
+            .unwrap();
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .worker_threads(threads)
+            .build()
+            .unwrap()
+    } else {
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+    };
+    rt.block_on(async {
+        let log_path = std::path::Path::new(&opts.log_path);
+        let appender = tracing_appender::rolling::never(
+            log_path.parent().unwrap(),
+            log_path.file_name().unwrap(),
+        );
+        let (non_blocking, _guard) = tracing_appender::non_blocking(appender);
+        tracing_subscriber::fmt()
+            .json()
+            .with_env_filter(EnvFilter::from_default_env())
+            .with_writer(non_blocking)
+            .init();
 
-    let (seed, private_key, attestation) = read_keys(&opts.keys_path, opts.unsafe_passphrase, true)
-        .expect("Should have loaded Plumo setup keys");
+        let (seed, private_key, attestation) =
+            read_keys(&opts.keys_path, opts.unsafe_passphrase, true)
+                .expect("Should have loaded Plumo setup keys");
 
-    *SEED.write().expect("Should have been able to write seed") = Some(seed);
+        *SEED.write().expect("Should have been able to write seed") = Some(seed);
 
-    write_attestation_to_file(&attestation, &opts.attestation_path)
-        .expect("Should have written attestation to file");
-    let contribute = Contribute::new(&opts, private_key.expose_secret())
-        .expect("Should have been able to create a contribute.");
-    match contribute.run_and_catch_errors::<BW6_761>().await {
-        Err(e) => panic!("Got error from contribute: {}", e.to_string()),
-        _ => {}
-    }
+        write_attestation_to_file(&attestation, &opts.attestation_path)
+            .expect("Should have written attestation to file");
+        let contribute = Contribute::new(&opts, private_key.expose_secret())
+            .expect("Should have been able to create a contribute.");
+        match contribute.run_and_catch_errors::<BW6_761>().await {
+            Err(e) => panic!("Got error from contribute: {}", e.to_string()),
+            _ => {}
+        }
+    });
 }
