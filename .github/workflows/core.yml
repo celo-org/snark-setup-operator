@@ -91,10 +91,7 @@ jobs:
     name: Cross compile
     runs-on: ubuntu-latest
     env:
-      RUSTFLAGS: -Dwarnings -C target-feature=+bmi2,+adx
-      CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_RUSTFLAGS: -C target-feature=+bmi2,+adx
-      CARGO_TARGET_X86_64_APPLE_DARWIN_RUSTFLAGS: -C target-featurez=+bmi2,+adx
-      CARGO_TARGET_X86_64_PC_WINDOWS_GNU_RUSTFLAGS: -C target-featurez=+bmi2,+adx
+      RUSTFLAGS: -Dwarnings
     strategy:
       matrix:
         rust:
@@ -129,9 +126,9 @@ jobs:
           mv MacOSX10.10.sdk.tar.xz tarballs/
           UNATTENDED=yes OSX_VERSION_MIN=10.7 ./build.sh
           cd ..
-          PATH="$PWD/osxcross/target/bin:$PATH" CC="$PWD/osxcross/target/bin/o64-clang" CXX="$PWD/osxcross/target/bin/o64-clang++" RUSTFLAGS="-C linker=$PWD/osxcross/target/bin/x86_64-apple-darwin14-clang -C ar=$PWD/osxcross/target/bin/x86_64-apple-darwin14-ar" cargo build --bin contribute --release --target x86_64-apple-darwin
+          PATH="$PWD/osxcross/target/bin:$PATH" CC="$PWD/osxcross/target/bin/o64-clang" CXX="$PWD/osxcross/target/bin/o64-clang++" RUSTFLAGS="$RUSTFLAGS -C linker=$PWD/osxcross/target/bin/x86_64-apple-darwin14-clang -C ar=$PWD/osxcross/target/bin/x86_64-apple-darwin14-ar" cargo build --bin contribute --release --target x86_64-apple-darwin
           b2sum ./target/x86_64-apple-darwin/release/contribute
-          PATH="$PWD/osxcross/target/bin:$PATH" CC="$PWD/osxcross/target/bin/o64-clang" CXX="$PWD/osxcross/target/bin/o64-clang++" RUSTFLAGS="-C linker=$PWD/osxcross/target/bin/x86_64-apple-darwin14-clang -C ar=$PWD/osxcross/target/bin/x86_64-apple-darwin14-ar" cargo build --bin generate --release --target x86_64-apple-darwin
+          PATH="$PWD/osxcross/target/bin:$PATH" CC="$PWD/osxcross/target/bin/o64-clang" CXX="$PWD/osxcross/target/bin/o64-clang++" RUSTFLAGS=""$RUSTFLAGS -C linker=$PWD/osxcross/target/bin/x86_64-apple-darwin14-clang -C ar=$PWD/osxcross/target/bin/x86_64-apple-darwin14-ar" cargo build --bin generate --release --target x86_64-apple-darwin
           b2sum ./target/x86_64-apple-darwin/release/generate
 
       - name: Compile for Windows
