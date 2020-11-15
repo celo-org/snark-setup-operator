@@ -128,7 +128,7 @@ jobs:
           cd ..
           PATH="$PWD/osxcross/target/bin:$PATH" CC="$PWD/osxcross/target/bin/o64-clang" CXX="$PWD/osxcross/target/bin/o64-clang++" RUSTFLAGS="$RUSTFLAGS -C linker=$PWD/osxcross/target/bin/x86_64-apple-darwin14-clang -C ar=$PWD/osxcross/target/bin/x86_64-apple-darwin14-ar" cargo build --bin contribute --release --target x86_64-apple-darwin
           b2sum ./target/x86_64-apple-darwin/release/contribute
-          PATH="$PWD/osxcross/target/bin:$PATH" CC="$PWD/osxcross/target/bin/o64-clang" CXX="$PWD/osxcross/target/bin/o64-clang++" RUSTFLAGS=""$RUSTFLAGS -C linker=$PWD/osxcross/target/bin/x86_64-apple-darwin14-clang -C ar=$PWD/osxcross/target/bin/x86_64-apple-darwin14-ar" cargo build --bin generate --release --target x86_64-apple-darwin
+          PATH="$PWD/osxcross/target/bin:$PATH" CC="$PWD/osxcross/target/bin/o64-clang" CXX="$PWD/osxcross/target/bin/o64-clang++" RUSTFLAGS="$RUSTFLAGS -C linker=$PWD/osxcross/target/bin/x86_64-apple-darwin14-clang -C ar=$PWD/osxcross/target/bin/x86_64-apple-darwin14-ar" cargo build --bin generate --release --target x86_64-apple-darwin
           b2sum ./target/x86_64-apple-darwin/release/generate
 
       - name: Compile for Windows
