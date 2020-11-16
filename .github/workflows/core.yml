@@ -112,6 +112,9 @@ jobs:
           sudo apt install musl-tools
           rustup target install x86_64-unknown-linux-musl
           cargo build --bin contribute --release --target x86_64-unknown-linux-musl
+          b2sum ./target/x86_64-unknown-linux-musl/release/contribute
+          cargo build --bin generate --release --target x86_64-unknown-linux-musl
+          b2sum ./target/x86_64-unknown-linux-musl/release/generate
 
       - name: Compile for MacOS
         run: |
@@ -123,9 +126,22 @@ jobs:
           mv MacOSX10.10.sdk.tar.xz tarballs/
           UNATTENDED=yes OSX_VERSION_MIN=10.7 ./build.sh
           cd ..
-          PATH="$PWD/osxcross/target/bin:$PATH" CC="$PWD/osxcross/target/bin/o64-clang" CXX="$PWD/osxcross/target/bin/o64-clang++" RUSTFLAGS="-C linker=$PWD/osxcross/target/bin/x86_64-apple-darwin14-clang -C ar=$PWD/osxcross/target/bin/x86_64-apple-darwin14-ar" cargo build --bin contribute --release --target x86_64-apple-darwin
+          PATH="$PWD/osxcross/target/bin:$PATH" CC="$PWD/osxcross/target/bin/o64-clang" CXX="$PWD/osxcross/target/bin/o64-clang++" RUSTFLAGS="$RUSTFLAGS -C linker=$PWD/osxcross/target/bin/x86_64-apple-darwin14-clang -C ar=$PWD/osxcross/target/bin/x86_64-apple-darwin14-ar" cargo build --bin contribute --release --target x86_64-apple-darwin
+          b2sum ./target/x86_64-apple-darwin/release/contribute
+          PATH="$PWD/osxcross/target/bin:$PATH" CC="$PWD/osxcross/target/bin/o64-clang" CXX="$PWD/osxcross/target/bin/o64-clang++" RUSTFLAGS="$RUSTFLAGS -C linker=$PWD/osxcross/target/bin/x86_64-apple-darwin14-clang -C ar=$PWD/osxcross/target/bin/x86_64-apple-darwin14-ar" cargo build --bin generate --release --target x86_64-apple-darwin
+          b2sum ./target/x86_64-apple-darwin/release/generate
 
       - name: Compile for Windows
         run: |
           rustup target install x86_64-pc-windows-gnu
           cargo build --bin contribute --release --target x86_64-pc-windows-gnu
+          b2sum ./target/x86_64-pc-windows-gnu/release/contribute.exe
+          cargo build --bin generate --release --target x86_64-pc-windows-gnu
+          b2sum ./target/x86_64-pc-windows-gnu/release/generate.exe
+
+      - name: Archive binaries
+        uses: actions/upload-artifact@v2
+        with:
+          path: |
+            target/**/contribute*
+            target/**/generate*
