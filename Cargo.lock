@@ -7,6 +7,42 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b5ace29ee3216de37c0546865ad08edef58b0f9e76838ed8959a84a990e58c5"
 
 [[package]]
+name = "accel"
+version = "0.4.0-alpha.0"
+source = "git+https://github.com/jon-chuang/accel#cd83208b07b3e3cf269ec06437a69e062e0f8d86"
+dependencies = [
+ "accel-derive",
+ "bitflags",
+ "cuda-driver-sys",
+ "derive-new",
+ "futures",
+ "lazy_static",
+ "log",
+ "num-derive",
+ "num-traits",
+ "paste",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
+name = "accel-derive"
+version = "0.3.0"
+source = "git+https://github.com/jon-chuang/accel#cd83208b07b3e3cf269ec06437a69e062e0f8d86"
+dependencies = [
+ "anyhow",
+ "dirs 2.0.2",
+ "failure",
+ "maplit",
+ "proc-macro-crate",
+ "proc-macro2 1.0.24",
+ "quote 1.0.7",
+ "serde",
+ "syn 1.0.44",
+ "toml",
+]
+
+[[package]]
 name = "addr2line"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -42,7 +78,7 @@ dependencies = [
  "chacha20poly1305",
  "console",
  "cookie-factory",
- "dirs",
+ "dirs 3.0.1",
  "hkdf",
  "hmac 0.9.0",
  "nom",
@@ -77,34 +113,43 @@ dependencies = [
 [[package]]
 name = "algebra"
 version = "0.1.1-alpha.0"
-source = "git+https://github.com/celo-org/zexe?rev=ba217a777e8b09b59037a2a3408a0c5812ec65fb#ba217a777e8b09b59037a2a3408a0c5812ec65fb"
+source = "git+https://github.com/celo-org/zexe?rev=181ac2f05dde303f2f295a676c18a3343e6ef22c#181ac2f05dde303f2f295a676c18a3343e6ef22c"
 dependencies = [
+ "accel",
  "algebra-core",
+ "lazy_static",
+ "paste",
 ]
 
 [[package]]
 name = "algebra-core"
 version = "0.1.1-alpha.0"
-source = "git+https://github.com/celo-org/zexe?rev=ba217a777e8b09b59037a2a3408a0c5812ec65fb#ba217a777e8b09b59037a2a3408a0c5812ec65fb"
+source = "git+https://github.com/celo-org/zexe?rev=181ac2f05dde303f2f295a676c18a3343e6ef22c#181ac2f05dde303f2f295a676c18a3343e6ef22c"
 dependencies = [
+ "accel",
  "algebra-core-derive",
  "cc",
+ "closure",
  "derivative",
+ "dirs 1.0.5",
  "either",
  "itertools 0.9.0",
+ "lazy_static",
+ "log",
  "num-traits",
  "paste",
+ "peekmore",
  "rand 0.7.3",
  "rayon",
  "rustc_version",
+ "serde_json",
  "unroll",
- "voracious_radix_sort",
 ]
 
 [[package]]
 name = "algebra-core-derive"
 version = "0.1.1-alpha.0"
-source = "git+https://github.com/celo-org/zexe?rev=ba217a777e8b09b59037a2a3408a0c5812ec65fb#ba217a777e8b09b59037a2a3408a0c5812ec65fb"
+source = "git+https://github.com/celo-org/zexe?rev=181ac2f05dde303f2f295a676c18a3343e6ef22c#181ac2f05dde303f2f295a676c18a3343e6ef22c"
 dependencies = [
  "proc-macro2 1.0.24",
  "quote 1.0.7",
@@ -288,7 +333,7 @@ checksum = "cdcf67bb7ba7797a081cd19009948ab533af7c355d5caf1d08c777582d351e9c"
 [[package]]
 name = "bench-utils"
 version = "0.1.1-alpha.0"
-source = "git+https://github.com/celo-org/zexe?rev=ba217a777e8b09b59037a2a3408a0c5812ec65fb#ba217a777e8b09b59037a2a3408a0c5812ec65fb"
+source = "git+https://github.com/celo-org/zexe?rev=181ac2f05dde303f2f295a676c18a3343e6ef22c#181ac2f05dde303f2f295a676c18a3343e6ef22c"
 
 [[package]]
 name = "bincode"
@@ -474,6 +519,12 @@ dependencies = [
  "time 0.1.44",
  "winapi 0.3.9",
 ]
+
+[[package]]
+name = "closure"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d6173fd61b610d15a7566dd7b7620775627441c4ab9dac8906e17cb93a24b782"
 
 [[package]]
 name = "console"
@@ -691,6 +742,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "cuda-config"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4ee74643f7430213a1a78320f88649de309b20b80818325575e393f848f79f5d"
+dependencies = [
+ "glob",
+]
+
+[[package]]
+name = "cuda-driver-sys"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d4c552cc0de854877d80bcd1f11db75d42be32962d72a6799b88dcca88fffbd"
+dependencies = [
+ "cuda-config",
+]
+
+[[package]]
 name = "curve25519-dalek"
 version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -715,6 +784,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "derive-new"
+version = "0.5.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "71f31892cd5c62e414316f2963c5689242c43d8e7bbcaaeca97e5e28c95d91d9"
+dependencies = [
+ "proc-macro2 1.0.24",
+ "quote 1.0.7",
+ "syn 1.0.44",
+]
+
+[[package]]
 name = "digest"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -730,6 +810,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d3dd60d1080a57a05ab032377049e0591415d2b31afd7028356dbf3cc6dcb066"
 dependencies = [
  "generic-array 0.14.4",
+]
+
+[[package]]
+name = "dirs"
+version = "1.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3fd78930633bd1c6e35c4b42b1df7b0cbc6bc191146e512bb3bedf243fcc3901"
+dependencies = [
+ "libc",
+ "redox_users",
+ "winapi 0.3.9",
+]
+
+[[package]]
+name = "dirs"
+version = "2.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "13aea89a5c93364a98e9b37b2fa237effbb694d5cfe01c5b70941f7eb087d5e3"
+dependencies = [
+ "cfg-if 0.1.10",
+ "dirs-sys",
 ]
 
 [[package]]
@@ -1031,7 +1132,7 @@ dependencies = [
 [[package]]
 name = "ff-fft"
 version = "0.1.1-alpha.0"
-source = "git+https://github.com/celo-org/zexe?rev=ba217a777e8b09b59037a2a3408a0c5812ec65fb#ba217a777e8b09b59037a2a3408a0c5812ec65fb"
+source = "git+https://github.com/celo-org/zexe?rev=181ac2f05dde303f2f295a676c18a3343e6ef22c#181ac2f05dde303f2f295a676c18a3343e6ef22c"
 dependencies = [
  "algebra-core",
  "rand 0.7.3",
@@ -1670,6 +1771,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "maplit"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3e2e65a1a2e43cfcb47a895c4c8b10d1f4a61097f9f254f183aee60cad9c651d"
+
+[[package]]
 name = "matchers"
 version = "0.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1886,6 +1993,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "num-derive"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "876a53fff98e03a936a674b29568b0e605f06b29372c2489ff4de23f1949743d"
+dependencies = [
+ "proc-macro2 1.0.24",
+ "quote 1.0.7",
+ "syn 1.0.44",
+]
+
+[[package]]
 name = "num-integer"
 version = "0.1.43"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2049,6 +2167,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7170d73bf11f39b4ce1809aabc95bf5c33564cdc16fc3200ddda17a5f6e5e48b"
 dependencies = [
  "crypto-mac 0.9.1",
+]
+
+[[package]]
+name = "peekmore"
+version = "0.5.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4089f831c514cbf080bd19bfce702f7a2de250492730d419204af6710ba19316"
+dependencies = [
+ "smallvec",
 ]
 
 [[package]]
@@ -2239,7 +2366,7 @@ dependencies = [
 [[package]]
 name = "r1cs-core"
 version = "0.1.1-alpha.0"
-source = "git+https://github.com/celo-org/zexe?rev=ba217a777e8b09b59037a2a3408a0c5812ec65fb#ba217a777e8b09b59037a2a3408a0c5812ec65fb"
+source = "git+https://github.com/celo-org/zexe?rev=181ac2f05dde303f2f295a676c18a3343e6ef22c#181ac2f05dde303f2f295a676c18a3343e6ef22c"
 dependencies = [
  "algebra-core",
  "tracing",
@@ -2913,11 +3040,13 @@ dependencies = [
  "indicatif",
  "keep-awake",
  "lazy_static",
+ "num_cpus",
  "openssl-sys",
  "panic-control",
  "phase1",
  "phase1-cli",
  "rand 0.7.3",
+ "rayon",
  "reqwest",
  "retry",
  "rpassword",
@@ -3247,9 +3376,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-macros"
-version = "0.2.5"
+version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f0c3acc6aa564495a0f2e1d59fab677cd7f81a19994cfc7f3ad0e64301560389"
+checksum = "e44da00bfc73a25f814cd8d7e57a68a5c31b74b3152a0a1d1f590c97ed06265a"
 dependencies = [
  "proc-macro2 1.0.24",
  "quote 1.0.7",
@@ -3565,12 +3694,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a02e4885ed3bc0f2de90ea6dd45ebcbb66dacffe03547fadbb0eeae2770887d"
 
 [[package]]
-name = "voracious_radix_sort"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "616c76cba4a47731b29152961b4b6861156b03cdb339683a9cef81d0cc5e53cf"
-
-[[package]]
 name = "want"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3786,9 +3909,9 @@ checksum = "b07db065a5cf61a7e4ba64f29e67db906fb1787316516c4e6e5ff0fea1efcd8a"
 
 [[package]]
 name = "zbus"
-version = "1.2.1"
+version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3a8a1a98eac87778308d7b2725cee6543a13936a3913b98e37fcf8ce9e4362da"
+checksum = "d2f1803d7af14e3cddc5c1511b05af4bda27f89d8387e5e1aa3a7b918639cb18"
 dependencies = [
  "byteorder",
  "derivative",
@@ -3805,9 +3928,9 @@ dependencies = [
 
 [[package]]
 name = "zbus_macros"
-version = "1.2.1"
+version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9ca4d050be67f3b7a29878a6f0788a8dcd100c7297e619dcb91051f94679a8a4"
+checksum = "03273fa8aec65ed1be7026f58f92b90ecea09e622103718e9300591e21e24711"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2 1.0.24",
@@ -3838,9 +3961,9 @@ dependencies = [
 
 [[package]]
 name = "zvariant"
-version = "2.2.0"
+version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fb79b31a454101beda19e64082dfd9ad59c5ff8afa41e1de1065333105b02740"
+checksum = "cc8bb578d9efd69a950d6061d12a9359ea5b2e961ad4dee10f25ccd4bc2201a4"
 dependencies = [
  "byteorder",
  "enumflags2",
@@ -3850,9 +3973,9 @@ dependencies = [
 
 [[package]]
 name = "zvariant_derive"
-version = "2.2.0"
+version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "605bf414a59d93a3d55055e72ea066c5c0bc578ed2227df15c407207b1c780ef"
+checksum = "8f327c66f7a22695719b1cf26ae671081a9c47f1c7fa6d79209039f6ad0f6acd"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2 1.0.24",
