@@ -109,7 +109,7 @@ jobs:
 
       - name: Compile for musl
         run: |
-          sudo apt install musl-tools
+          sudo apt-get install musl-tools
           rustup target install x86_64-unknown-linux-musl
           cargo build --bin contribute --release --target x86_64-unknown-linux-musl
           b2sum ./target/x86_64-unknown-linux-musl/release/contribute

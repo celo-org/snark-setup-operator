@@ -41,6 +41,7 @@ futures-retry = "0.5.0"
 sysinfo = "0.15.3"
 blake2 = "0.9"
 rpassword = "5.0.0"
+keep-awake = { git = "https://github.com/mrsmkl/keep-awake-rs", rev = "63da170407e4ced0e9bbaf42b380fceea6436ea6" }
 rayon = "1.4"
 num_cpus = "1.13"
 

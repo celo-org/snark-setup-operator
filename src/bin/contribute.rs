@@ -1162,6 +1162,7 @@ impl Contribute {
 }
 
 fn main() {
+    let _obj = keep_awake::inhibit("Plumo setup contribute", "This will take a while");
     ctrlc::set_handler(move || {
         println!("Got ctrl+c...");
         SHOULD_UPDATE_STATUS.store(true, SeqCst);
