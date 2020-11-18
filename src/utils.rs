@@ -19,7 +19,7 @@ use anyhow::Result;
 use ethers::types::{Address, Signature};
 use hex::ToHex;
 use phase1::{ContributionMode, Phase1Parameters, ProvingSystem};
-use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, RANGE};
+use reqwest::header::{AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE, RANGE};
 use secrecy::{ExposeSecret, SecretString, SecretVec};
 use serde::Serialize;
 use std::{
@@ -73,6 +73,7 @@ pub async fn download_file_from_azure_async(
                         .get(&url)
                         .header(CONTENT_TYPE, "application/octet-stream")
                         .header(RANGE, format!("bytes={}-{}", start, end))
+                        .header(CONTENT_LENGTH, 0)
                         .timeout(std::time::Duration::from_secs(
                             DEFAULT_CHUNK_TIMEOUT_IN_SECONDS,
                         ))
