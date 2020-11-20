@@ -64,8 +64,6 @@ pub struct NewCeremonyOpts {
     pub unsafe_passphrase: bool,
     #[options(help = "use prepared ceremony")]
     pub prepared_ceremony: Option<String>,
-    #[options(help = "CDN url")]
-    pub cdn_url: Option<String>,
 }
 
 fn build_ceremony_from_chunks(
@@ -200,12 +198,10 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
                     &path,
                 )
                 .await?;
-                let base_url = if let Some(cdn_url) = opts.cdn_url.as_ref() {
-                    format!("{}", cdn_url)
-                } else {
-                    format!("https://{}.blob.core.windows.net", storage_account)
-                };
-                format!("https://{}/{}/{}", base_url, container, path,)
+                format!(
+                    "https://{}.blob.core.windows.net/{}/{}",
+                    storage_account, container, path,
+                )
             }
             UploadMode::Direct => {
                 let output_path = Path::new(
