@@ -35,7 +35,7 @@ pub struct NewCeremonyOpts {
     pub upload_mode: String,
     #[options(help = "participants")]
     pub participant: Vec<String>,
-    #[options(help = "verifiers", required)]
+    #[options(help = "verifiers")]
     pub verifier: Vec<String>,
     #[options(
         help = "the encrypted keys for the Plumo setup",
