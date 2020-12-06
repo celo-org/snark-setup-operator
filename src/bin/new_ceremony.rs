@@ -111,7 +111,11 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
         .text()
         .await?;
     let ceremony: Ceremony = serde_json::from_str::<Response<Ceremony>>(&data)?.result;
+    let deployer = opts.deployer.clone();
     let private_key = LocalWallet::from(SigningKey::new(private_key)?);
+    if address_to_string(&private_key.address()) != deployer {
+        return Err(anyhow!("Deployer must match the private key"));
+    }
     if ceremony.version != 0
         || !ceremony
             .verifier_ids
@@ -154,7 +158,6 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
         return Ok(());
     }
 
-    let deployer = opts.deployer.clone();
     let mut chunks = vec![];
     for chunk_index in 0..num_chunks {
         info!("Working on chunk {}", chunk_index);
