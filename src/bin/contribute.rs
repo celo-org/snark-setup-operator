@@ -52,6 +52,7 @@ const NEW_CHALLENGE_HASH_FILENAME: &str = "new_challenge.hash";
 const DELAY_AFTER_ERROR_DURATION_SECS: i64 = 60;
 const DELAY_WAIT_FOR_PIPELINE_SECS: i64 = 5;
 const DELAY_POLL_CEREMONY_SECS: i64 = 5;
+const DELAY_STATUS_UPDATE_FORCE_SECS: i64 = 300;
 
 lazy_static! {
     static ref PIPELINE: RwLock<HashMap<PipelineLane, Vec<String>>> = {
@@ -311,6 +312,18 @@ impl Contribute {
                     }
                 }
                 updater.wait_for_status_update_signal().await;
+            }
+        });
+        // Force an update every 5 minutes.
+        tokio::spawn(async move {
+            loop {
+                SHOULD_UPDATE_STATUS.store(true, SeqCst);
+                tokio::time::delay_for(
+                    Duration::seconds(DELAY_STATUS_UPDATE_FORCE_SECS)
+                        .to_std()
+                        .expect("Should have converted duration to standard"),
+                )
+                .await;
             }
         });
         for i in 0..total_tasks {
