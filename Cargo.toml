@@ -46,7 +46,7 @@ rayon = "1.4"
 num_cpus = "1.13"
 
 [features]
-default = []
+default = [ "bw6_asm" ]
 cuda = [ "zexe_algebra/cuda" ]
 bw6_asm = [ "zexe_algebra/force_bw6_asm" ]
 
