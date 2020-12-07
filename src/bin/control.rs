@@ -93,6 +93,8 @@ pub struct NewRoundOpts {
     pub new_participant: Vec<String>,
     #[options(help = "verify transcript")]
     pub verify_transcript: bool,
+    #[options(help = "publish")]
+    pub publish: bool,
 }
 
 #[derive(Debug, Options, Clone)]
@@ -330,6 +332,7 @@ impl Control {
         expected_participants: &[String],
         new_participants: &[String],
         verify_transcript: bool,
+        publish: bool,
     ) -> Result<()> {
         let mut transcript = load_transcript()?;
         backup_transcript(&transcript)?;
@@ -388,8 +391,10 @@ impl Control {
         ceremony.chunks = new_chunks;
         ceremony.contributor_ids = new_participants.to_vec();
 
-        save_transcript(&transcript)?;
-        self.put_ceremony(&ceremony).await?;
+        if publish {
+            save_transcript(&transcript)?;
+            self.put_ceremony(&ceremony).await?;
+        }
         Ok(())
     }
 
@@ -527,6 +532,7 @@ async fn main() {
                         &opts.expected_participant,
                         &opts.new_participant,
                         opts.verify_transcript,
+                        opts.publish,
                     )
                     .await
                     .expect("Should have run command successfully");
@@ -537,6 +543,7 @@ async fn main() {
                         &opts.expected_participant,
                         &opts.new_participant,
                         opts.verify_transcript,
+                        opts.publish,
                     )
                     .await
                     .expect("Should have run command successfully");

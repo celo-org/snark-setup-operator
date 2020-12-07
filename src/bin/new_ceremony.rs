@@ -35,8 +35,10 @@ pub struct NewCeremonyOpts {
     pub upload_mode: String,
     #[options(help = "participants")]
     pub participant: Vec<String>,
-    #[options(help = "verifiers", required)]
+    #[options(help = "verifiers")]
     pub verifier: Vec<String>,
+    #[options(help = "deployer", required)]
+    pub deployer: String,
     #[options(
         help = "the encrypted keys for the Plumo setup",
         default = "plumo.keys"
@@ -109,7 +111,11 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
         .text()
         .await?;
     let ceremony: Ceremony = serde_json::from_str::<Response<Ceremony>>(&data)?.result;
+    let deployer = opts.deployer.clone();
     let private_key = LocalWallet::from(SigningKey::new(private_key)?);
+    if address_to_string(&private_key.address()) != deployer {
+        return Err(anyhow!("Deployer must match the private key"));
+    }
     if ceremony.version != 0
         || !ceremony
             .verifier_ids
@@ -152,7 +158,6 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
         return Ok(());
     }
 
-    let verifier = opts.verifier.first().ok_or(UtilsError::MissingOptionErr)?;
     let mut chunks = vec![];
     for chunk_index in 0..num_chunks {
         info!("Working on chunk {}", chunk_index);
@@ -239,7 +244,7 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
                     }),
                     contributor_id: None,
                     contributed_location: None,
-                    verifier_id: Some(verifier.clone()),
+                    verifier_id: Some(deployer.clone()),
                     verified: true,
                     verified_data: Some(SignedData {
                         data: serde_json::to_value(VerifiedData {
