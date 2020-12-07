@@ -130,6 +130,6 @@ pub enum UtilsError {
 pub enum NewRoundError {
     #[error("Versions were the same: {0}")]
     RoundSameError(u64),
-    #[error("Versions were the same: current {0:?}, expected {1:?}")]
+    #[error("Expected participants were different: current {0:?}, expected {1:?}")]
     DifferentExpectedParticipantsError(HashSet<String>, HashSet<String>),
 }
