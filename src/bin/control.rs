@@ -61,7 +61,7 @@ pub struct RemoveParticipantOpts {
 
 #[derive(Debug, Options, Clone)]
 pub struct SignalShutdownOpts {
-    #[options(help = "the signal", required)]
+    #[options(help = "the signal")]
     pub shutdown_signal: bool,
 }
 
