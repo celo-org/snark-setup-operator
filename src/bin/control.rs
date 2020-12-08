@@ -19,9 +19,10 @@ use snark_setup_operator::data_structs::{
 };
 use snark_setup_operator::error::{NewRoundError, VerifyTranscriptError};
 use snark_setup_operator::utils::{
-    backup_transcript, create_full_parameters, create_parameters_for_chunk, download_file,
+    backup_transcript, create_full_parameters, create_parameters_for_chunk, download_file_from_azure_async,
     get_authorization_value, load_transcript, read_hash_from_file, read_keys,
     remove_file_if_exists, save_transcript, BEACON_HASH_LENGTH,
+    response_size,
 };
 use std::{
     collections::HashSet,
@@ -306,10 +307,11 @@ impl Control {
             .enumerate()
             .map(|(chunk_index, chunk)| (chunk_index, chunk.contributions.iter().last().unwrap()))
         {
+            let parameters = create_parameters_for_chunk::<E>(&ceremony.parameters, chunk_index)?;
             remove_file_if_exists(RESPONSE_FILENAME)?;
             let contributed_location = contribution.contributed_location()?;
             info!("Downloading chunk {}", chunk_index);
-            download_file(contributed_location, RESPONSE_FILENAME)?;
+            download_file_from_azure_async(contributed_location, response_size(&parameters), RESPONSE_FILENAME).await?;
             info!("Downloaded chunk {}", chunk_index);
             let response_filename = format!("{}_{}", RESPONSE_PREFIX_FOR_AGGREGATION, chunk_index);
             copy(RESPONSE_FILENAME, &response_filename)?;
