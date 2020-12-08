@@ -73,7 +73,7 @@ pub struct ContributeOpts {
     pub help: bool,
     #[options(
         help = "the url of the coordinator API",
-        default = "http://localhost:8080"
+        default = "https://plumo-setup-phase-1.azurefd.net"
     )]
     pub coordinator_url: String,
     #[options(

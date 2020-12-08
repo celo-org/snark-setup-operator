@@ -19,9 +19,9 @@ use snark_setup_operator::data_structs::{
 };
 use snark_setup_operator::error::{NewRoundError, VerifyTranscriptError};
 use snark_setup_operator::utils::{
-    backup_transcript, create_full_parameters, create_parameters_for_chunk, download_file,
-    get_authorization_value, load_transcript, read_hash_from_file, read_keys,
-    remove_file_if_exists, save_transcript, BEACON_HASH_LENGTH,
+    backup_transcript, create_full_parameters, create_parameters_for_chunk,
+    download_file_from_azure_async, get_authorization_value, load_transcript, read_hash_from_file,
+    read_keys, remove_file_if_exists, response_size, save_transcript, BEACON_HASH_LENGTH,
 };
 use std::{
     collections::HashSet,
@@ -299,15 +299,24 @@ impl Control {
 
     async fn verify_round<E: PairingEngine>(&self, ceremony: &Ceremony) -> Result<()> {
         let mut response_list_file = File::create(RESPONSE_LIST_FILENAME)?;
+        info!("Verifying round {}", ceremony.round);
         for (chunk_index, contribution) in ceremony
             .chunks
             .iter()
             .enumerate()
             .map(|(chunk_index, chunk)| (chunk_index, chunk.contributions.iter().last().unwrap()))
         {
+            let parameters = create_parameters_for_chunk::<E>(&ceremony.parameters, chunk_index)?;
             remove_file_if_exists(RESPONSE_FILENAME)?;
             let contributed_location = contribution.contributed_location()?;
-            download_file(contributed_location, RESPONSE_FILENAME)?;
+            info!("Downloading chunk {}", chunk_index);
+            download_file_from_azure_async(
+                contributed_location,
+                response_size(&parameters),
+                RESPONSE_FILENAME,
+            )
+            .await?;
+            info!("Downloaded chunk {}", chunk_index);
             let response_filename = format!("{}_{}", RESPONSE_PREFIX_FOR_AGGREGATION, chunk_index);
             copy(RESPONSE_FILENAME, &response_filename)?;
             response_list_file.write(format!("{}\n", response_filename).as_bytes())?;
@@ -315,15 +324,20 @@ impl Control {
         drop(response_list_file);
         remove_file_if_exists(COMBINED_FILENAME)?;
         let parameters = create_parameters_for_chunk::<E>(&ceremony.parameters, 0)?;
+        info!("Combining");
         combine(RESPONSE_LIST_FILENAME, COMBINED_FILENAME, &parameters);
+        info!("Combined");
         let parameters = create_full_parameters::<E>(&ceremony.parameters)?;
         remove_file_if_exists(COMBINED_HASH_FILENAME)?;
+        info!("Transforming ratios");
         transform_ratios(
             COMBINED_FILENAME,
             DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
             &parameters,
         );
+        info!("Transformed ratios");
 
+        info!("Verified round {}", ceremony.round);
         Ok(())
     }
 
@@ -334,6 +348,7 @@ impl Control {
         verify_transcript: bool,
         publish: bool,
     ) -> Result<()> {
+        info!("Backing up transcript");
         let mut transcript = load_transcript()?;
         backup_transcript(&transcript)?;
 
@@ -353,10 +368,13 @@ impl Control {
             )
             .into());
         }
+        info!("Backing up ceremony");
         self.backup_ceremony(&ceremony)?;
         transcript.rounds.push(ceremony.clone());
         if verify_transcript {
+            info!("Verifying transcript");
             self.verify_round::<E>(&ceremony).await?;
+            info!("Verified transcript");
         }
         let new_chunks = ceremony
             .chunks
@@ -392,6 +410,7 @@ impl Control {
         ceremony.contributor_ids = new_participants.to_vec();
 
         if publish {
+            info!("Publishing new round");
             save_transcript(&transcript)?;
             self.put_ceremony(&ceremony).await?;
         }
