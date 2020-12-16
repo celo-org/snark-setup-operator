@@ -526,8 +526,8 @@ impl Control {
             )
             .into());
         }
-        let participant_id_from_chunk = ceremony.chunks[chunk_index].contributions.last().unwrap().contributor_id.unwrap();
-        if !ceremony.chunks[chunk_index].contributions.last().unwrap().contributor_id.unwrap() != expected_participant_id {
+        let participant_id_from_chunk = ceremony.chunks[chunk_index].contributions.last().unwrap().contributor_id.as_ref().unwrap();
+        if participant_id_from_chunk != expected_participant_id {
             return Err(ControlError::ParticipantUnexpected(
                 chunk_index,
                 expected_participant_id.to_string(),
