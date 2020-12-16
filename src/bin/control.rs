@@ -49,44 +49,35 @@ const COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME: &str =
 
 #[derive(Debug, Options, Clone)]
 pub struct AddParticipantOpts {
+    help: bool,
     #[options(help = "participant ID", required)]
     pub participant_id: String,
 }
 
 #[derive(Debug, Options, Clone)]
 pub struct RemoveParticipantOpts {
+    help: bool,
     #[options(help = "participant ID", required)]
     pub participant_id: String,
 }
 
 #[derive(Debug, Options, Clone)]
 pub struct SignalShutdownOpts {
+    help: bool,
     #[options(help = "the signal")]
     pub shutdown_signal: bool,
 }
 
 #[derive(Debug, Options, Clone)]
 pub struct UnlockParticipantOpts {
+    help: bool,
     #[options(help = "participant ID", required)]
     pub participant_id: String,
 }
 
-// The supported commands
-#[derive(Debug, Options, Clone)]
-pub enum Command {
-    #[options(help = "adds a participant")]
-    AddParticipant(AddParticipantOpts),
-    RemoveParticipant(RemoveParticipantOpts),
-    AddVerifier(AddParticipantOpts),
-    RemoveVerifier(RemoveParticipantOpts),
-    UnlockParticipantChunks(UnlockParticipantOpts),
-    SignalShutdown(SignalShutdownOpts),
-    NewRound(NewRoundOpts),
-    ApplyBeacon(ApplyBeaconOpts),
-}
-
 #[derive(Debug, Options, Clone)]
 pub struct NewRoundOpts {
+    help: bool,
     #[options(help = "expected participants")]
     pub expected_participant: Vec<String>,
     #[options(help = "new participants")]
@@ -99,12 +90,22 @@ pub struct NewRoundOpts {
 
 #[derive(Debug, Options, Clone)]
 pub struct ApplyBeaconOpts {
+    help: bool,
     #[options(help = "beacon value", required)]
     pub beacon_hash: String,
     #[options(help = "expected participants")]
     pub expected_participant: Vec<String>,
     #[options(help = "verify transcript")]
     pub verify_transcript: bool,
+}
+
+#[derive(Debug, Options, Clone)]
+pub struct RemoveLastContributionOpts {
+    help: bool,
+    #[options(help = "expected participant ID")]
+    pub participant_id: String,
+    #[options(help = "chunk index")]
+    pub chunk_index: usize,
 }
 
 #[derive(Debug, Options, Clone)]
@@ -126,6 +127,21 @@ pub struct ControlOpts {
     pub curve: String,
     #[options(command, required)]
     pub command: Option<Command>,
+}
+
+// The supported commands
+#[derive(Debug, Options, Clone)]
+pub enum Command {
+    #[options(help = "adds a participant")]
+    AddParticipant(AddParticipantOpts),
+    RemoveParticipant(RemoveParticipantOpts),
+    AddVerifier(AddParticipantOpts),
+    RemoveVerifier(RemoveParticipantOpts),
+    UnlockParticipantChunks(UnlockParticipantOpts),
+    SignalShutdown(SignalShutdownOpts),
+    NewRound(NewRoundOpts),
+    ApplyBeacon(ApplyBeaconOpts),
+    RemoveLastContribution(RemoveLastContributionOpts),
 }
 
 pub struct Control {
@@ -494,6 +510,29 @@ impl Control {
         Ok(())
     }
 
+    async fn remove_last_contribution(
+        &self,
+        expected_participant_id: &str,
+        chunk_index: usize,
+    ) -> Result<()> {
+        let mut ceremony = self.get_ceremony().await?;
+        if !ceremony
+            .contributor_ids
+            .contains(&expected_participant_id.to_string())
+        {
+            return Err(ControlError::ParticipantDoesNotExistError(
+                expected_participant_id.to_string(),
+                ceremony.contributor_ids.clone(),
+            )
+            .into());
+        }
+        ceremony.chunks[chunk_index].contributions = ceremony.chunks[chunk_index].contributions
+            [..ceremony.chunks[chunk_index].contributions.len() - 1]
+            .to_vec();
+        self.put_ceremony(&ceremony).await?;
+        Ok(())
+    }
+
     async fn signal_shutdown(&self, shutdown_signal: bool) -> Result<()> {
         let mut ceremony = self.get_ceremony().await?;
         ceremony.shutdown_signal = shutdown_signal;
@@ -592,5 +631,11 @@ async fn main() {
             }
             c => panic!("Unsupported curve {}", c),
         },
+        Command::RemoveLastContribution(opts) => {
+            control
+                .remove_last_contribution(&opts.participant_id, opts.chunk_index)
+                .await
+                .expect("Should have run command successfully");
+        }
     });
 }
