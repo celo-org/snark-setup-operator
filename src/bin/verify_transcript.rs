@@ -52,7 +52,9 @@ pub struct VerifyTranscriptOpts {
     help: bool,
     #[options(help = "the path of the transcript json file", default = "transcript")]
     pub transcript_path: String,
-    #[options(help = "the beacon hash", required)]
+    #[options(help = "apply beacon")]
+    pub apply_beacon: bool,
+    #[options(help = "the beacon hash", default="0000000000000000000000000000000000000000000000000000000000000000")]
     pub beacon_hash: String,
     #[options(
         help = "whether to always check whether incoming challenges are in correct subgroup and non-zero",
@@ -77,6 +79,7 @@ pub struct VerifyTranscriptOpts {
 
 pub struct TranscriptVerifier {
     pub transcript: Transcript,
+    pub apply_beacon: bool,
     pub beacon_hash: Vec<u8>,
     pub force_correctness_checks: bool,
     pub batch_exp_mode: BatchExpMode,
@@ -114,6 +117,7 @@ impl TranscriptVerifier {
         let verifier = Self {
             transcript,
             beacon_hash,
+            apply_beacon: opts.apply_beacon,
             force_correctness_checks: opts.force_correctness_checks,
             batch_exp_mode: opts.batch_exp_mode,
             subgroup_check_mode: opts.subgroup_check_mode,
@@ -374,66 +378,77 @@ impl TranscriptVerifier {
         remove_file_if_exists(COMBINED_HASH_FILENAME)?;
         remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_FILENAME)?;
         remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME)?;
-        let rng = derive_rng_from_seed(&from_slice(&self.beacon_hash));
-        // Apply the random beacon.
-        contribute(
-            COMBINED_FILENAME,
-            COMBINED_HASH_FILENAME,
-            COMBINED_VERIFIED_POK_AND_CORRECTNESS_FILENAME,
-            COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME,
-            upgrade_correctness_check_config(
-                DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
-                self.force_correctness_checks,
-            ),
-            self.batch_exp_mode,
-            &parameters,
-            rng,
-        );
-        let final_hash_computed = hex::decode(&read_hash_from_file(
-            COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME,
-        )?)?;
-        let final_hash_expected = hex::decode(self.transcript.final_hash.as_ref().unwrap())?;
-        if final_hash_computed != final_hash_expected {
-            return Err(VerifyTranscriptError::BeaconHashWasDifferentError(
-                hex::encode(&final_hash_expected),
-                hex::encode(&final_hash_computed),
-            )
-            .into());
+        if !self.apply_beacon {
+            transform_ratios(
+                COMBINED_FILENAME,
+                upgrade_correctness_check_config(
+                    DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+                    self.force_correctness_checks,
+                ),
+                &parameters,
+            );
+        } else {
+            let rng = derive_rng_from_seed(&from_slice(&self.beacon_hash));
+            // Apply the random beacon.
+            contribute(
+                COMBINED_FILENAME,
+                COMBINED_HASH_FILENAME,
+                COMBINED_VERIFIED_POK_AND_CORRECTNESS_FILENAME,
+                COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME,
+                upgrade_correctness_check_config(
+                    DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+                    self.force_correctness_checks,
+                ),
+                self.batch_exp_mode,
+                &parameters,
+                rng,
+            );
+            let final_hash_computed = hex::decode(&read_hash_from_file(
+                COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME,
+            )?)?;
+            let final_hash_expected = hex::decode(self.transcript.final_hash.as_ref().unwrap())?;
+            if final_hash_computed != final_hash_expected {
+                return Err(VerifyTranscriptError::BeaconHashWasDifferentError(
+                    hex::encode(&final_hash_expected),
+                    hex::encode(&final_hash_computed),
+                )
+                    .into());
+            }
+            info!("applied beacon, verifying");
+            remove_file_if_exists(COMBINED_HASH_FILENAME)?;
+            remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME)?;
+            remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME)?;
+            remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME)?;
+            // Verify the correctness of the random beacon.
+            transform_pok_and_correctness(
+                COMBINED_FILENAME,
+                COMBINED_HASH_FILENAME,
+                upgrade_correctness_check_config(
+                    DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+                    self.force_correctness_checks,
+                ),
+                COMBINED_VERIFIED_POK_AND_CORRECTNESS_FILENAME,
+                COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME,
+                upgrade_correctness_check_config(
+                    DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
+                    self.force_correctness_checks,
+                ),
+                COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME,
+                COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME,
+                self.subgroup_check_mode,
+                &parameters,
+            );
+            // Verify the consistency of the entire combined contribution, making sure that the
+            // correct ratios hold between elements.
+            transform_ratios(
+                COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME,
+                upgrade_correctness_check_config(
+                    DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+                    self.force_correctness_checks,
+                ),
+                &parameters,
+            );
         }
-        info!("applied beacon, verifying");
-        remove_file_if_exists(COMBINED_HASH_FILENAME)?;
-        remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME)?;
-        remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME)?;
-        remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME)?;
-        // Verify the correctness of the random beacon.
-        transform_pok_and_correctness(
-            COMBINED_FILENAME,
-            COMBINED_HASH_FILENAME,
-            upgrade_correctness_check_config(
-                DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
-                self.force_correctness_checks,
-            ),
-            COMBINED_VERIFIED_POK_AND_CORRECTNESS_FILENAME,
-            COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME,
-            upgrade_correctness_check_config(
-                DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
-                self.force_correctness_checks,
-            ),
-            COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME,
-            COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME,
-            self.subgroup_check_mode,
-            &parameters,
-        );
-        // Verify the consistency of the entire combined contribution, making sure that the
-        // correct ratios hold between elements.
-        transform_ratios(
-            COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME,
-            upgrade_correctness_check_config(
-                DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
-                self.force_correctness_checks,
-            ),
-            &parameters,
-        );
 
         Ok(())
     }
