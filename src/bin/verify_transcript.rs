@@ -54,7 +54,7 @@ pub struct VerifyTranscriptOpts {
     pub transcript_path: String,
     #[options(help = "apply beacon")]
     pub apply_beacon: bool,
-    #[options(help = "the beacon hash", default="0000000000000000000000000000000000000000000000000000000000000000")]
+    #[options(help = "the beacon hash")]
     pub beacon_hash: String,
     #[options(
         help = "whether to always check whether incoming challenges are in correct subgroup and non-zero",
