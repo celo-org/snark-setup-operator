@@ -225,6 +225,7 @@ impl Control {
 
     async fn remove_participant(&self, participant_id: String) -> Result<()> {
         let mut ceremony = self.get_ceremony().await?;
+        self.backup_ceremony(&ceremony)?;
         if !ceremony
             .contributor_ids
             .contains(&participant_id.to_string())
@@ -270,6 +271,7 @@ impl Control {
 
     async fn remove_verifier(&self, participant_id: String) -> Result<()> {
         let mut ceremony = self.get_ceremony().await?;
+        self.backup_ceremony(&ceremony)?;
         if !ceremony.verifier_ids.contains(&participant_id.to_string()) {
             return Err(ControlError::ParticipantDoesNotExistError(
                 participant_id.clone(),
@@ -516,6 +518,7 @@ impl Control {
         chunk_index: usize,
     ) -> Result<()> {
         let mut ceremony = self.get_ceremony().await?;
+        self.backup_ceremony(&ceremony)?;
         if !ceremony
             .contributor_ids
             .contains(&expected_participant_id.to_string())
