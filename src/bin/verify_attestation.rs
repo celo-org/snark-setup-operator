@@ -25,6 +25,7 @@ fn main() {
         .expect("Should have read attestation");
     let (message, address_hex, signature) = extract_signature_from_attestation(&contents)
         .expect("Should have extracted signature from attestation");
+    println!("Verifying message \"{}\" with address \"{}\" and signature \"{}\"", message, address_hex, signature);
     let address_bytes = hex::decode(&address_hex[2..]).expect("Could not decode address");
     let mut address = [0u8; ADDRESS_LENGTH];
     address.copy_from_slice(&address_bytes);
