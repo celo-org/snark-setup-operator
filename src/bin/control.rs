@@ -299,7 +299,7 @@ impl Control {
             .chunks
             .iter_mut()
             .map(|c| {
-                if c.lock_holder == Some(participant_id.clone()) {
+                if participant_id == "all" || c.lock_holder == Some(participant_id.clone()) {
                     c.lock_holder = None;
                     Some(c.chunk_id.clone())
                 } else {
