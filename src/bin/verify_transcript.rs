@@ -1,4 +1,5 @@
 use anyhow::Result;
+use futures::executor::block_on;
 use gumdrop::Options;
 use phase1::helpers::{batch_exp_mode_from_str, subgroup_check_mode_from_str};
 use phase1_cli::{
@@ -15,8 +16,9 @@ use snark_setup_operator::{
     error::VerifyTranscriptError,
     utils::{
         check_challenge_hashes_same, check_new_challenge_hashes_same, check_response_hashes_same,
-        copy_file_if_exists, create_full_parameters, create_parameters_for_chunk, download_file,
-        read_hash_from_file, remove_file_if_exists, verify_signed_data, BEACON_HASH_LENGTH,
+        copy_file_if_exists, create_full_parameters, create_parameters_for_chunk,
+        download_file_from_azure_async, read_hash_from_file, remove_file_if_exists, response_size,
+        verify_signed_data, BEACON_HASH_LENGTH,
     },
 };
 use std::{
@@ -276,7 +278,11 @@ impl TranscriptVerifier {
 
                     let contributed_location = contribution.contributed_location()?;
                     // Download the response computed by the participant.
-                    download_file(contributed_location, RESPONSE_FILENAME)?;
+                    block_on(download_file_from_azure_async(
+                        contributed_location,
+                        response_size(&parameters),
+                        RESPONSE_FILENAME,
+                    ))?;
 
                     // Run verification between challenge and response, and produce the next new
                     // challenge.
@@ -412,13 +418,15 @@ impl TranscriptVerifier {
                     hex::encode(&final_hash_expected),
                     hex::encode(&final_hash_computed),
                 )
-                    .into());
+                .into());
             }
             info!("applied beacon, verifying");
             remove_file_if_exists(COMBINED_HASH_FILENAME)?;
             remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME)?;
             remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME)?;
-            remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME)?;
+            remove_file_if_exists(
+                COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME,
+            )?;
             // Verify the correctness of the random beacon.
             transform_pok_and_correctness(
                 COMBINED_FILENAME,
