@@ -1,5 +1,4 @@
 use anyhow::Result;
-use futures::executor::block_on;
 use gumdrop::Options;
 use phase1::helpers::{batch_exp_mode_from_str, subgroup_check_mode_from_str};
 use phase1_cli::{
@@ -128,6 +127,12 @@ impl TranscriptVerifier {
     }
 
     fn run<E: PairingEngine>(&self) -> Result<()> {
+        let mut rt = tokio::runtime::Builder::new()
+            .threaded_scheduler()
+            .enable_all()
+            .build()
+            .unwrap();
+
         let mut current_parameters = None;
         let mut previous_round: Option<Ceremony> = None;
         for (round_index, ceremony) in self.transcript.rounds.iter().enumerate() {
@@ -278,7 +283,7 @@ impl TranscriptVerifier {
 
                     let contributed_location = contribution.contributed_location()?;
                     // Download the response computed by the participant.
-                    block_on(download_file_from_azure_async(
+                    rt.block_on(download_file_from_azure_async(
                         contributed_location,
                         response_size(&parameters),
                         RESPONSE_FILENAME,
@@ -468,7 +473,7 @@ fn main() {
     let opts: VerifyTranscriptOpts = VerifyTranscriptOpts::parse_args_default_or_exit();
 
     let verifier = TranscriptVerifier::new(&opts)
-        .expect("Should have been able to create a transcript verifier.");
+        .expect("Should have been able to create a transcript verifier");
     (match opts.curve.as_str() {
         "bw6" => verifier.run::<BW6_761>(),
         "bls12_377" => verifier.run::<Bls12_377>(),
