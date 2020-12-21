@@ -35,7 +35,7 @@ use setup_utils::{
 use std::collections::{HashMap, HashSet};
 use std::ops::Deref;
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering::SeqCst};
-use std::sync::RwLock;
+use std::sync::{Arc, Mutex, RwLock};
 use tokio::time::Instant;
 use tracing::{debug, error, info, warn};
 use tracing_subscriber::EnvFilter;
@@ -182,6 +182,7 @@ pub struct Contribute {
 
     // This is the only mutable state we hold.
     pub chosen_chunk_id: Option<String>,
+    pub local_locked_ids: Arc<Mutex<Vec<String>>>,
 }
 
 impl Contribute {
@@ -210,6 +211,7 @@ impl Contribute {
             exit_when_finished_contributing: opts.exit_when_finished_contributing,
 
             chosen_chunk_id: None,
+            local_locked_ids: Arc::new(Mutex::new(vec![])),
         };
         Ok(contribute)
     }
@@ -315,11 +317,38 @@ impl Contribute {
             }
         });
         // Force an update every 5 minutes.
+        let cloned2 = self.clone();
         tokio::spawn(async move {
             loop {
+                // warn!("Looping here");
+                match cloned2.get_locked_chunk_info().await {
+                    Err(err) => {
+                        warn!("Cannot get locked chunks {}", err);
+                    }
+                    Ok(ceremony) => {
+                        let mut found: Vec<String> = vec![];
+                        for chunk_info in ceremony.chunks.iter() {
+                            {
+                                // warn!("locking here");
+                                let v = cloned2.local_locked_ids.lock().unwrap();
+                                // warn!("perhaps its deadlocked");
+                                // println!("found local ids {:?}\n", v);
+                                // println!("found remote id {:?}\n", chunk_info);
+                                if !v.iter().any(|x| chunk_info.chunk_id == *x) {
+                                    found.push(chunk_info.chunk_id.clone());
+                                }
+                            };
+                        }
+                        for chunk_id in found {
+                            warn!("Unlocking chunk that is not being processed {}\n", chunk_id);
+                            let _ = cloned2.unlock_chunk(&chunk_id, None).await;
+                        }
+                    }
+                };
                 SHOULD_UPDATE_STATUS.store(true, SeqCst);
                 tokio::time::delay_for(
-                    Duration::seconds(DELAY_STATUS_UPDATE_FORCE_SECS)
+                    // Duration::seconds(DELAY_STATUS_UPDATE_FORCE_SECS)
+                    Duration::seconds(1)
                         .to_std()
                         .expect("Should have converted duration to standard"),
                 )
@@ -682,6 +711,20 @@ impl Contribute {
             let chunk_id = self.choose_chunk_id(&chunk_info)?;
             if !self.add_chunk_id_to_download_lane(&chunk_id)? {
                 continue;
+            }
+            match &self.chosen_chunk_id {
+                None => {
+                    let mut v = self.local_locked_ids.lock().unwrap();
+                    // println!("adding {}", chunk_id);
+                    v.push(chunk_id.to_string());
+                }
+                Some(prev_chunk_id) => {
+                // Remove from list
+                let mut v = self.local_locked_ids.lock().unwrap();
+                // println!("removing {} adding {}", prev_chunk_id, chunk_id);
+                v.retain(|x| *x != *prev_chunk_id);
+                v.push(chunk_id.to_string());
+            }
             }
             self.chosen_chunk_id = Some(chunk_id.to_string());
             self.lock_chunk(&chunk_id).await?;
@@ -1099,6 +1142,22 @@ impl Contribute {
             ParticipationMode::Contribute => format!("contributor/{}/chunks", self.participant_id),
             ParticipationMode::Verify => format!("verifier/chunks"),
         };
+        let ceremony_url = self.server_url.join(&get_path)?;
+        let client = reqwest::Client::builder().gzip(true).build()?;
+        let response = client
+            .get(ceremony_url.as_str())
+            .header(CONTENT_LENGTH, 0)
+            .send()
+            .await?
+            .error_for_status()?;
+        let data = response.text().await?;
+        let ceremony: FilteredChunks =
+            serde_json::from_str::<Response<FilteredChunks>>(&data)?.result;
+        Ok(ceremony)
+    }
+
+    async fn get_locked_chunk_info(&self) -> Result<FilteredChunks> {
+        let get_path = format!("locked-chunks/{}", self.participant_id);
         let ceremony_url = self.server_url.join(&get_path)?;
         let client = reqwest::Client::builder().gzip(true).build()?;
         let response = client
