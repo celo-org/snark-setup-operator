@@ -278,8 +278,7 @@ impl Contribute {
                 }
                 Err(e) => {
                     warn!("Got error from ceremony initialization: {}", e);
-                    progress_bar
-                        .set_message(&format!("Got error from ceremony initialization: {}", e));
+                    progress_bar.println(&format!("Got error from ceremony initialization: {}", e));
                     tokio::time::delay_for(delay_after_error_duration).await;
                 }
             }
@@ -295,6 +294,7 @@ impl Contribute {
         let mut futures = vec![];
 
         let updater = self.clone();
+        let progress_bar3 = progress_bar.clone();
         tokio::spawn(async move {
             loop {
                 match updater.status_updater(progress_bar.clone()).await {
@@ -305,7 +305,7 @@ impl Contribute {
                     Ok(false) => {}
                     Err(e) => {
                         warn!("Got error from updater: {}", e);
-                        progress_bar.set_message(&format!(
+                        progress_bar.println(&format!(
                             "Could not update status: {}",
                             e.to_string().trim()
                         ));
@@ -329,6 +329,7 @@ impl Contribute {
         for i in 0..total_tasks {
             let delay_duration = Duration::seconds(DELAY_AFTER_ERROR_DURATION_SECS).to_std()?;
             let mut cloned = self.clone_with_new_filenames(i);
+            let progress_bar2 = progress_bar3.clone();
             let jh = tokio::spawn(async move {
                 loop {
                     let result = cloned.run::<E>().await;
@@ -339,6 +340,8 @@ impl Contribute {
                         Ok(_) => {}
                         Err(e) => {
                             warn!("Got error from run: {}, retrying...", e);
+                            progress_bar2
+                                .println(&format!("Got error from run: {}, retrying...", e));
                             if let Some(chunk_id) = cloned.chosen_chunk_id.as_ref() {
                                 if cloned
                                     .remove_chunk_id_from_lane_if_exists(
