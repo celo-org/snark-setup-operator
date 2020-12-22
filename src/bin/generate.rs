@@ -7,7 +7,7 @@ use gumdrop::Options;
 use rand::rngs::OsRng;
 use rand::RngCore;
 use secrecy::{ExposeSecret, SecretString, SecretVec};
-use snark_setup_operator::data_structs::{Attestation,PlumoSetupKeys};
+use snark_setup_operator::data_structs::{Attestation, PlumoSetupKeys};
 use snark_setup_operator::utils::{
     address_to_string, encrypt, trim_newline, PLUMO_SETUP_PERSONALIZATION,
 };

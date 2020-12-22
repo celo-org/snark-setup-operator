@@ -1,6 +1,6 @@
 use snark_setup_operator::data_structs::{
-    Attestation, ChunkDownloadInfo, ContributedData, ContributionUploadUrl, FilteredChunks, SignedData,
-    UnlockBody, VerifiedData,
+    Attestation, ChunkDownloadInfo, ContributedData, ContributionUploadUrl, FilteredChunks,
+    SignedData, UnlockBody, VerifiedData,
 };
 use snark_setup_operator::utils::{
     address_to_string, challenge_size, collect_processor_data, create_parameters_for_chunk,
@@ -1247,11 +1247,17 @@ fn main() {
 
         *SEED.write().expect("Should have been able to write seed") = Some(seed);
 
-        write_attestation_to_file(&serde_json::to_string(&attestation).expect("cannot serialize attestation"), &opts.attestation_path)
-            .expect("Should have written attestation to file");
+        write_attestation_to_file(
+            &serde_json::to_string(&attestation).expect("cannot serialize attestation"),
+            &opts.attestation_path,
+        )
+        .expect("Should have written attestation to file");
         let contribute = Contribute::new(&opts, private_key.expose_secret())
             .expect("Should have been able to create a contribute.");
-        contribute.add_attestation(&attestation).await.expect("Failed to upload attestation");
+        contribute
+            .add_attestation(&attestation)
+            .await
+            .expect("Failed to upload attestation");
         match contribute.run_and_catch_errors::<BW6_761>().await {
             Err(e) => panic!("Got error from contribute: {}", e.to_string()),
             _ => {}
