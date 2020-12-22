@@ -992,7 +992,7 @@ impl Contribute {
                 match fs::read_to_string("plumo.attestation") {
                     Ok(line) => {
                         let arr: Vec<&str> = line.split(" ").collect();
-                        if (arr.len() == 3) {
+                        if arr.len() == 3 {
                             let data = json!({
                                 "id": arr[0],
                                 "address": arr[1],
@@ -1009,7 +1009,7 @@ impl Contribute {
                             warn!("plumo.attestation had bad format");
                         }
                     }
-                    Err(err) => warn!("Couldn't read plumo.attestation"),
+                    Err(err) => warn!("Couldn't read plumo.attestation {}", err),
                 }
             }
 
