@@ -1,5 +1,5 @@
 use snark_setup_operator::data_structs::{
-    ChunkDownloadInfo, ContributedData, ContributionUploadUrl, FilteredChunks, SignedData,
+    Attestation, ChunkDownloadInfo, ContributedData, ContributionUploadUrl, FilteredChunks, SignedData,
     UnlockBody, VerifiedData,
 };
 use snark_setup_operator::utils::{
@@ -27,14 +27,12 @@ use phase1_cli::{contribute, transform_pok_and_correctness};
 use rand::prelude::SliceRandom;
 use reqwest::header::{AUTHORIZATION, CONTENT_LENGTH};
 use secrecy::{ExposeSecret, SecretVec};
-use serde_json::json;
 use setup_utils::{
     derive_rng_from_seed, upgrade_correctness_check_config, BatchExpMode, SubgroupCheckMode,
     DEFAULT_CONTRIBUTE_CHECK_INPUT_CORRECTNESS, DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
     DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
 };
 use std::collections::{HashMap, HashSet};
-use std::fs;
 use std::ops::Deref;
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering::SeqCst};
 use std::sync::RwLock;
@@ -987,32 +985,6 @@ impl Contribute {
             self.notify_contribution(&chunk_id, serde_json::to_value(signed_data)?)
                 .await?;
 
-            if chunk_id == "0" {
-                // load data from attestation
-                match fs::read_to_string("plumo.attestation") {
-                    Ok(line) => {
-                        let arr: Vec<&str> = line.split(" ").collect();
-                        if arr.len() == 3 {
-                            let data = json!({
-                                "id": arr[0],
-                                "address": arr[1],
-                                "data": arr[2],
-                            });
-
-                            let signed_data = SignedData {
-                                signature: sign_json(&self.private_key, &data)?,
-                                data: data,
-                            };
-                            self.add_attestation(serde_json::to_value(signed_data)?)
-                                .await?;
-                        } else {
-                            warn!("plumo.attestation had bad format");
-                        }
-                    }
-                    Err(err) => warn!("Couldn't read plumo.attestation {}", err),
-                }
-            }
-
             self.remove_chunk_id_from_lane_if_exists(&PipelineLane::Upload, &chunk_id)?;
             self.set_status_update_signal();
         }
@@ -1201,7 +1173,12 @@ impl Contribute {
         Ok(())
     }
 
-    async fn add_attestation(&self, body: serde_json::Value) -> Result<()> {
+    async fn add_attestation(&self, attestation: &Attestation) -> Result<()> {
+        let data = serde_json::to_value(&attestation)?;
+        let signed_data = SignedData {
+            signature: sign_json(&self.private_key, &data)?,
+            data: data,
+        };
         let notify_path = format!("attest");
         let notify_url = self.server_url.join(&notify_path)?;
         let client = reqwest::Client::new();
@@ -1209,7 +1186,7 @@ impl Contribute {
         client
             .post(notify_url.as_str())
             .header(AUTHORIZATION, authorization)
-            .json(&body)
+            .json(&signed_data)
             .send()
             .await?
             .error_for_status()?;
@@ -1270,10 +1247,11 @@ fn main() {
 
         *SEED.write().expect("Should have been able to write seed") = Some(seed);
 
-        write_attestation_to_file(&attestation, &opts.attestation_path)
+        write_attestation_to_file(&serde_json::to_string(&attestation).expect("cannot serialize attestation"), &opts.attestation_path)
             .expect("Should have written attestation to file");
         let contribute = Contribute::new(&opts, private_key.expose_secret())
             .expect("Should have been able to create a contribute.");
+        contribute.add_attestation(&attestation).await.expect("Failed to upload attestation");
         match contribute.run_and_catch_errors::<BW6_761>().await {
             Err(e) => panic!("Got error from contribute: {}", e.to_string()),
             _ => {}

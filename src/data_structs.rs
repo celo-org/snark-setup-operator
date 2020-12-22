@@ -218,12 +218,19 @@ pub struct ContributionUploadUrl {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Attestation {
+    pub id: String,
+    pub data: String,
+    pub address: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct PlumoSetupKeys {
     pub encrypted_seed: String,
     pub encrypted_private_key: String,
     pub encrypted_extra_entropy: Option<String>,
-    pub attestation: String,
+    pub attestation: Attestation,
     pub address: String,
 }
 
