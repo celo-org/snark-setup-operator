@@ -27,12 +27,14 @@ use phase1_cli::{contribute, transform_pok_and_correctness};
 use rand::prelude::SliceRandom;
 use reqwest::header::{AUTHORIZATION, CONTENT_LENGTH};
 use secrecy::{ExposeSecret, SecretVec};
+use serde_json::json;
 use setup_utils::{
     derive_rng_from_seed, upgrade_correctness_check_config, BatchExpMode, SubgroupCheckMode,
     DEFAULT_CONTRIBUTE_CHECK_INPUT_CORRECTNESS, DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
     DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
 };
 use std::collections::{HashMap, HashSet};
+use std::fs;
 use std::ops::Deref;
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering::SeqCst};
 use std::sync::RwLock;
@@ -985,6 +987,32 @@ impl Contribute {
             self.notify_contribution(&chunk_id, serde_json::to_value(signed_data)?)
                 .await?;
 
+            if chunk_id == "0" {
+                // load data from attestation
+                match fs::read_to_string("plumo.attestation") {
+                    Ok(line) => {
+                        let arr: Vec<&str> = line.split(" ").collect();
+                        if (arr.len() == 3) {
+                            let data = json!({
+                                "id": arr[0],
+                                "address": arr[1],
+                                "data": arr[2],
+                            });
+
+                            let signed_data = SignedData {
+                                signature: sign_json(&self.private_key, &data)?,
+                                data: data,
+                            };
+                            self.add_attestation(serde_json::to_value(signed_data)?)
+                                .await?;
+                        } else {
+                            warn!("plumo.attestation had bad format");
+                        }
+                    }
+                    Err(err) => warn!("Couldn't read plumo.attestation"),
+                }
+            }
+
             self.remove_chunk_id_from_lane_if_exists(&PipelineLane::Upload, &chunk_id)?;
             self.set_status_update_signal();
         }
@@ -1160,6 +1188,21 @@ impl Contribute {
 
     async fn notify_contribution(&self, chunk_id: &str, body: serde_json::Value) -> Result<()> {
         let notify_path = format!("chunks/{}/contribution", chunk_id);
+        let notify_url = self.server_url.join(&notify_path)?;
+        let client = reqwest::Client::new();
+        let authorization = get_authorization_value(&self.private_key, "POST", &notify_path)?;
+        client
+            .post(notify_url.as_str())
+            .header(AUTHORIZATION, authorization)
+            .json(&body)
+            .send()
+            .await?
+            .error_for_status()?;
+        Ok(())
+    }
+
+    async fn add_attestation(&self, body: serde_json::Value) -> Result<()> {
+        let notify_path = format!("attest");
         let notify_url = self.server_url.join(&notify_path)?;
         let client = reqwest::Client::new();
         let authorization = get_authorization_value(&self.private_key, "POST", &notify_path)?;
