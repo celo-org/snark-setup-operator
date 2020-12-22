@@ -320,7 +320,6 @@ impl Contribute {
         let cloned2 = self.clone();
         tokio::spawn(async move {
             loop {
-                // warn!("Looping here");
                 match cloned2.get_locked_chunk_info().await {
                     Err(err) => {
                         warn!("Cannot get locked chunks {}", err);
@@ -329,11 +328,7 @@ impl Contribute {
                         let mut found: Vec<String> = vec![];
                         for chunk_info in ceremony.chunks.iter() {
                             {
-                                // warn!("locking here");
                                 let v = cloned2.local_locked_ids.lock().unwrap();
-                                // warn!("perhaps its deadlocked");
-                                // println!("found local ids {:?}\n", v);
-                                // println!("found remote id {:?}\n", chunk_info);
                                 if !v.iter().any(|x| chunk_info.chunk_id == *x) {
                                     found.push(chunk_info.chunk_id.clone());
                                 }
@@ -347,8 +342,7 @@ impl Contribute {
                 };
                 SHOULD_UPDATE_STATUS.store(true, SeqCst);
                 tokio::time::delay_for(
-                    // Duration::seconds(DELAY_STATUS_UPDATE_FORCE_SECS)
-                    Duration::seconds(1)
+                    Duration::seconds(DELAY_STATUS_UPDATE_FORCE_SECS)
                         .to_std()
                         .expect("Should have converted duration to standard"),
                 )
@@ -715,16 +709,14 @@ impl Contribute {
             match &self.chosen_chunk_id {
                 None => {
                     let mut v = self.local_locked_ids.lock().unwrap();
-                    // println!("adding {}", chunk_id);
                     v.push(chunk_id.to_string());
                 }
                 Some(prev_chunk_id) => {
-                // Remove from list
-                let mut v = self.local_locked_ids.lock().unwrap();
-                // println!("removing {} adding {}", prev_chunk_id, chunk_id);
-                v.retain(|x| *x != *prev_chunk_id);
-                v.push(chunk_id.to_string());
-            }
+                    // Remove from list
+                    let mut v = self.local_locked_ids.lock().unwrap();
+                    v.retain(|x| *x != *prev_chunk_id);
+                    v.push(chunk_id.to_string());
+                }
             }
             self.chosen_chunk_id = Some(chunk_id.to_string());
             self.lock_chunk(&chunk_id).await?;
