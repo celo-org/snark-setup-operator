@@ -35,7 +35,7 @@ use setup_utils::{
 use std::collections::{HashMap, HashSet};
 use std::ops::Deref;
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering::SeqCst};
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::RwLock;
 use tokio::time::Instant;
 use tracing::{debug, error, info, warn};
 use tracing_subscriber::EnvFilter;
@@ -182,7 +182,6 @@ pub struct Contribute {
 
     // This is the only mutable state we hold.
     pub chosen_chunk_id: Option<String>,
-    pub local_locked_ids: Arc<Mutex<Vec<String>>>,
 }
 
 impl Contribute {
@@ -211,7 +210,6 @@ impl Contribute {
             exit_when_finished_contributing: opts.exit_when_finished_contributing,
 
             chosen_chunk_id: None,
-            local_locked_ids: Arc::new(Mutex::new(vec![])),
         };
         Ok(contribute)
     }
@@ -317,26 +315,24 @@ impl Contribute {
             }
         });
         // Force an update every 5 minutes.
-        let cloned2 = self.clone();
+        let cloned_for_update = self.clone();
         tokio::spawn(async move {
             loop {
-                match cloned2.get_locked_chunk_info().await {
+                match cloned_for_update.get_locked_chunk_info().await {
                     Err(err) => {
                         warn!("Cannot get locked chunks {}", err);
                     }
                     Ok(ceremony) => {
                         let mut found: Vec<String> = vec![];
+                        let v = cloned_for_update.get_participant_locked_chunk_ids();
                         for chunk_info in ceremony.chunks.iter() {
-                            {
-                                let v = cloned2.local_locked_ids.lock().unwrap();
-                                if !v.iter().any(|x| chunk_info.chunk_id == *x) {
-                                    found.push(chunk_info.chunk_id.clone());
-                                }
-                            };
+                            if !v.iter().any(|x| chunk_info.chunk_id == *x) {
+                                found.push(chunk_info.chunk_id.clone());
+                            }
                         }
                         for chunk_id in found {
                             warn!("Unlocking chunk that is not being processed {}\n", chunk_id);
-                            let _ = cloned2.unlock_chunk(&chunk_id, None).await;
+                            let _ = cloned_for_update.unlock_chunk(&chunk_id, None).await;
                         }
                     }
                 };
@@ -706,18 +702,6 @@ impl Contribute {
             if !self.add_chunk_id_to_download_lane(&chunk_id)? {
                 continue;
             }
-            match &self.chosen_chunk_id {
-                None => {
-                    let mut v = self.local_locked_ids.lock().unwrap();
-                    v.push(chunk_id.to_string());
-                }
-                Some(prev_chunk_id) => {
-                    // Remove from list
-                    let mut v = self.local_locked_ids.lock().unwrap();
-                    v.retain(|x| *x != *prev_chunk_id);
-                    v.push(chunk_id.to_string());
-                }
-            }
             self.chosen_chunk_id = Some(chunk_id.to_string());
             self.lock_chunk(&chunk_id).await?;
             self.set_status_update_signal();
@@ -1028,7 +1012,7 @@ impl Contribute {
         }
     }
 
-    fn get_participant_locked_chunks_display(&self) -> Result<Vec<String>> {
+    fn get_participant_locked_chunks(&self) -> Result<Vec<(String, PipelineLane)>> {
         let mut chunk_ids = vec![];
         let pipeline = self.get_pipeline_snapshot()?;
         for lane in &[
@@ -1040,10 +1024,28 @@ impl Contribute {
                 .get(lane)
                 .ok_or(ContributeError::LaneWasNullError(lane.to_string()))?
             {
-                chunk_ids.push(format!("{} ({})", chunk_id.clone(), lane));
+                chunk_ids.push((chunk_id.clone(), lane.clone()));
             }
         }
         Ok(chunk_ids)
+    }
+
+    fn get_participant_locked_chunks_display(&self) -> Result<Vec<String>> {
+        Ok(self
+            .get_participant_locked_chunks()?
+            .iter()
+            .map(|(id, lane)| format!("{} ({})", id, lane))
+            .collect())
+    }
+
+    fn get_participant_locked_chunk_ids(&self) -> Vec<String> {
+        match self.get_participant_locked_chunks() {
+            Ok(lst) => lst.iter().map(|(id, _lane)| id.clone()).collect(),
+            Err(err) => {
+                warn!("Cannot get local chunks: {}", err);
+                vec![]
+            }
+        }
     }
 
     async fn release_locked_chunks(&self, ceremony: &FilteredChunks) -> Result<()> {
