@@ -297,7 +297,10 @@ impl Contribute {
         let progress_bar_for_thread = progress_bar.clone();
         tokio::spawn(async move {
             loop {
-                match updater.status_updater(progress_bar.clone()).await {
+                match updater
+                    .status_updater(progress_bar_for_thread.clone())
+                    .await
+                {
                     Ok(true) => {
                         EXITING.store(true, SeqCst);
                         return;
@@ -305,7 +308,7 @@ impl Contribute {
                     Ok(false) => {}
                     Err(e) => {
                         warn!("Got error from updater: {}", e);
-                        progress_bar.println(&format!(
+                        progress_bar_for_thread.println(&format!(
                             "Could not update status: {}",
                             e.to_string().trim()
                         ));
@@ -329,7 +332,7 @@ impl Contribute {
         for i in 0..total_tasks {
             let delay_duration = Duration::seconds(DELAY_AFTER_ERROR_DURATION_SECS).to_std()?;
             let mut cloned = self.clone_with_new_filenames(i);
-            let progress_bar_for_thread = progress_bar3.clone();
+            let progress_bar_for_thread = progress_bar.clone();
             let jh = tokio::spawn(async move {
                 loop {
                     let result = cloned.run::<E>().await;
@@ -340,7 +343,7 @@ impl Contribute {
                         Ok(_) => {}
                         Err(e) => {
                             warn!("Got error from run: {}, retrying...", e);
-                            progress_bar2
+                            progress_bar_for_thread
                                 .println(&format!("Got error from run: {}, retrying...", e));
                             if let Some(chunk_id) = cloned.chosen_chunk_id.as_ref() {
                                 if cloned
