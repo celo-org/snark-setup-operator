@@ -324,7 +324,13 @@ impl Contribute {
                     }
                     Ok(ceremony) => {
                         let mut found: Vec<String> = vec![];
-                        let v = cloned_for_update.get_participant_locked_chunk_ids();
+                        let v = match cloned_for_update.get_participant_locked_chunk_ids() {
+                            Ok(lst) => lst,
+                            Err(err) => {
+                                warn!("Cannot get local chunks: {}", err);
+                                vec![]
+                            }
+                        };
                         for chunk_info in ceremony.chunks.iter() {
                             if !v.iter().any(|x| chunk_info.chunk_id == *x) {
                                 found.push(chunk_info.chunk_id.clone());
@@ -1038,14 +1044,12 @@ impl Contribute {
             .collect())
     }
 
-    fn get_participant_locked_chunk_ids(&self) -> Vec<String> {
-        match self.get_participant_locked_chunks() {
-            Ok(lst) => lst.iter().map(|(id, _lane)| id.clone()).collect(),
-            Err(err) => {
-                warn!("Cannot get local chunks: {}", err);
-                vec![]
-            }
-        }
+    fn get_participant_locked_chunk_ids(&self) -> Result<Vec<String>> {
+        Ok(self
+            .get_participant_locked_chunks()?
+            .iter()
+            .map(|(id, _)| id.clone())
+            .collect())
     }
 
     async fn release_locked_chunks(&self, ceremony: &FilteredChunks) -> Result<()> {
