@@ -294,7 +294,7 @@ impl Contribute {
         let mut futures = vec![];
 
         let updater = self.clone();
-        let progress_bar3 = progress_bar.clone();
+        let progress_bar_for_thread = progress_bar.clone();
         tokio::spawn(async move {
             loop {
                 match updater.status_updater(progress_bar.clone()).await {
