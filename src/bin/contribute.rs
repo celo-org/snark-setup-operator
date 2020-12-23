@@ -329,7 +329,7 @@ impl Contribute {
         for i in 0..total_tasks {
             let delay_duration = Duration::seconds(DELAY_AFTER_ERROR_DURATION_SECS).to_std()?;
             let mut cloned = self.clone_with_new_filenames(i);
-            let progress_bar2 = progress_bar3.clone();
+            let progress_bar_for_thread = progress_bar3.clone();
             let jh = tokio::spawn(async move {
                 loop {
                     let result = cloned.run::<E>().await;
