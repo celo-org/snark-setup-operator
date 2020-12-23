@@ -1040,7 +1040,7 @@ impl Contribute {
 
     fn get_participant_locked_chunk_ids(&self) -> Vec<String> {
         match self.get_participant_locked_chunks() {
-            Ok(lst) => lst.iter().map(|(id, _lane)| id.clone()).collect(),
+            Ok(lst) => lst.iter().map(|(id, _)| id.clone()).collect(),
             Err(err) => {
                 warn!("Cannot get local chunks: {}", err);
                 vec![]
