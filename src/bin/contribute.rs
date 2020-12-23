@@ -228,7 +228,7 @@ impl Contribute {
     }
 
     async fn run_ceremony_initialization_and_get_max_locks(&self) -> Result<u64> {
-        let ceremony = self.get_chunk_info().await?;
+        let ceremony = self.get_locked_chunk_info().await?;
         self.release_locked_chunks(&ceremony).await?;
 
         Ok(ceremony.max_locks)
