@@ -22,11 +22,11 @@ tracing-appender = "0.1.1"
 tracing-subscriber = "0.2"
 ethers = { git = "https://github.com/gakonst/ethers-rs", features = ["celo"] }
 hex = "0.4"
-phase1 = { git = "https://github.com/celo-org/snark-setup", package = "phase1", rev = "86f36ffa47613026dd61139124cb22f2d524206f" }
-phase1-cli = { git = "https://github.com/celo-org/snark-setup", package = "phase1-cli", rev = "86f36ffa47613026dd61139124cb22f2d524206f" }
+phase1 = { git = "https://github.com/celo-org/snark-setup", package = "phase1", rev = "796e023c45dbee7e342a17e7219b937f12dd9869" }
+phase1-cli = { git = "https://github.com/celo-org/snark-setup", package = "phase1-cli", rev = "796e023c45dbee7e342a17e7219b937f12dd9869" }
 rand = "0.7"
 reqwest = { version = "0.10", features = [ "blocking", "stream", "gzip" ] }
-setup-utils = { git = "https://github.com/celo-org/snark-setup", package = "setup-utils", rev = "86f36ffa47613026dd61139124cb22f2d524206f" }
+setup-utils = { git = "https://github.com/celo-org/snark-setup", package = "setup-utils", rev = "796e023c45dbee7e342a17e7219b937f12dd9869" }
 secrecy = { version = "0.7" }
 ctrlc = "3.1.7"
 indicatif = "0.15.0"
