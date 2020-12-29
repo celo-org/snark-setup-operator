@@ -158,6 +158,7 @@ pub struct ChunkDownloadInfo {
 #[serde(rename_all = "camelCase")]
 pub struct FilteredChunks {
     pub chunks: Vec<ChunkInfo>,
+    pub locked_chunks: Vec<String>,
     pub parameters: Parameters,
     pub num_non_contributed: usize,
     pub num_chunks: usize,

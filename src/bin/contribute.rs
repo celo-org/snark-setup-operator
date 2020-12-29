@@ -228,7 +228,7 @@ impl Contribute {
     }
 
     async fn run_ceremony_initialization_and_get_max_locks(&self) -> Result<u64> {
-        let ceremony = self.get_locked_chunk_info().await?;
+        let ceremony = self.get_chunk_info().await?;
         self.release_locked_chunks(&ceremony).await?;
 
         Ok(ceremony.max_locks)
@@ -321,7 +321,7 @@ impl Contribute {
         let cloned_for_update = self.clone();
         tokio::spawn(async move {
             loop {
-                match cloned_for_update.get_locked_chunk_info().await {
+                match cloned_for_update.get_chunk_info().await {
                     Err(err) => {
                         warn!("Cannot get locked chunks {}", err);
                     }
@@ -334,9 +334,9 @@ impl Contribute {
                                 vec![]
                             }
                         };
-                        for chunk_info in ceremony.chunks.iter() {
-                            if !v.iter().any(|x| chunk_info.chunk_id == *x) {
-                                found.push(chunk_info.chunk_id.clone());
+                        for chunk_id in &ceremony.locked_chunks {
+                            if !v.iter().any(|x| chunk_id == x) {
+                                found.push(chunk_id.clone());
                             }
                         }
                         for chunk_id in found {
@@ -1056,12 +1056,7 @@ impl Contribute {
     }
 
     async fn release_locked_chunks(&self, ceremony: &FilteredChunks) -> Result<()> {
-        let chunk_ids = ceremony
-            .chunks
-            .iter()
-            .filter(|c| c.lock_holder == Some(self.participant_id.clone()))
-            .map(|c| c.chunk_id.clone());
-        for chunk_id in chunk_ids {
+        for chunk_id in &ceremony.locked_chunks {
             self.unlock_chunk(&chunk_id, None).await?;
         }
         Ok(())
@@ -1143,22 +1138,6 @@ impl Contribute {
             ParticipationMode::Contribute => format!("contributor/{}/chunks", self.participant_id),
             ParticipationMode::Verify => format!("verifier/chunks"),
         };
-        let ceremony_url = self.server_url.join(&get_path)?;
-        let client = reqwest::Client::builder().gzip(true).build()?;
-        let response = client
-            .get(ceremony_url.as_str())
-            .header(CONTENT_LENGTH, 0)
-            .send()
-            .await?
-            .error_for_status()?;
-        let data = response.text().await?;
-        let ceremony: FilteredChunks =
-            serde_json::from_str::<Response<FilteredChunks>>(&data)?.result;
-        Ok(ceremony)
-    }
-
-    async fn get_locked_chunk_info(&self) -> Result<FilteredChunks> {
-        let get_path = format!("locked-chunks/{}", self.participant_id);
         let ceremony_url = self.server_url.join(&get_path)?;
         let client = reqwest::Client::builder().gzip(true).build()?;
         let response = client
