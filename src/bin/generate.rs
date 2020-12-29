@@ -103,7 +103,7 @@ fn main() {
         attestation: Attestation {
             id: attestation_message,
             address: address.clone(),
-            data: attestation_signature.to_string(),
+            signature: attestation_signature.to_string(),
         },
         address,
     };

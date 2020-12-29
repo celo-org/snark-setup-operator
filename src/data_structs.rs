@@ -218,9 +218,10 @@ pub struct ContributionUploadUrl {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct Attestation {
     pub id: String,
-    pub data: String,
+    pub signature: String,
     pub address: String,
 }
 
