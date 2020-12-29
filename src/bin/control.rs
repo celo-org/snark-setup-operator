@@ -411,7 +411,11 @@ impl Control {
 
         if publish {
             info!("Publishing new round");
+            self.signal_shutdown(true).await?;
             save_transcript(&transcript)?;
+            // Sleep for 30 minutes to allow contributors to shut down.
+            tokio::time::delay_for(tokio::time::Duration::from_secs(30 * 60)).await;
+            self.signal_shutdown(false).await?;
             self.put_ceremony(&ceremony).await?;
         }
         Ok(())
