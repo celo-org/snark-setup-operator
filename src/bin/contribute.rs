@@ -138,6 +138,8 @@ pub struct ContributeOpts {
         default = "false"
     )]
     pub disable_sysinfo: bool,
+    #[options(help = "do not try to keep the computer awake")]
+    pub disable_keep_awake: bool,
     #[options(help = "exit when finished contributing for the first time")]
     pub exit_when_finished_contributing: bool,
     #[options(help = "read passphrase from stdin. THIS IS UNSAFE as it doesn't use pinentry!")]
@@ -1217,7 +1219,6 @@ impl Contribute {
 }
 
 fn main() {
-    let _obj = keep_awake::inhibit("Plumo setup contribute", "This will take a while");
     ctrlc::set_handler(move || {
         println!("Got ctrl+c...");
         SHOULD_UPDATE_STATUS.store(true, SeqCst);
@@ -1230,6 +1231,9 @@ fn main() {
     .expect("Error setting Ctrl-C handler");
 
     let opts: ContributeOpts = ContributeOpts::parse_args_default_or_exit();
+    if !opts.disable_keep_awake {
+        let _ = keep_awake::inhibit("Plumo setup contribute", "This will take a while");
+    }
     let mut rt = if opts.free_threads > 0 {
         let max_threads = num_cpus::get();
         let threads = max_threads - opts.free_threads;
