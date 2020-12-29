@@ -37,6 +37,8 @@ Sample test file:
 {
     "version": 0,
     "maxLocks": 3,
+    "round": 0,
+    "shutdownSignal": false,
     "contributorIds": [
     ],
     "verifierIds": [
@@ -55,7 +57,7 @@ COORDINATOR_AUTH_TYPE=celo
 
 Initializing ceremony:
 ```
-RUST_LOG=info cargo run --bin new_ceremony --release -- --upload-mode direct --chunk-size 10 --powers 12 --server-url http://localhost:8080 --verifier 0xa57b76916f19078e3f0c6f37d2a9d4ac9d14a1e2 --output-dir ~/snark-setup-coordinator/coordinator-service/.storage
+RUST_LOG=info cargo run --bin new_ceremony --release -- --upload-mode direct --chunk-size 10 --powers 12 --server-url http://localhost:8080 --verifier $(cat plumo-verifier.keys | jq .address -r) --deployer $(cat plumo-verifier.keys | jq .address -r) --output-dir ~/snark-setup-coordinator/coordinator-service/.storage -k plumo-verifier.keys
 ```
 
 Add the test participant and verifier:
