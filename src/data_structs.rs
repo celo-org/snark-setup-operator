@@ -135,6 +135,7 @@ pub struct Ceremony {
     pub verifier_ids: Vec<String>,
     pub chunks: Vec<Chunk>,
     pub parameters: Parameters,
+    pub attestations: Option<Vec<Attestation>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
