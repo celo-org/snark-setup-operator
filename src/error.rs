@@ -58,6 +58,8 @@ pub enum ControlError {
     ParticipantAlreadyExistsError(String, Vec<String>),
     #[error("Participant does not exist: {0}, existing participants are {1:?}")]
     ParticipantDoesNotExistError(String, Vec<String>),
+    #[error("Participant unexpected on chunk {0}: expected {1}, got {2}")]
+    ParticipantUnexpected(usize, String, String),
 }
 
 #[derive(Debug, Error)]
