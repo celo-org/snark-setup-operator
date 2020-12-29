@@ -529,14 +529,20 @@ impl Control {
             )
             .into());
         }
-        let participant_id_from_chunk = ceremony.chunks[chunk_index].contributions.last().unwrap().contributor_id.as_ref().unwrap();
+        let participant_id_from_chunk = ceremony.chunks[chunk_index]
+            .contributions
+            .last()
+            .unwrap()
+            .contributor_id
+            .as_ref()
+            .unwrap();
         if participant_id_from_chunk != expected_participant_id {
             return Err(ControlError::ParticipantUnexpected(
                 chunk_index,
                 expected_participant_id.to_string(),
                 participant_id_from_chunk.clone(),
             )
-                .into());
+            .into());
         }
         ceremony.chunks[chunk_index].contributions = ceremony.chunks[chunk_index].contributions
             [..ceremony.chunks[chunk_index].contributions.len() - 1]
