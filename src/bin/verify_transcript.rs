@@ -15,8 +15,9 @@ use snark_setup_operator::{
     error::VerifyTranscriptError,
     utils::{
         check_challenge_hashes_same, check_new_challenge_hashes_same, check_response_hashes_same,
-        copy_file_if_exists, create_full_parameters, create_parameters_for_chunk, download_file,
-        read_hash_from_file, remove_file_if_exists, verify_signed_data, BEACON_HASH_LENGTH,
+        copy_file_if_exists, create_full_parameters, create_parameters_for_chunk,
+        download_file_from_azure_async, read_hash_from_file, remove_file_if_exists, response_size,
+        verify_signed_data, BEACON_HASH_LENGTH,
     },
 };
 use std::{
@@ -52,7 +53,9 @@ pub struct VerifyTranscriptOpts {
     help: bool,
     #[options(help = "the path of the transcript json file", default = "transcript")]
     pub transcript_path: String,
-    #[options(help = "the beacon hash", required)]
+    #[options(help = "apply beacon")]
+    pub apply_beacon: bool,
+    #[options(help = "the beacon hash")]
     pub beacon_hash: String,
     #[options(
         help = "whether to always check whether incoming challenges are in correct subgroup and non-zero",
@@ -77,6 +80,7 @@ pub struct VerifyTranscriptOpts {
 
 pub struct TranscriptVerifier {
     pub transcript: Transcript,
+    pub apply_beacon: bool,
     pub beacon_hash: Vec<u8>,
     pub force_correctness_checks: bool,
     pub batch_exp_mode: BatchExpMode,
@@ -114,6 +118,7 @@ impl TranscriptVerifier {
         let verifier = Self {
             transcript,
             beacon_hash,
+            apply_beacon: opts.apply_beacon,
             force_correctness_checks: opts.force_correctness_checks,
             batch_exp_mode: opts.batch_exp_mode,
             subgroup_check_mode: opts.subgroup_check_mode,
@@ -122,6 +127,12 @@ impl TranscriptVerifier {
     }
 
     fn run<E: PairingEngine>(&self) -> Result<()> {
+        let mut rt = tokio::runtime::Builder::new()
+            .threaded_scheduler()
+            .enable_all()
+            .build()
+            .unwrap();
+
         let mut current_parameters = None;
         let mut previous_round: Option<Ceremony> = None;
         for (round_index, ceremony) in self.transcript.rounds.iter().enumerate() {
@@ -272,7 +283,11 @@ impl TranscriptVerifier {
 
                     let contributed_location = contribution.contributed_location()?;
                     // Download the response computed by the participant.
-                    download_file(contributed_location, RESPONSE_FILENAME)?;
+                    rt.block_on(download_file_from_azure_async(
+                        contributed_location,
+                        response_size(&parameters),
+                        RESPONSE_FILENAME,
+                    ))?;
 
                     // Run verification between challenge and response, and produce the next new
                     // challenge.
@@ -374,66 +389,79 @@ impl TranscriptVerifier {
         remove_file_if_exists(COMBINED_HASH_FILENAME)?;
         remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_FILENAME)?;
         remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME)?;
-        let rng = derive_rng_from_seed(&from_slice(&self.beacon_hash));
-        // Apply the random beacon.
-        contribute(
-            COMBINED_FILENAME,
-            COMBINED_HASH_FILENAME,
-            COMBINED_VERIFIED_POK_AND_CORRECTNESS_FILENAME,
-            COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME,
-            upgrade_correctness_check_config(
-                DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
-                self.force_correctness_checks,
-            ),
-            self.batch_exp_mode,
-            &parameters,
-            rng,
-        );
-        let final_hash_computed = hex::decode(&read_hash_from_file(
-            COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME,
-        )?)?;
-        let final_hash_expected = hex::decode(self.transcript.final_hash.as_ref().unwrap())?;
-        if final_hash_computed != final_hash_expected {
-            return Err(VerifyTranscriptError::BeaconHashWasDifferentError(
-                hex::encode(&final_hash_expected),
-                hex::encode(&final_hash_computed),
-            )
-            .into());
+        if !self.apply_beacon {
+            transform_ratios(
+                COMBINED_FILENAME,
+                upgrade_correctness_check_config(
+                    DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+                    self.force_correctness_checks,
+                ),
+                &parameters,
+            );
+        } else {
+            let rng = derive_rng_from_seed(&from_slice(&self.beacon_hash));
+            // Apply the random beacon.
+            contribute(
+                COMBINED_FILENAME,
+                COMBINED_HASH_FILENAME,
+                COMBINED_VERIFIED_POK_AND_CORRECTNESS_FILENAME,
+                COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME,
+                upgrade_correctness_check_config(
+                    DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+                    self.force_correctness_checks,
+                ),
+                self.batch_exp_mode,
+                &parameters,
+                rng,
+            );
+            let final_hash_computed = hex::decode(&read_hash_from_file(
+                COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME,
+            )?)?;
+            let final_hash_expected = hex::decode(self.transcript.final_hash.as_ref().unwrap())?;
+            if final_hash_computed != final_hash_expected {
+                return Err(VerifyTranscriptError::BeaconHashWasDifferentError(
+                    hex::encode(&final_hash_expected),
+                    hex::encode(&final_hash_computed),
+                )
+                .into());
+            }
+            info!("applied beacon, verifying");
+            remove_file_if_exists(COMBINED_HASH_FILENAME)?;
+            remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME)?;
+            remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME)?;
+            remove_file_if_exists(
+                COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME,
+            )?;
+            // Verify the correctness of the random beacon.
+            transform_pok_and_correctness(
+                COMBINED_FILENAME,
+                COMBINED_HASH_FILENAME,
+                upgrade_correctness_check_config(
+                    DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+                    self.force_correctness_checks,
+                ),
+                COMBINED_VERIFIED_POK_AND_CORRECTNESS_FILENAME,
+                COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME,
+                upgrade_correctness_check_config(
+                    DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
+                    self.force_correctness_checks,
+                ),
+                COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME,
+                COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME,
+                self.subgroup_check_mode,
+                &parameters,
+            );
+            // Verify the consistency of the entire combined contribution, making sure that the
+            // correct ratios hold between elements.
+            transform_ratios(
+                COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME,
+                upgrade_correctness_check_config(
+                    DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+                    self.force_correctness_checks,
+                ),
+                &parameters,
+            );
         }
-        info!("applied beacon, verifying");
-        remove_file_if_exists(COMBINED_HASH_FILENAME)?;
-        remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME)?;
-        remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME)?;
-        remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME)?;
-        // Verify the correctness of the random beacon.
-        transform_pok_and_correctness(
-            COMBINED_FILENAME,
-            COMBINED_HASH_FILENAME,
-            upgrade_correctness_check_config(
-                DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
-                self.force_correctness_checks,
-            ),
-            COMBINED_VERIFIED_POK_AND_CORRECTNESS_FILENAME,
-            COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME,
-            upgrade_correctness_check_config(
-                DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
-                self.force_correctness_checks,
-            ),
-            COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME,
-            COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME,
-            self.subgroup_check_mode,
-            &parameters,
-        );
-        // Verify the consistency of the entire combined contribution, making sure that the
-        // correct ratios hold between elements.
-        transform_ratios(
-            COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME,
-            upgrade_correctness_check_config(
-                DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
-                self.force_correctness_checks,
-            ),
-            &parameters,
-        );
 
         Ok(())
     }
@@ -445,7 +473,7 @@ fn main() {
     let opts: VerifyTranscriptOpts = VerifyTranscriptOpts::parse_args_default_or_exit();
 
     let verifier = TranscriptVerifier::new(&opts)
-        .expect("Should have been able to create a transcript verifier.");
+        .expect("Should have been able to create a transcript verifier");
     (match opts.curve.as_str() {
         "bw6" => verifier.run::<BW6_761>(),
         "bls12_377" => verifier.run::<Bls12_377>(),

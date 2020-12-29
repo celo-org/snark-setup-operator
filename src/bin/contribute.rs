@@ -138,6 +138,8 @@ pub struct ContributeOpts {
         default = "false"
     )]
     pub disable_sysinfo: bool,
+    #[options(help = "do not try to keep the computer awake")]
+    pub disable_keep_awake: bool,
     #[options(help = "exit when finished contributing for the first time")]
     pub exit_when_finished_contributing: bool,
     #[options(help = "read passphrase from stdin. THIS IS UNSAFE as it doesn't use pinentry!")]
@@ -278,8 +280,7 @@ impl Contribute {
                 }
                 Err(e) => {
                     warn!("Got error from ceremony initialization: {}", e);
-                    progress_bar
-                        .set_message(&format!("Got error from ceremony initialization: {}", e));
+                    progress_bar.println(&format!("Got error from ceremony initialization: {}", e));
                     tokio::time::delay_for(delay_after_error_duration).await;
                 }
             }
@@ -295,9 +296,13 @@ impl Contribute {
         let mut futures = vec![];
 
         let updater = self.clone();
+        let progress_bar_for_thread = progress_bar.clone();
         tokio::spawn(async move {
             loop {
-                match updater.status_updater(progress_bar.clone()).await {
+                match updater
+                    .status_updater(progress_bar_for_thread.clone())
+                    .await
+                {
                     Ok(true) => {
                         EXITING.store(true, SeqCst);
                         return;
@@ -305,7 +310,7 @@ impl Contribute {
                     Ok(false) => {}
                     Err(e) => {
                         warn!("Got error from updater: {}", e);
-                        progress_bar.set_message(&format!(
+                        progress_bar_for_thread.println(&format!(
                             "Could not update status: {}",
                             e.to_string().trim()
                         ));
@@ -329,6 +334,7 @@ impl Contribute {
         for i in 0..total_tasks {
             let delay_duration = Duration::seconds(DELAY_AFTER_ERROR_DURATION_SECS).to_std()?;
             let mut cloned = self.clone_with_new_filenames(i);
+            let progress_bar_for_thread = progress_bar.clone();
             let jh = tokio::spawn(async move {
                 loop {
                     let result = cloned.run::<E>().await;
@@ -339,6 +345,8 @@ impl Contribute {
                         Ok(_) => {}
                         Err(e) => {
                             warn!("Got error from run: {}, retrying...", e);
+                            progress_bar_for_thread
+                                .println(&format!("Got error from run: {}, retrying...", e));
                             if let Some(chunk_id) = cloned.chosen_chunk_id.as_ref() {
                                 if cloned
                                     .remove_chunk_id_from_lane_if_exists(
@@ -1195,7 +1203,6 @@ impl Contribute {
 }
 
 fn main() {
-    let _obj = keep_awake::inhibit("Plumo setup contribute", "This will take a while");
     ctrlc::set_handler(move || {
         println!("Got ctrl+c...");
         SHOULD_UPDATE_STATUS.store(true, SeqCst);
@@ -1208,6 +1215,9 @@ fn main() {
     .expect("Error setting Ctrl-C handler");
 
     let opts: ContributeOpts = ContributeOpts::parse_args_default_or_exit();
+    if !opts.disable_keep_awake {
+        let _ = keep_awake::inhibit("Plumo setup contribute", "This will take a while");
+    }
     let mut rt = if opts.free_threads > 0 {
         let max_threads = num_cpus::get();
         let threads = max_threads - opts.free_threads;
