@@ -5,12 +5,12 @@ ps auwx | grep "nodemon" | grep -v grep | awk '{print $2}' | xargs kill || true
 COMMIT="master"
 BASE_DIR=$(pwd)
 
-#rm -rf snark-setup-coordinator
-#git clone https://github.com/celo-org/snark-setup-coordinator
+rm -rf snark-setup-coordinator
+git clone https://github.com/celo-org/snark-setup-coordinator
 pushd snark-setup-coordinator/coordinator-service
-#git checkout $COMMIT
-#npm install
-#npm run build
+git checkout $COMMIT
+npm install
+npm run build
 
 cp $BASE_DIR/empty.json ceremony
 npm run reset-db
