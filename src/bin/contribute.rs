@@ -344,8 +344,33 @@ impl Contribute {
             }
         });
         // Force an update every 5 minutes.
+        let cloned_for_update = self.clone();
         tokio::spawn(async move {
             loop {
+                match cloned_for_update.get_chunk_info().await {
+                    Err(err) => {
+                        warn!("Cannot get locked chunks {}", err);
+                    }
+                    Ok(ceremony) => {
+                        let mut found: Vec<String> = vec![];
+                        let v = match cloned_for_update.get_participant_locked_chunk_ids() {
+                            Ok(lst) => lst,
+                            Err(err) => {
+                                warn!("Cannot get local chunks: {}", err);
+                                vec![]
+                            }
+                        };
+                        for chunk_id in &ceremony.locked_chunks {
+                            if !v.iter().any(|x| chunk_id == x) {
+                                found.push(chunk_id.clone());
+                            }
+                        }
+                        for chunk_id in found {
+                            warn!("Unlocking chunk that is not being processed {}\n", chunk_id);
+                            let _ = cloned_for_update.unlock_chunk(&chunk_id, None).await;
+                        }
+                    }
+                };
                 SHOULD_UPDATE_STATUS.store(true, SeqCst);
                 tokio::time::delay_for(
                     Duration::seconds(DELAY_STATUS_UPDATE_FORCE_SECS)
@@ -1022,7 +1047,7 @@ impl Contribute {
         }
     }
 
-    fn get_participant_locked_chunks_display(&self) -> Result<Vec<String>> {
+    fn get_participant_locked_chunks(&self) -> Result<Vec<(String, PipelineLane)>> {
         let mut chunk_ids = vec![];
         let pipeline = self.get_pipeline_snapshot()?;
         for lane in &[
@@ -1034,19 +1059,30 @@ impl Contribute {
                 .get(lane)
                 .ok_or(ContributeError::LaneWasNullError(lane.to_string()))?
             {
-                chunk_ids.push(format!("{} ({})", chunk_id.clone(), lane));
+                chunk_ids.push((chunk_id.clone(), lane.clone()));
             }
         }
         Ok(chunk_ids)
     }
 
-    async fn release_locked_chunks(&self, ceremony: &FilteredChunks) -> Result<()> {
-        let chunk_ids = ceremony
-            .chunks
+    fn get_participant_locked_chunks_display(&self) -> Result<Vec<String>> {
+        Ok(self
+            .get_participant_locked_chunks()?
             .iter()
-            .filter(|c| c.lock_holder == Some(self.participant_id.clone()))
-            .map(|c| c.chunk_id.clone());
-        for chunk_id in chunk_ids {
+            .map(|(id, lane)| format!("{} ({})", id, lane))
+            .collect())
+    }
+
+    fn get_participant_locked_chunk_ids(&self) -> Result<Vec<String>> {
+        Ok(self
+            .get_participant_locked_chunks()?
+            .iter()
+            .map(|(id, _)| id.clone())
+            .collect())
+    }
+
+    async fn release_locked_chunks(&self, ceremony: &FilteredChunks) -> Result<()> {
+        for chunk_id in &ceremony.locked_chunks {
             self.unlock_chunk(&chunk_id, None).await?;
         }
         Ok(())
@@ -1126,7 +1162,7 @@ impl Contribute {
     async fn get_chunk_info(&self) -> Result<FilteredChunks> {
         let get_path = match self.participation_mode {
             ParticipationMode::Contribute => format!("contributor/{}/chunks", self.participant_id),
-            ParticipationMode::Verify => format!("verifier/chunks"),
+            ParticipationMode::Verify => format!("verifier/{}/chunks", self.participant_id),
         };
         let ceremony_url = self.server_url.join(&get_path)?;
         let client = reqwest::Client::builder().gzip(true).build()?;
