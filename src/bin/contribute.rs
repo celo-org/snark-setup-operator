@@ -134,6 +134,8 @@ pub struct ContributeOpts {
         parse(try_from_str = "subgroup_check_mode_from_str")
     )]
     pub subgroup_check_mode: SubgroupCheckMode,
+    #[options(help = "perform ratio check", default = "false")]
+    pub ratio_check: bool,
     #[options(
         help = "whether to disable benchmarking data collection",
         default = "false"
@@ -180,6 +182,7 @@ pub struct Contribute {
     pub force_correctness_checks: bool,
     pub batch_exp_mode: BatchExpMode,
     pub subgroup_check_mode: SubgroupCheckMode,
+    pub ratio_check: bool,
     pub disable_sysinfo: bool,
     pub exit_when_finished_contributing: bool,
     pub attestation: Attestation,
@@ -214,6 +217,7 @@ impl Contribute {
             force_correctness_checks: opts.force_correctness_checks,
             batch_exp_mode: opts.batch_exp_mode,
             subgroup_check_mode: opts.subgroup_check_mode,
+            ratio_check: opts.ratio_check,
             disable_sysinfo: opts.disable_sysinfo,
             exit_when_finished_contributing: opts.exit_when_finished_contributing,
             attestation: attestation.clone(),
@@ -944,6 +948,7 @@ impl Contribute {
                         new_challenge_hash_filename,
                         force_correctness_checks,
                         subgroup_check_mode,
+                        ratio_check,
                     ) = (
                         self.challenge_filename.clone(),
                         self.challenge_hash_filename.clone(),
@@ -953,6 +958,7 @@ impl Contribute {
                         self.new_challenge_hash_filename.clone(),
                         self.force_correctness_checks.clone(),
                         self.subgroup_check_mode.clone(),
+                        self.ratio_check.clone(),
                     );
                     let h = spawn_quiet(move || {
                         transform_pok_and_correctness(
@@ -971,6 +977,7 @@ impl Contribute {
                             &new_challenge_filename,
                             &new_challenge_hash_filename,
                             subgroup_check_mode,
+                            ratio_check,
                             &parameters,
                         );
                     });
