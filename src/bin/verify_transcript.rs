@@ -74,8 +74,8 @@ pub struct VerifyTranscriptOpts {
         parse(try_from_str = "subgroup_check_mode_from_str")
     )]
     pub subgroup_check_mode: SubgroupCheckMode,
-    #[options(help = "disable ratio check", default = "false")]
-    pub disable_ratio_check: bool,
+    #[options(help = "whether to skip ratio check", default = "false")]
+    pub skip_ratio_check: bool,
     #[options(help = "curve", default = "bw6")]
     pub curve: String,
 }
@@ -125,7 +125,7 @@ impl TranscriptVerifier {
             force_correctness_checks: opts.force_correctness_checks,
             batch_exp_mode: opts.batch_exp_mode,
             subgroup_check_mode: opts.subgroup_check_mode,
-            ratio_check: !opts.disable_ratio_check,
+            ratio_check: !opts.skip_ratio_check,
         };
         Ok(verifier)
     }
