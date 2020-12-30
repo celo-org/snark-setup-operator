@@ -53,6 +53,7 @@ const DELAY_AFTER_ERROR_DURATION_SECS: i64 = 60;
 const DELAY_WAIT_FOR_PIPELINE_SECS: i64 = 5;
 const DELAY_POLL_CEREMONY_SECS: i64 = 5;
 const DELAY_STATUS_UPDATE_FORCE_SECS: i64 = 300;
+const DELAY_AFTER_ATTESTATION_ERROR_DURATION_SECS: i64 = 5;
 
 lazy_static! {
     static ref PIPELINE: RwLock<HashMap<PipelineLane, Vec<String>>> = {
@@ -181,13 +182,18 @@ pub struct Contribute {
     pub subgroup_check_mode: SubgroupCheckMode,
     pub disable_sysinfo: bool,
     pub exit_when_finished_contributing: bool,
+    pub attestation: Attestation,
 
     // This is the only mutable state we hold.
     pub chosen_chunk_id: Option<String>,
 }
 
 impl Contribute {
-    pub fn new(opts: &ContributeOpts, private_key: &[u8]) -> Result<Self> {
+    pub fn new(
+        opts: &ContributeOpts,
+        private_key: &[u8],
+        attestation: &Attestation,
+    ) -> Result<Self> {
         let private_key = LocalWallet::from(SigningKey::new(private_key)?);
         let contribute = Self {
             server_url: Url::parse(&opts.coordinator_url)?,
@@ -210,6 +216,7 @@ impl Contribute {
             subgroup_check_mode: opts.subgroup_check_mode,
             disable_sysinfo: opts.disable_sysinfo,
             exit_when_finished_contributing: opts.exit_when_finished_contributing,
+            attestation: attestation.clone(),
 
             chosen_chunk_id: None,
         };
@@ -258,6 +265,8 @@ impl Contribute {
     async fn run_and_catch_errors<E: PairingEngine>(&self) -> Result<()> {
         let delay_after_error_duration =
             Duration::seconds(DELAY_AFTER_ERROR_DURATION_SECS).to_std()?;
+        let delay_after_attestation_error_duration =
+            Duration::seconds(DELAY_AFTER_ATTESTATION_ERROR_DURATION_SECS).to_std()?;
         let progress_bar = ProgressBar::new(0);
         let progress_style = ProgressStyle::default_bar()
             .template(
@@ -282,6 +291,21 @@ impl Contribute {
                     warn!("Got error from ceremony initialization: {}", e);
                     progress_bar.println(&format!("Got error from ceremony initialization: {}", e));
                     tokio::time::delay_for(delay_after_error_duration).await;
+                }
+            }
+        }
+        if self.participation_mode == ParticipationMode::Contribute {
+            loop {
+                match self.add_attestation(&self.attestation).await {
+                    Ok(_) => break,
+                    Err(e) => {
+                        warn!("Could not upload attestation, error was {}, retrying...", e);
+                        progress_bar.println(&format!(
+                            "Could not upload attestation, error was {}, retrying...",
+                            e
+                        ));
+                        tokio::time::delay_for(delay_after_attestation_error_duration).await;
+                    }
                 }
             }
         }
@@ -1262,17 +1286,9 @@ fn main() {
             &opts.attestation_path,
         )
         .expect("Should have written attestation to file");
-        let contribute = Contribute::new(&opts, private_key.expose_secret())
+        let contribute = Contribute::new(&opts, private_key.expose_secret(), &attestation)
             .expect("Should have been able to create a contribute.");
-        loop {
-            match contribute.add_attestation(&attestation).await {
-                Ok(_) => break,
-                Err(e) => {
-                    warn!("Could not upload attestation, error was {}, retrying...", e);
-                    tokio::time::delay_for(tokio::time::Duration::from_secs(5)).await;
-                }
-            }
-        }
+
         match contribute.run_and_catch_errors::<BW6_761>().await {
             Err(e) => panic!("Got error from contribute: {}", e.to_string()),
             _ => {}
