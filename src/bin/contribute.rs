@@ -67,6 +67,7 @@ lazy_static! {
     static ref EXITING: AtomicBool = AtomicBool::new(false);
     static ref SHOULD_UPDATE_STATUS: AtomicBool = AtomicBool::new(true);
     static ref EXIT_SIGNAL: AtomicU8 = AtomicU8::new(0);
+    static ref SENT_SYSINFO: AtomicBool = AtomicBool::new(false);
 }
 
 #[derive(Debug, Options, Clone)]
@@ -840,8 +841,10 @@ impl Contribute {
                         }
                     }
                     let duration = start.elapsed();
-                    let processor_data = if !self.disable_sysinfo {
-                        Some(collect_processor_data()?)
+                    let processor_data = if !self.disable_sysinfo && !SENT_SYSINFO.load(SeqCst) {
+                        let data = collect_processor_data()?;
+                        SENT_SYSINFO.store(true, SeqCst);
+                        Some(data)
                     } else {
                         None
                     };

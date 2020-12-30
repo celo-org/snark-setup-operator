@@ -28,7 +28,6 @@ use std::{
     path::Path,
     str::FromStr,
 };
-use sysinfo::{ProcessorExt, System, SystemExt};
 use tracing::warn;
 use zexe_algebra::PairingEngine;
 
@@ -415,17 +414,24 @@ pub fn read_keys(
 }
 
 pub fn collect_processor_data() -> Result<Vec<ProcessorData>> {
-    let s = System::new();
-    let processors = s
-        .get_processors()
-        .iter()
-        .map(|p| ProcessorData {
-            name: p.get_name().to_string(),
-            brand: p.get_brand().to_string(),
-            frequency: p.get_frequency().to_string(),
-        })
-        .collect();
-    Ok(processors)
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "sysinfo")] {
+            use sysinfo::{ProcessorExt, System, SystemExt};
+            let s = System::new();
+            let processors = s
+                .get_processors()
+                .iter()
+                .map(|p| ProcessorData {
+                    name: p.get_name().to_string(),
+                    brand: p.get_brand().to_string(),
+                    frequency: p.get_frequency().to_string(),
+                })
+                .collect();
+            Ok(processors)
+        } else {
+            Ok(vec![])
+        }
+    }
 }
 
 pub struct MaxRetriesHandler {

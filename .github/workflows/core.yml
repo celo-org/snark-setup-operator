@@ -129,6 +129,23 @@ jobs:
           b2sum ./target/x86_64-apple-darwin/release/contribute
           PATH="$PWD/osxcross/target/bin:$PATH" CC="$PWD/osxcross/target/bin/o64-clang" CXX="$PWD/osxcross/target/bin/o64-clang++" RUSTFLAGS="$RUSTFLAGS -C linker=$PWD/osxcross/target/bin/x86_64-apple-darwin14-clang -C ar=$PWD/osxcross/target/bin/x86_64-apple-darwin14-ar" cargo build --bin generate --release --target x86_64-apple-darwin
           b2sum ./target/x86_64-apple-darwin/release/generate
+          rm -rf osxcross
+
+      - name: Compile for MacOS M1
+        run: |
+          rustup install beta
+          rustup +beta target install aarch64-apple-darwin
+          git clone https://github.com/tpoechtrager/osxcross
+          cd osxcross
+          wget -nc https://celoosxcross.blob.core.windows.net/sdk/MacOSX11.0.sdk.tar.bz2
+          mv MacOSX11.0.sdk.tar.bz2 tarballs/
+          UNATTENDED=yes OSX_VERSION_MIN=11.0 ./build.sh
+          cd ..
+          PATH="$PWD/osxcross/target/bin:$PATH" CC="$PWD/osxcross/target/bin/arm64-apple-darwin20.1-clang" CXX="$PWD/osxcross/target/bin/arm64-apple-darwin20.1-clang++" RUSTFLAGS="$RUSTFLAGS -C linker=$PWD/osxcross/target/bin/arm64-apple-darwin20.1-clang -C ar=$PWD/osxcross/target/bin/arm64-apple-darwin20.1-ar" cargo +beta build --bin contribute --release --target aarch64-apple-darwin --no-default-features --features bw6_asm
+          b2sum ./target/aarch64-apple-darwin/release/contribute
+          PATH="$PWD/osxcross/target/bin:$PATH" CC="$PWD/osxcross/target/bin/arm64-apple-darwin20.1-clang" CXX="$PWD/osxcross/target/bin/arm64-apple-darwin20.1-clang++" RUSTFLAGS="$RUSTFLAGS -C linker=$PWD/osxcross/target/bin/arm64-apple-darwin20.1-clang -C ar=$PWD/osxcross/target/bin/arm64-apple-darwin20.1-ar" cargo +beta build --bin generate --release --target aarch64-apple-darwin --no-default-features --features bw6_asm
+          b2sum ./target/aarch64-apple-darwin/release/generate
+          rm -rf osxcross
 
       - name: Compile for Windows
         run: |
