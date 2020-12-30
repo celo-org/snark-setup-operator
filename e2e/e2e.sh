@@ -6,7 +6,7 @@ COMMIT="master"
 BASE_DIR=$(pwd)
 
 rm -rf snark-setup-coordinator
-git clone https://github.com/mrsmkl/snark-setup-coordinator
+git clone https://github.com/celo-org/snark-setup-coordinator
 pushd snark-setup-coordinator/coordinator-service
 git checkout $COMMIT
 npm install
