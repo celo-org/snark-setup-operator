@@ -437,6 +437,7 @@ impl Control {
             info!("Publishing new round");
             if send_shutdown_signal {
                 self.signal_shutdown(true).await?;
+                ceremony.version += 1;
             }
             save_transcript(&transcript)?;
             if send_shutdown_signal {
@@ -446,6 +447,7 @@ impl Control {
                 ))
                 .await;
                 self.signal_shutdown(false).await?;
+                ceremony.version += 1;
             }
             self.put_ceremony(&ceremony).await?;
         }
