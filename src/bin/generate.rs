@@ -28,14 +28,21 @@ fn main() {
     let (entropy, attestation_message, plumo_encryptor, private_key_encryptor) = if !opts
         .unsafe_passphrase
     {
-        println!(
-            "Enter some identifying information, such as your Twitter, GitHub or Keybase handle (up to 106 characters):"
-        );
         let mut attestation_message = String::new();
-        io::stdin()
-            .read_line(&mut attestation_message)
-            .expect("Should have read attestation message");
-        trim_newline(&mut attestation_message);
+        loop {
+            println!(
+                "Enter some identifying information, such as your Twitter, GitHub or Keybase handle (up to 106 characters):"
+            );
+            io::stdin()
+                .read_line(&mut attestation_message)
+                .expect("Should have read attestation message");
+            trim_newline(&mut attestation_message);
+            if attestation_message.len() > 0 {
+                break;
+            } else {
+                println!("Can't be empty!");
+            }
+        }
 
         let entropy = read_secret("Enter some entropy for your Plumo seed", "Entropy", None)
             .expect("Should have read entropy");
