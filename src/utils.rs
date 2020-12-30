@@ -9,7 +9,7 @@ pub const DEFAULT_CHUNK_TIMEOUT_IN_SECONDS: u64 = 300;
 pub const BEACON_HASH_LENGTH: usize = 32;
 
 use crate::blobstore::{upload_access_key, upload_sas};
-use crate::data_structs::{Parameters, PlumoSetupKeys, ProcessorData};
+use crate::data_structs::{Attestation, Parameters, PlumoSetupKeys, ProcessorData};
 use crate::error::{UtilsError, VerifyTranscriptError};
 use age::{
     armor::{ArmoredWriter, Format},
@@ -360,7 +360,7 @@ pub fn read_keys(
     keys_path: &str,
     should_use_stdin: bool,
     should_collect_extra_entropy: bool,
-) -> Result<(SecretVec<u8>, SecretVec<u8>, String)> {
+) -> Result<(SecretVec<u8>, SecretVec<u8>, Attestation)> {
     let mut contents = String::new();
     {
         std::fs::File::open(&keys_path)?.read_to_string(&mut contents)?;

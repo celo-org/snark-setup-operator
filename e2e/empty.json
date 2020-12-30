@@ -4,6 +4,7 @@
   "maxLocks": 3,
   "shutdownSignal": false,
   "contributorIds": [],
+  "attestations": [],
   "verifierIds": [
     "0xb522a4df212f0baa380d1dd480affbb955b39595"
   ],
