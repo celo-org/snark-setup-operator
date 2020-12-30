@@ -30,7 +30,7 @@ setup-utils = { git = "https://github.com/celo-org/snark-setup", package = "setu
 secrecy = { version = "0.7" }
 ctrlc = "3.1.7"
 indicatif = "0.15.0"
-zexe_algebra = { git = "https://github.com/celo-org/zexe", rev = "251527d0e77beaaf0aeeca0d4fcb554ab2b61bc1", package = "algebra", default-features = false, features = [ "bw6_761", "bls12_377" ] }
+zexe_algebra = { git = "https://github.com/celo-org/zexe", rev = "02ee669fa43059b55918210e025183e572cc249d", package = "algebra", default-features = false, features = [ "bw6_761", "bls12_377" ] }
 openssl-sys = { version = "0.9", features = ["vendored"]}
 age = { git = "https://github.com/str4d/rage", version = "0.4.0", features = [ "cli-common", "armor" ] }
 bincode = "1.3"
@@ -53,9 +53,9 @@ cuda = [ "zexe_algebra/cuda" ]
 bw6_asm = [ "zexe_algebra/force_bw6_asm" ]
 
 [patch.'https://github.com/scipr-lab/zexe']
-zexe_algebra_core = { git = "https://github.com/celo-org/zexe", rev = "251527d0e77beaaf0aeeca0d4fcb554ab2b61bc1", package = "algebra-core", default-features = false, features = ["derive"] }
-zexe_algebra = { git = "https://github.com/celo-org/zexe", rev = "251527d0e77beaaf0aeeca0d4fcb554ab2b61bc1", package = "algebra", default-features = false, features = ["ed_on_bls12_381", "bls12_381", "bls12_377"] }
-zexe_fft = { git = "https://github.com/celo-org/zexe", rev = "251527d0e77beaaf0aeeca0d4fcb554ab2b61bc1", package = "ff-fft", default-features = false, features = ["ed_on_bls12_381", "bls12_381", "bls12_377"] }
-zexe_bench_utils = { git = "https://github.com/celo-org/zexe", rev = "251527d0e77beaaf0aeeca0d4fcb554ab2b61bc1", package = "bench-utils", default-features = false, features = ["ed_on_bls12_381", "bls12_381", "bls12_377"] }
-zexe_r1cs_core = { git = "https://github.com/celo-org/zexe", rev = "251527d0e77beaaf0aeeca0d4fcb554ab2b61bc1", package = "r1cs-core", default-features = false, features = ["ed_on_bls12_381", "bls12_381", "bls12_377"] }
+zexe_algebra_core = { git = "https://github.com/celo-org/zexe", rev = "02ee669fa43059b55918210e025183e572cc249d", package = "algebra-core", default-features = false, features = ["derive"] }
+zexe_algebra = { git = "https://github.com/celo-org/zexe", rev = "02ee669fa43059b55918210e025183e572cc249d", package = "algebra", default-features = false, features = ["ed_on_bls12_381", "bls12_381", "bls12_377"] }
+zexe_fft = { git = "https://github.com/celo-org/zexe", rev = "02ee669fa43059b55918210e025183e572cc249d", package = "ff-fft", default-features = false, features = ["ed_on_bls12_381", "bls12_381", "bls12_377"] }
+zexe_bench_utils = { git = "https://github.com/celo-org/zexe", rev = "02ee669fa43059b55918210e025183e572cc249d", package = "bench-utils", default-features = false, features = ["ed_on_bls12_381", "bls12_381", "bls12_377"] }
+zexe_r1cs_core = { git = "https://github.com/celo-org/zexe", rev = "02ee669fa43059b55918210e025183e572cc249d", package = "r1cs-core", default-features = false, features = ["ed_on_bls12_381", "bls12_381", "bls12_377"] }
 
