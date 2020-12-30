@@ -1264,10 +1264,15 @@ fn main() {
         .expect("Should have written attestation to file");
         let contribute = Contribute::new(&opts, private_key.expose_secret())
             .expect("Should have been able to create a contribute.");
-        contribute
-            .add_attestation(&attestation)
-            .await
-            .expect("Failed to upload attestation");
+        loop {
+            match contribute.add_attestation(&attestation).await {
+                Ok(_) => break,
+                Err(e) => {
+                    warn!("Could not upload attestation, error was {}, retrying...", e);
+                    tokio::time::delay_for(tokio::time::Duration::from_secs(5)).await;
+                }
+            }
+        }
         match contribute.run_and_catch_errors::<BW6_761>().await {
             Err(e) => panic!("Got error from contribute: {}", e.to_string()),
             _ => {}
