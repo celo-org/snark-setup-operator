@@ -1,6 +1,6 @@
 use snark_setup_operator::data_structs::{
-    ChunkDownloadInfo, ContributedData, ContributionUploadUrl, FilteredChunks, SignedData,
-    UnlockBody, VerifiedData,
+    Attestation, ChunkDownloadInfo, ContributedData, ContributionUploadUrl, FilteredChunks,
+    SignedData, UnlockBody, VerifiedData,
 };
 use snark_setup_operator::utils::{
     address_to_string, challenge_size, collect_processor_data, create_parameters_for_chunk,
@@ -53,6 +53,7 @@ const DELAY_AFTER_ERROR_DURATION_SECS: i64 = 60;
 const DELAY_WAIT_FOR_PIPELINE_SECS: i64 = 5;
 const DELAY_POLL_CEREMONY_SECS: i64 = 5;
 const DELAY_STATUS_UPDATE_FORCE_SECS: i64 = 300;
+const DELAY_AFTER_ATTESTATION_ERROR_DURATION_SECS: i64 = 5;
 
 lazy_static! {
     static ref PIPELINE: RwLock<HashMap<PipelineLane, Vec<String>>> = {
@@ -182,13 +183,18 @@ pub struct Contribute {
     pub subgroup_check_mode: SubgroupCheckMode,
     pub disable_sysinfo: bool,
     pub exit_when_finished_contributing: bool,
+    pub attestation: Attestation,
 
     // This is the only mutable state we hold.
     pub chosen_chunk_id: Option<String>,
 }
 
 impl Contribute {
-    pub fn new(opts: &ContributeOpts, private_key: &[u8]) -> Result<Self> {
+    pub fn new(
+        opts: &ContributeOpts,
+        private_key: &[u8],
+        attestation: &Attestation,
+    ) -> Result<Self> {
         let private_key = LocalWallet::from(SigningKey::new(private_key)?);
         let contribute = Self {
             server_url: Url::parse(&opts.coordinator_url)?,
@@ -211,6 +217,7 @@ impl Contribute {
             subgroup_check_mode: opts.subgroup_check_mode,
             disable_sysinfo: opts.disable_sysinfo,
             exit_when_finished_contributing: opts.exit_when_finished_contributing,
+            attestation: attestation.clone(),
 
             chosen_chunk_id: None,
         };
@@ -259,6 +266,8 @@ impl Contribute {
     async fn run_and_catch_errors<E: PairingEngine>(&self) -> Result<()> {
         let delay_after_error_duration =
             Duration::seconds(DELAY_AFTER_ERROR_DURATION_SECS).to_std()?;
+        let delay_after_attestation_error_duration =
+            Duration::seconds(DELAY_AFTER_ATTESTATION_ERROR_DURATION_SECS).to_std()?;
         let progress_bar = ProgressBar::new(0);
         let progress_style = ProgressStyle::default_bar()
             .template(
@@ -283,6 +292,21 @@ impl Contribute {
                     warn!("Got error from ceremony initialization: {}", e);
                     progress_bar.println(&format!("Got error from ceremony initialization: {}", e));
                     tokio::time::delay_for(delay_after_error_duration).await;
+                }
+            }
+        }
+        if self.participation_mode == ParticipationMode::Contribute {
+            loop {
+                match self.add_attestation(&self.attestation).await {
+                    Ok(_) => break,
+                    Err(e) => {
+                        warn!("Could not upload attestation, error was {}, retrying...", e);
+                        progress_bar.println(&format!(
+                            "Could not upload attestation, error was {}, retrying...",
+                            e
+                        ));
+                        tokio::time::delay_for(delay_after_attestation_error_duration).await;
+                    }
                 }
             }
         }
@@ -321,8 +345,33 @@ impl Contribute {
             }
         });
         // Force an update every 5 minutes.
+        let cloned_for_update = self.clone();
         tokio::spawn(async move {
             loop {
+                match cloned_for_update.get_chunk_info().await {
+                    Err(err) => {
+                        warn!("Cannot get locked chunks {}", err);
+                    }
+                    Ok(ceremony) => {
+                        let mut found: Vec<String> = vec![];
+                        let v = match cloned_for_update.get_participant_locked_chunk_ids() {
+                            Ok(lst) => lst,
+                            Err(err) => {
+                                warn!("Cannot get local chunks: {}", err);
+                                vec![]
+                            }
+                        };
+                        for chunk_id in &ceremony.locked_chunks {
+                            if !v.iter().any(|x| chunk_id == x) {
+                                found.push(chunk_id.clone());
+                            }
+                        }
+                        for chunk_id in found {
+                            warn!("Unlocking chunk that is not being processed {}\n", chunk_id);
+                            let _ = cloned_for_update.unlock_chunk(&chunk_id, None).await;
+                        }
+                    }
+                };
                 SHOULD_UPDATE_STATUS.store(true, SeqCst);
                 tokio::time::delay_for(
                     Duration::seconds(DELAY_STATUS_UPDATE_FORCE_SECS)
@@ -1001,7 +1050,7 @@ impl Contribute {
         }
     }
 
-    fn get_participant_locked_chunks_display(&self) -> Result<Vec<String>> {
+    fn get_participant_locked_chunks(&self) -> Result<Vec<(String, PipelineLane)>> {
         let mut chunk_ids = vec![];
         let pipeline = self.get_pipeline_snapshot()?;
         for lane in &[
@@ -1013,19 +1062,30 @@ impl Contribute {
                 .get(lane)
                 .ok_or(ContributeError::LaneWasNullError(lane.to_string()))?
             {
-                chunk_ids.push(format!("{} ({})", chunk_id.clone(), lane));
+                chunk_ids.push((chunk_id.clone(), lane.clone()));
             }
         }
         Ok(chunk_ids)
     }
 
-    async fn release_locked_chunks(&self, ceremony: &FilteredChunks) -> Result<()> {
-        let chunk_ids = ceremony
-            .chunks
+    fn get_participant_locked_chunks_display(&self) -> Result<Vec<String>> {
+        Ok(self
+            .get_participant_locked_chunks()?
             .iter()
-            .filter(|c| c.lock_holder == Some(self.participant_id.clone()))
-            .map(|c| c.chunk_id.clone());
-        for chunk_id in chunk_ids {
+            .map(|(id, lane)| format!("{} ({})", id, lane))
+            .collect())
+    }
+
+    fn get_participant_locked_chunk_ids(&self) -> Result<Vec<String>> {
+        Ok(self
+            .get_participant_locked_chunks()?
+            .iter()
+            .map(|(id, _)| id.clone())
+            .collect())
+    }
+
+    async fn release_locked_chunks(&self, ceremony: &FilteredChunks) -> Result<()> {
+        for chunk_id in &ceremony.locked_chunks {
             self.unlock_chunk(&chunk_id, None).await?;
         }
         Ok(())
@@ -1105,7 +1165,7 @@ impl Contribute {
     async fn get_chunk_info(&self) -> Result<FilteredChunks> {
         let get_path = match self.participation_mode {
             ParticipationMode::Contribute => format!("contributor/{}/chunks", self.participant_id),
-            ParticipationMode::Verify => format!("verifier/chunks"),
+            ParticipationMode::Verify => format!("verifier/{}/chunks", self.participant_id),
         };
         let ceremony_url = self.server_url.join(&get_path)?;
         let client = reqwest::Client::builder().gzip(true).build()?;
@@ -1183,6 +1243,26 @@ impl Contribute {
             .error_for_status()?;
         Ok(())
     }
+
+    async fn add_attestation(&self, attestation: &Attestation) -> Result<()> {
+        let data = serde_json::to_value(&attestation)?;
+        let signed_data = SignedData {
+            signature: sign_json(&self.private_key, &data)?,
+            data: data,
+        };
+        let notify_path = format!("attest");
+        let notify_url = self.server_url.join(&notify_path)?;
+        let client = reqwest::Client::new();
+        let authorization = get_authorization_value(&self.private_key, "POST", &notify_path)?;
+        client
+            .post(notify_url.as_str())
+            .header(AUTHORIZATION, authorization)
+            .json(&signed_data)
+            .send()
+            .await?
+            .error_for_status()?;
+        Ok(())
+    }
 }
 
 fn main() {
@@ -1240,10 +1320,14 @@ fn main() {
 
         *SEED.write().expect("Should have been able to write seed") = Some(seed);
 
-        write_attestation_to_file(&attestation, &opts.attestation_path)
-            .expect("Should have written attestation to file");
-        let contribute = Contribute::new(&opts, private_key.expose_secret())
+        write_attestation_to_file(
+            &serde_json::to_string(&attestation).expect("cannot serialize attestation"),
+            &opts.attestation_path,
+        )
+        .expect("Should have written attestation to file");
+        let contribute = Contribute::new(&opts, private_key.expose_secret(), &attestation)
             .expect("Should have been able to create a contribute.");
+
         match contribute.run_and_catch_errors::<BW6_761>().await {
             Err(e) => panic!("Got error from contribute: {}", e.to_string()),
             _ => {}
