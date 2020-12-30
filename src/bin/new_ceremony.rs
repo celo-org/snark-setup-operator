@@ -80,6 +80,7 @@ fn build_ceremony_from_chunks(
         version: 0,
         max_locks: opts.max_locks,
         shutdown_signal: false,
+        attestations: Some(vec![]),
         contributor_ids: [&opts.participant, existing_contributor_ids].concat(),
         verifier_ids: [&opts.verifier, existing_verifier_ids].concat(),
         parameters: Parameters {
