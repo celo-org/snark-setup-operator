@@ -84,6 +84,10 @@ pub struct NewRoundOpts {
     pub new_participant: Vec<String>,
     #[options(help = "verify transcript")]
     pub verify_transcript: bool,
+    #[options(help = "send shutdown signal")]
+    pub do_not_send_shutdown_signal: bool,
+    #[options(help = "delay time for shutdown signal", default = "1800")]
+    pub shutdown_delay_time_in_secs: u64,
     #[options(help = "publish")]
     pub publish: bool,
 }
@@ -364,6 +368,8 @@ impl Control {
         expected_participants: &[String],
         new_participants: &[String],
         verify_transcript: bool,
+        send_shutdown_signal: bool,
+        shutdown_delay_time_in_secs: u64,
         publish: bool,
     ) -> Result<()> {
         info!("Backing up transcript");
@@ -429,11 +435,18 @@ impl Control {
 
         if publish {
             info!("Publishing new round");
-            self.signal_shutdown(true).await?;
+            if send_shutdown_signal {
+                self.signal_shutdown(true).await?;
+            }
             save_transcript(&transcript)?;
-            // Sleep for 30 minutes to allow contributors to shut down.
-            tokio::time::delay_for(tokio::time::Duration::from_secs(30 * 60)).await;
-            self.signal_shutdown(false).await?;
+            if send_shutdown_signal {
+                // Sleep for some time to allow contributors to shut down.
+                tokio::time::delay_for(tokio::time::Duration::from_secs(
+                    shutdown_delay_time_in_secs,
+                ))
+                .await;
+                self.signal_shutdown(false).await?;
+            }
             self.put_ceremony(&ceremony).await?;
         }
         Ok(())
@@ -612,6 +625,8 @@ async fn main() {
                         &opts.expected_participant,
                         &opts.new_participant,
                         opts.verify_transcript,
+                        !opts.do_not_send_shutdown_signal,
+                        opts.shutdown_delay_time_in_secs,
                         opts.publish,
                     )
                     .await
@@ -623,6 +638,8 @@ async fn main() {
                         &opts.expected_participant,
                         &opts.new_participant,
                         opts.verify_transcript,
+                        !opts.do_not_send_shutdown_signal,
+                        opts.shutdown_delay_time_in_secs,
                         opts.publish,
                     )
                     .await
