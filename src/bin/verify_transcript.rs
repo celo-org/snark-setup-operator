@@ -74,6 +74,8 @@ pub struct VerifyTranscriptOpts {
         parse(try_from_str = "subgroup_check_mode_from_str")
     )]
     pub subgroup_check_mode: SubgroupCheckMode,
+    #[options(help = "whether to skip ratio check", default = "false")]
+    pub skip_ratio_check: bool,
     #[options(help = "curve", default = "bw6")]
     pub curve: String,
 }
@@ -85,6 +87,7 @@ pub struct TranscriptVerifier {
     pub force_correctness_checks: bool,
     pub batch_exp_mode: BatchExpMode,
     pub subgroup_check_mode: SubgroupCheckMode,
+    pub ratio_check: bool,
 }
 
 impl TranscriptVerifier {
@@ -122,6 +125,7 @@ impl TranscriptVerifier {
             force_correctness_checks: opts.force_correctness_checks,
             batch_exp_mode: opts.batch_exp_mode,
             subgroup_check_mode: opts.subgroup_check_mode,
+            ratio_check: !opts.skip_ratio_check,
         };
         Ok(verifier)
     }
@@ -307,6 +311,7 @@ impl TranscriptVerifier {
                         NEW_CHALLENGE_FILENAME,
                         NEW_CHALLENGE_HASH_FILENAME,
                         self.subgroup_check_mode,
+                        self.ratio_check,
                         &parameters,
                     );
 
@@ -449,6 +454,7 @@ impl TranscriptVerifier {
                 COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME,
                 COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME,
                 self.subgroup_check_mode,
+                self.ratio_check,
                 &parameters,
             );
             // Verify the consistency of the entire combined contribution, making sure that the
