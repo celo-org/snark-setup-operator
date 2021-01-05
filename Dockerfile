@@ -13,6 +13,7 @@ RUN rustup target add x86_64-unknown-linux-musl
 
 WORKDIR /usr/src/main
 
+COPY Cargo.lock Cargo.lock
 COPY Cargo.toml Cargo.toml
 
 RUN mkdir src/
