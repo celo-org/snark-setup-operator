@@ -82,7 +82,7 @@ pub struct ContributeOpts {
         help = "the encrypted keys for the Plumo setup",
         default = "plumo.keys"
     )]
-    pub keys_path: String,
+    pub keys_file: String,
     #[options(
         help = "the attestation for the Plumo setup",
         default = "plumo.attestation.txt"
@@ -1319,7 +1319,7 @@ fn main() {
             .init();
 
         let (seed, private_key, attestation) =
-            read_keys(&opts.keys_path, opts.unsafe_passphrase, true)
+            read_keys(&opts.keys_file, opts.unsafe_passphrase, true)
                 .expect("Should have loaded Plumo setup keys");
 
         *SEED.write().expect("Should have been able to write seed") = Some(seed);

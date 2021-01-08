@@ -62,16 +62,16 @@ RUST_LOG=info cargo run --bin new_ceremony --release -- --upload-mode direct --c
 
 Add the test participant and verifier:
 ```
-RUST_LOG=info cargo run --bin control --release -- --keys-path plumo-verifier.keys add-participant --participant-id $(cat plumo-contributor.keys | jq .address -r)
-RUST_LOG=info cargo run --bin control --release -- --keys-path plumo-verifier.keys add-verifier --participant-id $(cat plumo-verifier.keys | jq .address -r)
+RUST_LOG=info cargo run --bin control --release -- --keys-file plumo-verifier.keys add-participant --participant-id $(cat plumo-contributor.keys | jq .address -r)
+RUST_LOG=info cargo run --bin control --release -- --keys-file plumo-verifier.keys add-verifier --participant-id $(cat plumo-verifier.keys | jq .address -r)
 ```
 
 Contribute:
 ```
-RUST_LOG=info cargo run --bin contribute --release -- --keys-path plumo-contributor.keys
+RUST_LOG=info cargo run --bin contribute --release -- --keys-file plumo-contributor.keys
 ```
 
 Verify contribution:
 ```
-RUST_LOG=info cargo run --bin contribute --release -- --participation-mode verify --keys-path plumo-verifier.keys
+RUST_LOG=info cargo run --bin contribute --release -- --participation-mode verify --keys-file plumo-verifier.keys
 ```

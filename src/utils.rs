@@ -356,13 +356,13 @@ pub fn encrypt(encryptor: Encryptor, secret: &[u8]) -> Result<String> {
 }
 
 pub fn read_keys(
-    keys_path: &str,
+    keys_file: &str,
     should_use_stdin: bool,
     should_collect_extra_entropy: bool,
 ) -> Result<(SecretVec<u8>, SecretVec<u8>, Attestation)> {
     let mut contents = String::new();
     {
-        std::fs::File::open(&keys_path)?.read_to_string(&mut contents)?;
+        std::fs::File::open(&keys_file)?.read_to_string(&mut contents)?;
     }
     let mut keys: PlumoSetupKeys = serde_json::from_str(&contents)?;
     let description = "Enter your Plumo setup passphrase";
@@ -394,7 +394,7 @@ pub fn read_keys(
         let combined_entropy = SecretVec::<u8>::new(hasher.finalize().as_slice().to_vec());
         let encrypted_extra_entropy = encrypt(encryptor, combined_entropy.expose_secret())?;
         keys.encrypted_extra_entropy = Some(encrypted_extra_entropy);
-        let mut file = OpenOptions::new().write(true).open(&keys_path)?;
+        let mut file = OpenOptions::new().write(true).open(&keys_file)?;
         file.write_all(&serde_json::to_vec(&keys)?)?;
         file.sync_all()?;
     }
