@@ -17,14 +17,14 @@ use std::io::{self, Write};
 pub struct GenerateOpts {
     help: bool,
     #[options(help = "the path of the output keys file", default = "plumo.keys")]
-    pub keys_path: String,
+    pub keys_file: String,
     #[options(help = "read passphrase from stdin. THIS IS UNSAFE as it doesn't use pinentry!")]
     pub unsafe_passphrase: bool,
 }
 
 fn main() {
     let opts: GenerateOpts = GenerateOpts::parse_args_default_or_exit();
-    let mut file = std::fs::File::create(&opts.keys_path).expect("Should have created keys file");
+    let mut file = std::fs::File::create(&opts.keys_file).expect("Should have created keys file");
     let (entropy, attestation_message, plumo_encryptor, private_key_encryptor) = if !opts
         .unsafe_passphrase
     {
@@ -121,6 +121,6 @@ fn main() {
     file.sync_all().expect("Should have synced to disk");
     println!(
         "Done! Your keys are ready in {}. Your address is : {}",
-        &opts.keys_path, plumo_setup_keys.address
+        &opts.keys_file, plumo_setup_keys.address
     );
 }

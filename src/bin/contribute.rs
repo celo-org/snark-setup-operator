@@ -82,10 +82,10 @@ pub struct ContributeOpts {
         help = "the encrypted keys for the Plumo setup",
         default = "plumo.keys"
     )]
-    pub keys_path: String,
+    pub keys_file: String,
     #[options(
         help = "the attestation for the Plumo setup",
-        default = "plumo.attestation"
+        default = "plumo.attestation.txt"
     )]
     pub attestation_path: String,
     #[options(
@@ -1319,16 +1319,13 @@ fn main() {
             .init();
 
         let (seed, private_key, attestation) =
-            read_keys(&opts.keys_path, opts.unsafe_passphrase, true)
+            read_keys(&opts.keys_file, opts.unsafe_passphrase, true)
                 .expect("Should have loaded Plumo setup keys");
 
         *SEED.write().expect("Should have been able to write seed") = Some(seed);
 
-        write_attestation_to_file(
-            &serde_json::to_string(&attestation).expect("cannot serialize attestation"),
-            &opts.attestation_path,
-        )
-        .expect("Should have written attestation to file");
+        write_attestation_to_file(&attestation, &opts.attestation_path)
+            .expect("Should have written attestation to file");
         let contribute = Contribute::new(&opts, private_key.expose_secret(), &attestation)
             .expect("Should have been able to create a contribute.");
 

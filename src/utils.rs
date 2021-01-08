@@ -356,13 +356,13 @@ pub fn encrypt(encryptor: Encryptor, secret: &[u8]) -> Result<String> {
 }
 
 pub fn read_keys(
-    keys_path: &str,
+    keys_file: &str,
     should_use_stdin: bool,
     should_collect_extra_entropy: bool,
 ) -> Result<(SecretVec<u8>, SecretVec<u8>, Attestation)> {
     let mut contents = String::new();
     {
-        std::fs::File::open(&keys_path)?.read_to_string(&mut contents)?;
+        std::fs::File::open(&keys_file)?.read_to_string(&mut contents)?;
     }
     let mut keys: PlumoSetupKeys = serde_json::from_str(&contents)?;
     let description = "Enter your Plumo setup passphrase";
@@ -394,7 +394,7 @@ pub fn read_keys(
         let combined_entropy = SecretVec::<u8>::new(hasher.finalize().as_slice().to_vec());
         let encrypted_extra_entropy = encrypt(encryptor, combined_entropy.expose_secret())?;
         keys.encrypted_extra_entropy = Some(encrypted_extra_entropy);
-        let mut file = OpenOptions::new().write(true).open(&keys_path)?;
+        let mut file = OpenOptions::new().write(true).open(&keys_file)?;
         file.write_all(&serde_json::to_vec(&keys)?)?;
         file.sync_all()?;
     }
@@ -415,7 +415,7 @@ pub fn read_keys(
 
 pub fn collect_processor_data() -> Result<Vec<ProcessorData>> {
     cfg_if::cfg_if! {
-        if #[cfg(feature = "sysinfo")] {
+        if #[cfg(not(target_arch = "aarch64"))] {
             use sysinfo::{ProcessorExt, System, SystemExt};
             let s = System::new();
             let processors = s
@@ -514,23 +514,27 @@ pub fn format_attestation(attestation_message: &str, address: &str, signature: &
 }
 
 pub fn extract_signature_from_attestation(attestation: &str) -> Result<(String, String, String)> {
-    // Address, signature and two spaces is the minimum
-    if attestation.len() < SIGNATURE_LENGTH_IN_HEX + ADDRESS_LENGTH_IN_HEX + 2 {
-        return Err(UtilsError::AttestationTooShort(attestation.len()).into());
-    } else {
-        Ok((
-            attestation[..attestation.len() - SIGNATURE_LENGTH_IN_HEX - ADDRESS_LENGTH_IN_HEX - 2]
-                .to_string(),
-            attestation[attestation.len() - SIGNATURE_LENGTH_IN_HEX - ADDRESS_LENGTH_IN_HEX - 1
-                ..attestation.len() - SIGNATURE_LENGTH_IN_HEX - 1]
-                .to_string(),
-            attestation[attestation.len() - SIGNATURE_LENGTH_IN_HEX..attestation.len()].to_string(),
-        ))
+    let attestation = attestation.to_string();
+    let attestation_parts = attestation.split(" ").collect::<Vec<_>>();
+    if attestation_parts.len() < 3 {
+        return Err(UtilsError::AttestationTooShort(attestation_parts.len()).into());
     }
+    Ok((
+        attestation_parts[0..=attestation_parts.len() - 3].join(" "),
+        attestation_parts[attestation_parts.len() - 2].to_string(),
+        attestation_parts[attestation_parts.len() - 1].to_string(),
+    ))
 }
 
-pub fn write_attestation_to_file(attestation: &str, path: &str) -> Result<()> {
-    File::create(path)?.write_all(attestation.as_bytes())?;
+pub fn write_attestation_to_file(attestation: &Attestation, path: &str) -> Result<()> {
+    File::create(path)?.write_all(
+        format_attestation(
+            &attestation.id,
+            &attestation.address,
+            &attestation.signature,
+        )
+        .as_bytes(),
+    )?;
     Ok(())
 }
 
