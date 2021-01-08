@@ -85,7 +85,7 @@ pub struct ContributeOpts {
     pub keys_path: String,
     #[options(
         help = "the attestation for the Plumo setup",
-        default = "plumo.attestation"
+        default = "plumo.attestation.txt"
     )]
     pub attestation_path: String,
     #[options(

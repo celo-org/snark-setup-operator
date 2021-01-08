@@ -141,9 +141,9 @@ jobs:
           mv MacOSX11.0.sdk.tar.bz2 tarballs/
           UNATTENDED=yes OSX_VERSION_MIN=11.0 ./build.sh
           cd ..
-          PATH="$PWD/osxcross/target/bin:$PATH" CC="$PWD/osxcross/target/bin/arm64-apple-darwin20.1-clang" CXX="$PWD/osxcross/target/bin/arm64-apple-darwin20.1-clang++" RUSTFLAGS="$RUSTFLAGS -C linker=$PWD/osxcross/target/bin/arm64-apple-darwin20.1-clang -C ar=$PWD/osxcross/target/bin/arm64-apple-darwin20.1-ar" cargo +beta build --bin contribute --release --target aarch64-apple-darwin --no-default-features --features bw6_asm
+          PATH="$PWD/osxcross/target/bin:$PATH" CC="$PWD/osxcross/target/bin/arm64-apple-darwin20.1-clang" CXX="$PWD/osxcross/target/bin/arm64-apple-darwin20.1-clang++" RUSTFLAGS="$RUSTFLAGS -C linker=$PWD/osxcross/target/bin/arm64-apple-darwin20.1-clang -C ar=$PWD/osxcross/target/bin/arm64-apple-darwin20.1-ar" cargo +beta build --bin contribute --release --target aarch64-apple-darwin
           b2sum ./target/aarch64-apple-darwin/release/contribute
-          PATH="$PWD/osxcross/target/bin:$PATH" CC="$PWD/osxcross/target/bin/arm64-apple-darwin20.1-clang" CXX="$PWD/osxcross/target/bin/arm64-apple-darwin20.1-clang++" RUSTFLAGS="$RUSTFLAGS -C linker=$PWD/osxcross/target/bin/arm64-apple-darwin20.1-clang -C ar=$PWD/osxcross/target/bin/arm64-apple-darwin20.1-ar" cargo +beta build --bin generate --release --target aarch64-apple-darwin --no-default-features --features bw6_asm
+          PATH="$PWD/osxcross/target/bin:$PATH" CC="$PWD/osxcross/target/bin/arm64-apple-darwin20.1-clang" CXX="$PWD/osxcross/target/bin/arm64-apple-darwin20.1-clang++" RUSTFLAGS="$RUSTFLAGS -C linker=$PWD/osxcross/target/bin/arm64-apple-darwin20.1-clang -C ar=$PWD/osxcross/target/bin/arm64-apple-darwin20.1-ar" cargo +beta build --bin generate --release --target aarch64-apple-darwin
           b2sum ./target/aarch64-apple-darwin/release/generate
           rm -rf osxcross
 

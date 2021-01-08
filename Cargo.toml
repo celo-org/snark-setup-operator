@@ -38,7 +38,6 @@ panic-control = "0.1.4"
 lazy_static = "1.4.0"
 futures = "0.3"
 futures-retry = "0.5.0"
-sysinfo = { version = "0.15.3", optional = true }
 blake2 = "0.9"
 rpassword = "5.0.0"
 keep-awake = { git = "https://github.com/mrsmkl/keep-awake-rs", rev = "63da170407e4ced0e9bbaf42b380fceea6436ea6" }
@@ -47,8 +46,11 @@ num_cpus = "1.13"
 ring = "0.16.19"
 cfg-if = "1.0"
 
+[target.'cfg(not(target_arch = "aarch64"))'.dependencies]
+sysinfo = { version = "0.15.3" }
+
 [features]
-default = [ "bw6_asm", "sysinfo" ]
+default = [ "bw6_asm" ]
 cuda = [ "zexe_algebra/cuda" ]
 bw6_asm = [ "zexe_algebra/force_bw6_asm" ]
 

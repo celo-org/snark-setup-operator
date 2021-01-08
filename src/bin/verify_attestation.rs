@@ -9,7 +9,7 @@ pub struct VerifyAttestationOpts {
     help: bool,
     #[options(
         help = "the path of the output keys file",
-        default = "plumo.attestation"
+        default = "plumo.attestation.txt"
     )]
     pub attestation_path: String,
     #[options(help = "the expected address", required)]

@@ -415,7 +415,7 @@ pub fn read_keys(
 
 pub fn collect_processor_data() -> Result<Vec<ProcessorData>> {
     cfg_if::cfg_if! {
-        if #[cfg(feature = "sysinfo")] {
+        if #[cfg(not(target_arch = "aarch64"))] {
             use sysinfo::{ProcessorExt, System, SystemExt};
             let s = System::new();
             let processors = s
