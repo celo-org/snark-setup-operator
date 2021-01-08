@@ -514,23 +514,26 @@ pub fn format_attestation(attestation_message: &str, address: &str, signature: &
 }
 
 pub fn extract_signature_from_attestation(attestation: &str) -> Result<(String, String, String)> {
-    // Address, signature and two spaces is the minimum
-    if attestation.len() < SIGNATURE_LENGTH_IN_HEX + ADDRESS_LENGTH_IN_HEX + 2 {
-        return Err(UtilsError::AttestationTooShort(attestation.len()).into());
-    } else {
-        Ok((
-            attestation[..attestation.len() - SIGNATURE_LENGTH_IN_HEX - ADDRESS_LENGTH_IN_HEX - 2]
-                .to_string(),
-            attestation[attestation.len() - SIGNATURE_LENGTH_IN_HEX - ADDRESS_LENGTH_IN_HEX - 1
-                ..attestation.len() - SIGNATURE_LENGTH_IN_HEX - 1]
-                .to_string(),
-            attestation[attestation.len() - SIGNATURE_LENGTH_IN_HEX..attestation.len()].to_string(),
-        ))
+    let attestation = attestation.to_string();
+    let attestation_parts = attestation.split(" ").collect::<Vec<_>>();
+    if attestation_parts.len() < 3 {
+        return Err(UtilsError::AttestationTooShort(attestation_parts.len()).into());
     }
+    Ok((
+        attestation_parts[attestation_parts.len() - 3].to_string(),
+        attestation_parts[attestation_parts.len() - 2].to_string(),
+        attestation_parts[attestation_parts.len() - 1].to_string(),
+    ))
 }
 
-pub fn write_attestation_to_file(attestation: &str, path: &str) -> Result<()> {
-    File::create(path)?.write_all(attestation.as_bytes())?;
+pub fn write_attestation_to_file(attestation: &Attestation, path: &str) -> Result<()> {
+    File::create(path)?.write_all(
+        format!(
+            "{} {} {}",
+            attestation.id, attestation.address, attestation.signature
+        )
+        .as_bytes(),
+    )?;
     Ok(())
 }
 

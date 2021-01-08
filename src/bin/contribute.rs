@@ -1324,11 +1324,8 @@ fn main() {
 
         *SEED.write().expect("Should have been able to write seed") = Some(seed);
 
-        write_attestation_to_file(
-            &serde_json::to_string(&attestation).expect("cannot serialize attestation"),
-            &opts.attestation_path,
-        )
-        .expect("Should have written attestation to file");
+        write_attestation_to_file(&attestation, &opts.attestation_path)
+            .expect("Should have written attestation to file");
         let contribute = Contribute::new(&opts, private_key.expose_secret(), &attestation)
             .expect("Should have been able to create a contribute.");
 
