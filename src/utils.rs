@@ -528,9 +528,10 @@ pub fn extract_signature_from_attestation(attestation: &str) -> Result<(String, 
 
 pub fn write_attestation_to_file(attestation: &Attestation, path: &str) -> Result<()> {
     File::create(path)?.write_all(
-        format!(
-            "{} {} {}",
-            attestation.id, attestation.address, attestation.signature
+        format_attestation(
+            &attestation.id,
+            &attestation.address,
+            &attestation.signature,
         )
         .as_bytes(),
     )?;
