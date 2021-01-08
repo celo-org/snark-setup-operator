@@ -520,7 +520,7 @@ pub fn extract_signature_from_attestation(attestation: &str) -> Result<(String, 
         return Err(UtilsError::AttestationTooShort(attestation_parts.len()).into());
     }
     Ok((
-        attestation_parts[attestation_parts.len() - 3].to_string(),
+        attestation_parts[0..=attestation_parts.len() - 3].join(" "),
         attestation_parts[attestation_parts.len() - 2].to_string(),
         attestation_parts[attestation_parts.len() - 1].to_string(),
     ))
