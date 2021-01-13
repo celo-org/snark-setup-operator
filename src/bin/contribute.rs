@@ -34,7 +34,7 @@ use setup_utils::{
 };
 use std::collections::{HashMap, HashSet};
 use std::ops::Deref;
-use std::sync::atomic::{AtomicBool, AtomicU8, Ordering::SeqCst};
+use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU32, Ordering::SeqCst};
 use std::sync::RwLock;
 use tokio::time::Instant;
 use tracing::{debug, error, info, warn};
@@ -65,6 +65,7 @@ lazy_static! {
     };
     static ref SEED: RwLock<Option<SecretVec<u8>>> = RwLock::new(None);
     static ref EXITING: AtomicBool = AtomicBool::new(false);
+    static ref CRASHES: AtomicU32 = AtomicU32::new(0);
     static ref SHOULD_UPDATE_STATUS: AtomicBool = AtomicBool::new(true);
     static ref EXIT_SIGNAL: AtomicU8 = AtomicU8::new(0);
     static ref SENT_SYSINFO: AtomicBool = AtomicBool::new(false);
@@ -187,6 +188,7 @@ pub struct Contribute {
 
     // This is the only mutable state we hold.
     pub chosen_chunk_id: Option<String>,
+    pub crash_level: u32,
 }
 
 impl Contribute {
@@ -221,6 +223,7 @@ impl Contribute {
             attestation: attestation.clone(),
 
             chosen_chunk_id: None,
+            crash_level: 0,
         };
         Ok(contribute)
     }
@@ -234,6 +237,8 @@ impl Contribute {
         cloned.new_challenge_filename = format!("{}_{}", self.new_challenge_filename, index);
         cloned.new_challenge_hash_filename =
             format!("{}_{}", self.new_challenge_hash_filename, index);
+        
+        cloned.crash_level = CRASHES.load(SeqCst);
 
         cloned
     }
@@ -319,7 +324,6 @@ impl Contribute {
                 max_locks_from_ceremony as usize,
             )
         };
-        let mut futures = vec![];
 
         let updater = self.clone();
         let progress_bar_for_thread = progress_bar.clone();
@@ -375,73 +379,89 @@ impl Contribute {
                 };
                 SHOULD_UPDATE_STATUS.store(true, SeqCst);
                 tokio::time::delay_for(
-                    Duration::seconds(DELAY_STATUS_UPDATE_FORCE_SECS)
+                    Duration::seconds(5)
                         .to_std()
                         .expect("Should have converted duration to standard"),
                 )
                 .await;
             }
         });
-        for i in 0..total_tasks {
-            let delay_duration = Duration::seconds(DELAY_AFTER_ERROR_DURATION_SECS).to_std()?;
-            let mut cloned = self.clone_with_new_filenames(i);
-            let progress_bar_for_thread = progress_bar.clone();
-            let jh = tokio::spawn(async move {
-                loop {
-                    let result = cloned.run::<E>().await;
-                    if EXITING.load(SeqCst) {
-                        return;
-                    }
-                    match result {
-                        Ok(_) => {}
-                        Err(e) => {
-                            warn!("Got error from run: {}, retrying...", e);
-                            progress_bar_for_thread
-                                .println(&format!("Got error from run: {}, retrying...", e));
-                            if let Some(chunk_id) = cloned.chosen_chunk_id.as_ref() {
-                                if cloned
-                                    .remove_chunk_id_from_lane_if_exists(
-                                        &PipelineLane::Download,
-                                        &chunk_id,
-                                    )
-                                    .expect("Should have removed chunk ID from lane")
-                                {
-                                    let _ =
-                                        cloned.unlock_chunk(&chunk_id, Some(e.to_string())).await;
+
+        loop {
+            let mut futures = vec![];
+            for i in 0..total_tasks {
+                let delay_duration = Duration::seconds(DELAY_AFTER_ERROR_DURATION_SECS).to_std()?;
+                let mut cloned = self.clone_with_new_filenames(i);
+                let progress_bar_for_thread = progress_bar.clone();
+                let jh = tokio::spawn(async move {
+                    loop {
+                        let result = cloned.run::<E>().await;
+                        if EXITING.load(SeqCst) || CRASHES.load(SeqCst) > cloned.crash_level {
+                            return;
+                        }
+                        match result {
+                            Ok(_) => {}
+                            Err(e) => {
+                                warn!("Got error from run: {}, retrying...", e);
+                                progress_bar_for_thread
+                                    .println(&format!("Got error from run: {}, retrying...", e));
+                                if let Some(chunk_id) = cloned.chosen_chunk_id.as_ref() {
+                                    if cloned
+                                        .remove_chunk_id_from_lane_if_exists(
+                                            &PipelineLane::Download,
+                                            &chunk_id,
+                                        )
+                                        .expect("Should have removed chunk ID from lane")
+                                    {
+                                        let _ = cloned
+                                            .unlock_chunk(&chunk_id, Some(e.to_string()))
+                                            .await;
+                                    }
+                                    if cloned
+                                        .remove_chunk_id_from_lane_if_exists(
+                                            &PipelineLane::Process,
+                                            &chunk_id,
+                                        )
+                                        .expect("Should have removed chunk ID from lane")
+                                    {
+                                        let _ = cloned
+                                            .unlock_chunk(&chunk_id, Some(e.to_string()))
+                                            .await;
+                                    }
+                                    if cloned
+                                        .remove_chunk_id_from_lane_if_exists(
+                                            &PipelineLane::Upload,
+                                            &chunk_id,
+                                        )
+                                        .expect("Should have removed chunk ID from lane")
+                                    {
+                                        let _ = cloned
+                                            .unlock_chunk(&chunk_id, Some(e.to_string()))
+                                            .await;
+                                    }
+                                    cloned.set_status_update_signal();
                                 }
-                                if cloned
-                                    .remove_chunk_id_from_lane_if_exists(
-                                        &PipelineLane::Process,
-                                        &chunk_id,
-                                    )
-                                    .expect("Should have removed chunk ID from lane")
-                                {
-                                    let _ =
-                                        cloned.unlock_chunk(&chunk_id, Some(e.to_string())).await;
-                                }
-                                if cloned
-                                    .remove_chunk_id_from_lane_if_exists(
-                                        &PipelineLane::Upload,
-                                        &chunk_id,
-                                    )
-                                    .expect("Should have removed chunk ID from lane")
-                                {
-                                    let _ =
-                                        cloned.unlock_chunk(&chunk_id, Some(e.to_string())).await;
-                                }
-                                cloned.set_status_update_signal();
                             }
                         }
+                        tokio::time::delay_for(delay_duration).await;
                     }
-                    tokio::time::delay_for(delay_duration).await;
+                });
+
+                futures.push(jh);
+            }
+
+            match futures::future::try_join_all(futures).await {
+                Err(err) => {
+                    warn!("Crash!!!");
+                    self.clear_pipeline()?;
+                    CRASHES.fetch_add(1, SeqCst);
+                    progress_bar.println(&format!("Thread exited with error, trying to recover: {}", err));
+                    tokio::time::delay_for(Duration::seconds(1).to_std()?).await;
+                    warn!("UMMMM????");
                 }
-            });
-            futures.push(jh);
+                Ok(_) => return Ok(()),
+            }
         }
-
-        futures::future::try_join_all(futures).await?;
-
-        Ok(())
     }
 
     async fn wait_for_available_spot_in_lane(&self, lane: &PipelineLane) -> Result<()> {
@@ -451,7 +471,7 @@ impl Contribute {
             PipelineLane::Upload => self.max_in_upload_lane,
         };
         loop {
-            if EXITING.load(SeqCst) {
+            if EXITING.load(SeqCst) || CRASHES.load(SeqCst) > self.crash_level {
                 return Err(ContributeError::GotExitSignalError.into());
             }
             {
@@ -617,6 +637,17 @@ impl Contribute {
         Ok(true)
     }
 
+    fn clear_pipeline(&self) -> Result<bool> {
+        let mut pipeline = PIPELINE
+            .write()
+            .expect("Should have opened pipeline for writing");
+        pipeline.insert(PipelineLane::Download, Vec::new());
+        pipeline.insert(PipelineLane::Process, Vec::new());
+        pipeline.insert(PipelineLane::Upload, Vec::new());
+        warn!("Cleared pipeline {:?} {:?} {:?}", pipeline.get(&PipelineLane::Download), pipeline.get(&PipelineLane::Process), pipeline.get(&PipelineLane::Upload));
+        Ok(true)
+    }
+
     async fn move_chunk_id_from_lane_to_lane(
         &self,
         from: &PipelineLane,
@@ -688,7 +719,7 @@ impl Contribute {
         chunk_id: &str,
     ) -> Result<()> {
         loop {
-            if EXITING.load(SeqCst) {
+            if EXITING.load(SeqCst) || CRASHES.load(SeqCst) > self.crash_level {
                 return Err(ContributeError::GotExitSignalError.into());
             }
             match self
@@ -1011,19 +1042,21 @@ impl Contribute {
                     )
                 }
             };
-
+            warn!("Moving chunk {} to upload", chunk_id);
             self.wait_and_move_chunk_id_from_lane_to_lane(
                 &PipelineLane::Process,
                 &PipelineLane::Upload,
                 &chunk_id,
             )
             .await?;
+            warn!("Going to upload chunk {} now", chunk_id);
             let upload_url = self.get_upload_url(&chunk_id).await?;
             let authorization = get_authorization_value(
                 &self.private_key,
                 "POST",
                 &Url::parse(&upload_url)?.path().trim_start_matches("/"),
             )?;
+            warn!("Going to upload chunk {} now to URL {}", chunk_id, upload_url);
 
             match self.upload_mode {
                 UploadMode::Auto => {
@@ -1041,6 +1074,7 @@ impl Contribute {
                     upload_file_direct_async(&authorization, file_to_upload, &upload_url).await?
                 }
             }
+            warn!("Managed to upload {}", chunk_id);
             let signed_data = SignedData {
                 signature: sign_json(&self.private_key, &contributed_or_verified_data)?,
                 data: contributed_or_verified_data,
@@ -1050,6 +1084,7 @@ impl Contribute {
                 .await?;
 
             self.remove_chunk_id_from_lane_if_exists(&PipelineLane::Upload, &chunk_id)?;
+            warn!("Set status {}", chunk_id);
             self.set_status_update_signal();
         }
     }
