@@ -453,11 +453,15 @@ impl Contribute {
             match futures::future::try_join_all(futures).await {
                 Err(err) => {
                     warn!("Crash!!!");
-                    self.clear_pipeline()?;
+                    // Afetr crashes have been incremented, one of the threads might have the PIPELINE lock.
+                    // But once that thread releases the lock, we clear the pipeline.
+                    // After that no old thread can add to pipeline lanes.
+                    // If the threads would test before they have the lock, the pipeline might be cleared just before they get the lock.
+                    // Then they could modify the pipeline and cause deadlock.
                     CRASHES.fetch_add(1, SeqCst);
+                    self.clear_pipeline()?;
                     progress_bar.println(&format!("Thread exited with error, trying to recover: {}", err));
                     tokio::time::delay_for(Duration::seconds(1).to_std()?).await;
-                    warn!("UMMMM????");
                 }
                 Ok(_) => return Ok(()),
             }
@@ -471,13 +475,13 @@ impl Contribute {
             PipelineLane::Upload => self.max_in_upload_lane,
         };
         loop {
-            if EXITING.load(SeqCst) || CRASHES.load(SeqCst) > self.crash_level {
-                return Err(ContributeError::GotExitSignalError.into());
-            }
             {
                 let pipeline = PIPELINE
                     .read()
                     .expect("Should have opened pipeline for reading");
+                if EXITING.load(SeqCst) || CRASHES.load(SeqCst) > self.crash_level {
+                    return Err(ContributeError::GotExitSignalError.into());
+                }
                 if pipeline
                     .get(lane)
                     .ok_or(ContributeError::LaneWasNullError(lane.to_string()))?
@@ -596,6 +600,9 @@ impl Contribute {
             .write()
             .expect("Should have opened pipeline for writing");
 
+        if EXITING.load(SeqCst) || CRASHES.load(SeqCst) > self.crash_level {
+            return Err(ContributeError::GotExitSignalError.into());
+        }
         let lane_list = pipeline
             .get_mut(lane)
             .ok_or(ContributeError::LaneWasNullError(lane.to_string()))?;
@@ -663,6 +670,10 @@ impl Contribute {
             let mut pipeline = PIPELINE
                 .write()
                 .expect("Should have opened pipeline for writing");
+            
+            if EXITING.load(SeqCst) || CRASHES.load(SeqCst) > self.crash_level {
+                return Err(ContributeError::GotExitSignalError.into());
+            }
 
             {
                 let to_list = pipeline
@@ -719,9 +730,6 @@ impl Contribute {
         chunk_id: &str,
     ) -> Result<()> {
         loop {
-            if EXITING.load(SeqCst) || CRASHES.load(SeqCst) > self.crash_level {
-                return Err(ContributeError::GotExitSignalError.into());
-            }
             match self
                 .move_chunk_id_from_lane_to_lane(from, to, chunk_id)
                 .await?

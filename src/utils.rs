@@ -31,7 +31,6 @@ use std::{
 };
 use tracing::warn;
 use zexe_algebra::PairingEngine;
-use rand::Rng;
 
 pub fn copy_file_if_exists(file_path: &str, dest_path: &str) -> Result<()> {
     if Path::new(file_path).exists() {
