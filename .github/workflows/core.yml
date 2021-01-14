@@ -180,16 +180,16 @@ jobs:
           sudo apt install gcc-mingw-w64-x86-64
           rustup target install x86_64-pc-windows-gnu
           cargo build --bin contribute --release --target x86_64-pc-windows-gnu
-          cp target/x86_64-pc-windows-gnu/release/contribute out/contribute-windows.exe
+          cp target/x86_64-pc-windows-gnu/release/contribute.exe out/contribute-windows.exe
           b2sum ./target/x86_64-pc-windows-gnu/release/contribute.exe > out/contribute-windows.exe.hash
           cargo build --bin generate --release --target x86_64-pc-windows-gnu
-          cp target/x86_64-pc-windows-gnu/release/generate out/generate-windows.exe
+          cp target/x86_64-pc-windows-gnu/release/generate.exe out/generate-windows.exe
           b2sum ./target/x86_64-pc-windows-gnu/release/generate.exe > out/generate-windows.exe.hash
           cargo build --bin contribute --release --target x86_64-pc-windows-gnu --no-default-features
-          cp target/x86_64-pc-windows-gnu/release/contribute out/contribute-windows-noasm.exe
+          cp target/x86_64-pc-windows-gnu/release/contribute.exe out/contribute-windows-noasm.exe
           b2sum ./target/x86_64-pc-windows-gnu/release/contribute.exe > out/contribute-windows-noasm.exe.hash
           cargo build --bin generate --release --target x86_64-pc-windows-gnu --no-default-features
-          cp target/x86_64-pc-windows-gnu/release/generate out/generate-windows-noasm.exe
+          cp target/x86_64-pc-windows-gnu/release/generate.exe out/generate-windows-noasm.exe
           b2sum ./target/x86_64-pc-windows-gnu/release/generate.exe > out/generate-windows-noasm.exe.hash
 
 
