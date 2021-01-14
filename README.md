@@ -37,9 +37,9 @@ On Windows, you have to use the GNU toolchain to compile and have the following 
 
 Requires Docker.
 
-Use the `cross-compile.sh` script in `scripts`, with one of `linux, windows, macos, macos-m1`. This will create an `out` folder in `build` with the binaries for that OS.
+Use the `cross_compile.sh` script in `scripts`, with one of `linux, windows, macos, macos-m1`. This will create an `out` folder in `build` with the binaries for that OS.
 
-For example, to build for windows, you run `./scripts/cross-compile.sh windows` and you'll find `contribute-windows.exe`, `generate-windows.exe`, `contribute-windows-noasm.exe` and `generate-windows-noasm.exe` in `./build/out`.
+For example, to build for windows, you run `./scripts/cross_compile.sh windows` and you'll find `contribute-windows.exe`, `generate-windows.exe`, `contribute-windows-noasm.exe` and `generate-windows-noasm.exe` in `./build/out`.
 
 The `no-asm` binaries will run on CPUs without ADX and BMI2 support, which has been introduced around 2015.
 
