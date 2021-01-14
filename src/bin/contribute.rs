@@ -34,7 +34,7 @@ use setup_utils::{
 };
 use std::collections::{HashMap, HashSet};
 use std::ops::Deref;
-use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU32, Ordering::SeqCst};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU8, Ordering::SeqCst};
 use std::sync::RwLock;
 use tokio::time::Instant;
 use tracing::{debug, error, info, warn};
@@ -237,7 +237,7 @@ impl Contribute {
         cloned.new_challenge_filename = format!("{}_{}", self.new_challenge_filename, index);
         cloned.new_challenge_hash_filename =
             format!("{}_{}", self.new_challenge_hash_filename, index);
-        
+
         cloned.crash_level = CRASHES.load(SeqCst);
 
         cloned
@@ -379,7 +379,7 @@ impl Contribute {
                 };
                 SHOULD_UPDATE_STATUS.store(true, SeqCst);
                 tokio::time::delay_for(
-                    Duration::seconds(5)
+                    Duration::seconds(DELAY_STATUS_UPDATE_FORCE_SECS)
                         .to_std()
                         .expect("Should have converted duration to standard"),
                 )
@@ -460,7 +460,10 @@ impl Contribute {
                     // Then they could modify the pipeline and cause deadlock.
                     CRASHES.fetch_add(1, SeqCst);
                     self.clear_pipeline()?;
-                    progress_bar.println(&format!("Thread exited with error, trying to recover: {}", err));
+                    progress_bar.println(&format!(
+                        "Thread exited with error, trying to recover: {}",
+                        err
+                    ));
                     tokio::time::delay_for(Duration::seconds(1).to_std()?).await;
                 }
                 Ok(_) => return Ok(()),
@@ -651,7 +654,6 @@ impl Contribute {
         pipeline.insert(PipelineLane::Download, Vec::new());
         pipeline.insert(PipelineLane::Process, Vec::new());
         pipeline.insert(PipelineLane::Upload, Vec::new());
-        warn!("Cleared pipeline {:?} {:?} {:?}", pipeline.get(&PipelineLane::Download), pipeline.get(&PipelineLane::Process), pipeline.get(&PipelineLane::Upload));
         Ok(true)
     }
 
@@ -670,7 +672,7 @@ impl Contribute {
             let mut pipeline = PIPELINE
                 .write()
                 .expect("Should have opened pipeline for writing");
-            
+
             if EXITING.load(SeqCst) || CRASHES.load(SeqCst) > self.crash_level {
                 return Err(ContributeError::GotExitSignalError.into());
             }
@@ -1064,7 +1066,10 @@ impl Contribute {
                 "POST",
                 &Url::parse(&upload_url)?.path().trim_start_matches("/"),
             )?;
-            warn!("Going to upload chunk {} now to URL {}", chunk_id, upload_url);
+            warn!(
+                "Going to upload chunk {} now to URL {}",
+                chunk_id, upload_url
+            );
 
             match self.upload_mode {
                 UploadMode::Auto => {

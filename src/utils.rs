@@ -7,7 +7,6 @@ pub const ONE_MB: usize = 1024 * 1024;
 pub const DEFAULT_CHUNK_SIZE: u64 = 1 * (ONE_MB as u64);
 pub const DEFAULT_CHUNK_TIMEOUT_IN_SECONDS: u64 = 300;
 pub const BEACON_HASH_LENGTH: usize = 32;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::blobstore::{upload_access_key, upload_sas};
 use crate::data_structs::{Attestation, Parameters, PlumoSetupKeys, ProcessorData};
@@ -149,21 +148,6 @@ pub async fn upload_file_direct_async(
     let mut file = File::open(file_path)?;
     let mut contents = Vec::new();
     file.read_to_end(&mut contents)?;
-
-    warn!("Reading file");
-
-    let start = SystemTime::now();
-    let since_the_epoch = start
-        .duration_since(UNIX_EPOCH)
-        .expect("Time went backwards");
-    let in_ms = since_the_epoch.as_millis();
-
-    if in_ms % 4 != 0 {
-        warn!("Going to crash");
-        panic!("Random crash")
-    }
-
-    warn!("Making re1uest");
     let client = reqwest::Client::new();
     client
         .post(url)
@@ -174,7 +158,6 @@ pub async fn upload_file_direct_async(
         .await?
         .error_for_status()?;
 
-    warn!("Success sending");
     Ok(())
 }
 
