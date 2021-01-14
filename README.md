@@ -35,6 +35,8 @@ On Windows, you have to use the GNU toolchain to compile and have the following 
 
 ### Cross compilation
 
+Requires Docker.
+
 Use the `cross-compile.sh` script in `scripts`, with one of `linux, windows, macos, macos-m1`. This will create an `out` folder in `build` with the binaries for that OS.
 
 For example, to build for windows, you run `./scripts/cross-compile.sh windows` and you'll find `contribute-windows.exe`, `generate-windows.exe`, `contribute-windows-noasm.exe` and `generate-windows-noasm.exe` in `./build/out`.
