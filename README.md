@@ -23,6 +23,23 @@ Tools included:
   
 * `new_ceremony` - initialize a ceremony.
   
+## Compilation
+
+### Native
+
+On Linux and macOS, building directly with `cargo build --release` should work, as long as you have the usual build toolchain installed (e.g. `build-essential` on Ubuntu). To build without ADX and BMI2 support, use `cargo build --release --no-default-features`.
+
+On Windows, you have to use the GNU toolchain to compile and have the following in your PATH:
+* `gcc` - which can be downloaded from http://mingw-w64.org/doku.php.
+* `perl` - the version from https://www.msys2.org/.
+
+### Cross compilation
+
+Use the `cross-compile.sh` script in `scripts`, with one of `linux, windows, macos, macos-m1`. This will create an `out` folder in `build` with the binaries for that OS.
+
+For example, to build for windows, you run `./scripts/cross-compile.sh windows` and you'll find `contribute-windows.exe`, `generate-windows.exe`, `contribute-windows-noasm.exe` and `generate-windows-noasm.exe` in `./build/out`.
+
+The `no-asm` binaries will run on CPUs without ADX and BMI2 support, which has been introduced around 2015.
 
 ## Testing
 
