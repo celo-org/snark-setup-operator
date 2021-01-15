@@ -148,6 +148,7 @@ pub async fn upload_file_direct_async(
     let mut file = File::open(file_path)?;
     let mut contents = Vec::new();
     file.read_to_end(&mut contents)?;
+
     let client = reqwest::Client::new();
     client
         .post(url)
@@ -157,7 +158,6 @@ pub async fn upload_file_direct_async(
         .send()
         .await?
         .error_for_status()?;
-
     Ok(())
 }
 

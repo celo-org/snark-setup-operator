@@ -970,6 +970,7 @@ impl Contribute {
                             .await?;
                         }
                     }
+
                     self.wait_and_move_chunk_id_from_lane_to_lane(
                         &PipelineLane::Download,
                         &PipelineLane::Process,
