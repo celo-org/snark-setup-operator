@@ -22,11 +22,11 @@ tracing-appender = "0.1.1"
 tracing-subscriber = "0.2"
 ethers = { git = "https://github.com/gakonst/ethers-rs", features = ["celo"] }
 hex = "0.4"
-phase1 = { git = "https://github.com/celo-org/snark-setup", package = "phase1", rev = "a4c4522b628e57404a5256d863b614fc5501d397" }
-phase1-cli = { git = "https://github.com/celo-org/snark-setup", package = "phase1-cli", rev = "a4c4522b628e57404a5256d863b614fc5501d397" }
+phase1 = { git = "https://github.com/celo-org/snark-setup", package = "phase1", rev = "fe520be074d5612b0bb773cbe10a3dc568c8f0a4" }
+phase1-cli = { git = "https://github.com/celo-org/snark-setup", package = "phase1-cli", rev = "fe520be074d5612b0bb773cbe10a3dc568c8f0a4" }
 rand = "0.7"
 reqwest = { version = "0.10", features = [ "blocking", "stream", "gzip" ] }
-setup-utils = { git = "https://github.com/celo-org/snark-setup", package = "setup-utils", rev = "a4c4522b628e57404a5256d863b614fc5501d397" }
+setup-utils = { git = "https://github.com/celo-org/snark-setup", package = "setup-utils", rev = "fe520be074d5612b0bb773cbe10a3dc568c8f0a4" }
 secrecy = { version = "0.7" }
 ctrlc = "3.1.7"
 indicatif = "0.15.0"
@@ -60,4 +60,4 @@ zexe_algebra = { git = "https://github.com/celo-org/zexe", rev = "02ee669fa43059
 zexe_fft = { git = "https://github.com/celo-org/zexe", rev = "02ee669fa43059b55918210e025183e572cc249d", package = "ff-fft", default-features = false, features = ["ed_on_bls12_381", "bls12_381", "bls12_377"] }
 zexe_bench_utils = { git = "https://github.com/celo-org/zexe", rev = "02ee669fa43059b55918210e025183e572cc249d", package = "bench-utils", default-features = false, features = ["ed_on_bls12_381", "bls12_381", "bls12_377"] }
 zexe_r1cs_core = { git = "https://github.com/celo-org/zexe", rev = "02ee669fa43059b55918210e025183e572cc249d", package = "r1cs-core", default-features = false, features = ["ed_on_bls12_381", "bls12_381", "bls12_377"] }
-
+zexe_groth16 = { git = "https://github.com/celo-org/zexe", rev = "02ee669fa43059b55918210e025183e572cc249d", package = "groth16", default-features = false, features = ["ed_on_bls12_381", "bls12_381", "bls12_377"] }

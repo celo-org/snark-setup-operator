@@ -22,7 +22,7 @@ use gumdrop::Options;
 use indicatif::{ProgressBar, ProgressStyle};
 use lazy_static::lazy_static;
 use panic_control::{spawn_quiet, ThreadResultExt};
-use phase1::helpers::{batch_exp_mode_from_str, subgroup_check_mode_from_str};
+use setup_utils::converters::{batch_exp_mode_from_str, subgroup_check_mode_from_str};
 use phase1_cli::{contribute, transform_pok_and_correctness};
 use rand::prelude::SliceRandom;
 use reqwest::header::{AUTHORIZATION, CONTENT_LENGTH};

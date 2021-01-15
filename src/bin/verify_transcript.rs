@@ -1,6 +1,6 @@
 use anyhow::Result;
 use gumdrop::Options;
-use phase1::helpers::{batch_exp_mode_from_str, subgroup_check_mode_from_str};
+use setup_utils::converters::{batch_exp_mode_from_str, subgroup_check_mode_from_str};
 use phase1_cli::{
     combine, contribute, new_challenge, transform_pok_and_correctness, transform_ratios,
 };
