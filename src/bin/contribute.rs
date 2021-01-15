@@ -1052,24 +1052,18 @@ impl Contribute {
                     )
                 }
             };
-            warn!("Moving chunk {} to upload", chunk_id);
             self.wait_and_move_chunk_id_from_lane_to_lane(
                 &PipelineLane::Process,
                 &PipelineLane::Upload,
                 &chunk_id,
             )
             .await?;
-            warn!("Going to upload chunk {} now", chunk_id);
             let upload_url = self.get_upload_url(&chunk_id).await?;
             let authorization = get_authorization_value(
                 &self.private_key,
                 "POST",
                 &Url::parse(&upload_url)?.path().trim_start_matches("/"),
             )?;
-            warn!(
-                "Going to upload chunk {} now to URL {}",
-                chunk_id, upload_url
-            );
 
             match self.upload_mode {
                 UploadMode::Auto => {
@@ -1087,7 +1081,6 @@ impl Contribute {
                     upload_file_direct_async(&authorization, file_to_upload, &upload_url).await?
                 }
             }
-            warn!("Managed to upload {}", chunk_id);
             let signed_data = SignedData {
                 signature: sign_json(&self.private_key, &contributed_or_verified_data)?,
                 data: contributed_or_verified_data,
@@ -1097,7 +1090,6 @@ impl Contribute {
                 .await?;
 
             self.remove_chunk_id_from_lane_if_exists(&PipelineLane::Upload, &chunk_id)?;
-            warn!("Set status {}", chunk_id);
             self.set_status_update_signal();
         }
     }
