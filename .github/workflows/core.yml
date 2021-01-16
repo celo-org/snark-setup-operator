@@ -107,14 +107,26 @@ jobs:
           toolchain: ${{ matrix.rust }}
           override: true
 
+      - name: Prepare out dir
+        run: |
+          mkdir out
+
       - name: Compile for musl
         run: |
           sudo apt-get install musl-tools
           rustup target install x86_64-unknown-linux-musl
           cargo build --bin contribute --release --target x86_64-unknown-linux-musl
-          b2sum ./target/x86_64-unknown-linux-musl/release/contribute
+          cp target/x86_64-unknown-linux-musl/release/contribute out/contribute-linux
+          b2sum ./target/x86_64-unknown-linux-musl/release/contribute > out/contribute-linux.hash
           cargo build --bin generate --release --target x86_64-unknown-linux-musl
-          b2sum ./target/x86_64-unknown-linux-musl/release/generate
+          cp target/x86_64-unknown-linux-musl/release/generate out/generate-linux
+          b2sum ./target/x86_64-unknown-linux-musl/release/generate > out/generate-linux.hash
+          cargo build --bin contribute --release --target x86_64-unknown-linux-musl --no-default-features
+          cp target/x86_64-unknown-linux-musl/release/contribute out/contribute-linux-noasm
+          b2sum ./target/x86_64-unknown-linux-musl/release/contribute > out/contribute-linux-noasm.hash
+          cargo build --bin generate --release --target x86_64-unknown-linux-musl --no-default-features
+          cp target/x86_64-unknown-linux-musl/release/generate out/generate-linux-noasm
+          b2sum ./target/x86_64-unknown-linux-musl/release/generate > out/generate-linux-noasm.hash
 
       - name: Compile for MacOS
         run: |
@@ -126,9 +138,17 @@ jobs:
           UNATTENDED=yes OSX_VERSION_MIN=10.7 ./build.sh
           cd ..
           PATH="$PWD/osxcross/target/bin:$PATH" CC="$PWD/osxcross/target/bin/o64-clang" CXX="$PWD/osxcross/target/bin/o64-clang++" RUSTFLAGS="$RUSTFLAGS -C linker=$PWD/osxcross/target/bin/x86_64-apple-darwin14-clang -C ar=$PWD/osxcross/target/bin/x86_64-apple-darwin14-ar" cargo build --bin contribute --release --target x86_64-apple-darwin
-          b2sum ./target/x86_64-apple-darwin/release/contribute
+          cp target/x86_64-apple-darwin/release/contribute out/contribute-macos
+          b2sum ./target/x86_64-apple-darwin/release/contribute > out/contribute-macos.hash
           PATH="$PWD/osxcross/target/bin:$PATH" CC="$PWD/osxcross/target/bin/o64-clang" CXX="$PWD/osxcross/target/bin/o64-clang++" RUSTFLAGS="$RUSTFLAGS -C linker=$PWD/osxcross/target/bin/x86_64-apple-darwin14-clang -C ar=$PWD/osxcross/target/bin/x86_64-apple-darwin14-ar" cargo build --bin generate --release --target x86_64-apple-darwin
-          b2sum ./target/x86_64-apple-darwin/release/generate
+          cp target/x86_64-apple-darwin/release/generate out/generate-macos
+          b2sum ./target/x86_64-apple-darwin/release/generate > out/generate-macos.hash
+          PATH="$PWD/osxcross/target/bin:$PATH" CC="$PWD/osxcross/target/bin/o64-clang" CXX="$PWD/osxcross/target/bin/o64-clang++" RUSTFLAGS="$RUSTFLAGS -C linker=$PWD/osxcross/target/bin/x86_64-apple-darwin14-clang -C ar=$PWD/osxcross/target/bin/x86_64-apple-darwin14-ar" cargo build --bin contribute --release --target x86_64-apple-darwin --no-default-features
+          cp target/x86_64-apple-darwin/release/contribute out/contribute-macos-noasm
+          b2sum ./target/x86_64-apple-darwin/release/contribute > out/contribute-macos-noasm.hash
+          PATH="$PWD/osxcross/target/bin:$PATH" CC="$PWD/osxcross/target/bin/o64-clang" CXX="$PWD/osxcross/target/bin/o64-clang++" RUSTFLAGS="$RUSTFLAGS -C linker=$PWD/osxcross/target/bin/x86_64-apple-darwin14-clang -C ar=$PWD/osxcross/target/bin/x86_64-apple-darwin14-ar" cargo build --bin generate --release --target x86_64-apple-darwin --no-default-features
+          cp target/x86_64-apple-darwin/release/generate out/generate-macos-noasm
+          b2sum ./target/x86_64-apple-darwin/release/generate > out/generate-macos-noasm.hash
           rm -rf osxcross
 
       - name: Compile for MacOS M1
@@ -142,9 +162,17 @@ jobs:
           UNATTENDED=yes OSX_VERSION_MIN=11.0 ./build.sh
           cd ..
           PATH="$PWD/osxcross/target/bin:$PATH" CC="$PWD/osxcross/target/bin/arm64-apple-darwin20.1-clang" CXX="$PWD/osxcross/target/bin/arm64-apple-darwin20.1-clang++" RUSTFLAGS="$RUSTFLAGS -C linker=$PWD/osxcross/target/bin/arm64-apple-darwin20.1-clang -C ar=$PWD/osxcross/target/bin/arm64-apple-darwin20.1-ar" cargo +beta build --bin contribute --release --target aarch64-apple-darwin
-          b2sum ./target/aarch64-apple-darwin/release/contribute
+          cp target/aarch64-apple-darwin/release/contribute out/contribute-macos-m1
+          b2sum ./target/aarch64-apple-darwin/release/contribute > out/contribute-macos-m1.hash
           PATH="$PWD/osxcross/target/bin:$PATH" CC="$PWD/osxcross/target/bin/arm64-apple-darwin20.1-clang" CXX="$PWD/osxcross/target/bin/arm64-apple-darwin20.1-clang++" RUSTFLAGS="$RUSTFLAGS -C linker=$PWD/osxcross/target/bin/arm64-apple-darwin20.1-clang -C ar=$PWD/osxcross/target/bin/arm64-apple-darwin20.1-ar" cargo +beta build --bin generate --release --target aarch64-apple-darwin
-          b2sum ./target/aarch64-apple-darwin/release/generate
+          cp target/aarch64-apple-darwin/release/generate out/generate-macos-m1
+          b2sum ./target/aarch64-apple-darwin/release/generate > out/generate-macos-m1.hash
+          PATH="$PWD/osxcross/target/bin:$PATH" CC="$PWD/osxcross/target/bin/arm64-apple-darwin20.1-clang" CXX="$PWD/osxcross/target/bin/arm64-apple-darwin20.1-clang++" RUSTFLAGS="$RUSTFLAGS -C linker=$PWD/osxcross/target/bin/arm64-apple-darwin20.1-clang -C ar=$PWD/osxcross/target/bin/arm64-apple-darwin20.1-ar" cargo +beta build --bin contribute --release --target aarch64-apple-darwin --no-default-features
+          cp target/aarch64-apple-darwin/release/contribute out/contribute-macos-m1-noasm
+          b2sum ./target/aarch64-apple-darwin/release/contribute > out/contribute-macos-m1-noasm.hash
+          PATH="$PWD/osxcross/target/bin:$PATH" CC="$PWD/osxcross/target/bin/arm64-apple-darwin20.1-clang" CXX="$PWD/osxcross/target/bin/arm64-apple-darwin20.1-clang++" RUSTFLAGS="$RUSTFLAGS -C linker=$PWD/osxcross/target/bin/arm64-apple-darwin20.1-clang -C ar=$PWD/osxcross/target/bin/arm64-apple-darwin20.1-ar" cargo +beta build --bin generate --release --target aarch64-apple-darwin --no-default-features
+          cp target/aarch64-apple-darwin/release/generate out/generate-macos-m1-noasm
+          b2sum ./target/aarch64-apple-darwin/release/generate > out/generate-macos-m1-noasm.hash
           rm -rf osxcross
 
       - name: Compile for Windows
@@ -152,13 +180,21 @@ jobs:
           sudo apt install gcc-mingw-w64-x86-64
           rustup target install x86_64-pc-windows-gnu
           cargo build --bin contribute --release --target x86_64-pc-windows-gnu
-          b2sum ./target/x86_64-pc-windows-gnu/release/contribute.exe
+          cp target/x86_64-pc-windows-gnu/release/contribute.exe out/contribute-windows.exe
+          b2sum ./target/x86_64-pc-windows-gnu/release/contribute.exe > out/contribute-windows.exe.hash
           cargo build --bin generate --release --target x86_64-pc-windows-gnu
-          b2sum ./target/x86_64-pc-windows-gnu/release/generate.exe
+          cp target/x86_64-pc-windows-gnu/release/generate.exe out/generate-windows.exe
+          b2sum ./target/x86_64-pc-windows-gnu/release/generate.exe > out/generate-windows.exe.hash
+          cargo build --bin contribute --release --target x86_64-pc-windows-gnu --no-default-features
+          cp target/x86_64-pc-windows-gnu/release/contribute.exe out/contribute-windows-noasm.exe
+          b2sum ./target/x86_64-pc-windows-gnu/release/contribute.exe > out/contribute-windows-noasm.exe.hash
+          cargo build --bin generate --release --target x86_64-pc-windows-gnu --no-default-features
+          cp target/x86_64-pc-windows-gnu/release/generate.exe out/generate-windows-noasm.exe
+          b2sum ./target/x86_64-pc-windows-gnu/release/generate.exe > out/generate-windows-noasm.exe.hash
+
 
       - name: Archive binaries
         uses: actions/upload-artifact@v2
         with:
           path: |
-            target/**/contribute*
-            target/**/generate*
+            out/**
