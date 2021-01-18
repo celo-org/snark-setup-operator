@@ -230,15 +230,32 @@ impl Contribute {
 
     pub fn clone_with_new_filenames(&self, index: usize) -> Self {
         let mut cloned = self.clone();
-        cloned.challenge_filename = format!("{}_{}", self.challenge_filename, index);
-        cloned.challenge_hash_filename = format!("{}_{}", self.challenge_hash_filename, index);
-        cloned.response_filename = format!("{}_{}", self.response_filename, index);
-        cloned.response_hash_filename = format!("{}_{}", self.response_hash_filename, index);
-        cloned.new_challenge_filename = format!("{}_{}", self.new_challenge_filename, index);
-        cloned.new_challenge_hash_filename =
-            format!("{}_{}", self.new_challenge_hash_filename, index);
-
         cloned.crash_level = CRASHES.load(SeqCst);
+
+        cloned.challenge_filename = format!(
+            "{}_{}_{}",
+            cloned.crash_level, self.challenge_filename, index
+        );
+        cloned.challenge_hash_filename = format!(
+            "{}_{}_{}",
+            cloned.crash_level, self.challenge_hash_filename, index
+        );
+        cloned.response_filename = format!(
+            "{}_{}_{}",
+            cloned.crash_level, self.response_filename, index
+        );
+        cloned.response_hash_filename = format!(
+            "{}_{}_{}",
+            cloned.crash_level, self.response_hash_filename, index
+        );
+        cloned.new_challenge_filename = format!(
+            "{}_{}_{}",
+            cloned.crash_level, self.new_challenge_filename, index
+        );
+        cloned.new_challenge_hash_filename = format!(
+            "{}_{}_{}",
+            cloned.crash_level, self.new_challenge_hash_filename, index
+        );
 
         cloned
     }
