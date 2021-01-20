@@ -2485,6 +2485,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "phase2"
+version = "0.3.0"
+source = "git+https://github.com/celo-org/snark-setup?rev=0d621b2cd1e9fd7791e7dafef78bbd469fcd09c9#0d621b2cd1e9fd7791e7dafef78bbd469fcd09c9"
+dependencies = [
+ "algebra",
+ "byteorder",
+ "cfg-if 0.1.10",
+ "crossbeam",
+ "groth16",
+ "num_cpus",
+ "r1cs-core",
+ "rand",
+ "setup-utils",
+ "tracing",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "pin-project"
 version = "0.4.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3351,6 +3369,7 @@ dependencies = [
  "panic-control",
  "phase1",
  "phase1-cli",
+ "phase2",
  "rand",
  "rayon",
  "reqwest",
