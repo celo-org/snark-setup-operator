@@ -40,7 +40,7 @@ use tokio::time::Instant;
 use tracing::{debug, error, info, warn};
 use tracing_subscriber::EnvFilter;
 use url::Url;
-use zexe_algebra::{PairingEngine, BW6_761};
+use algebra::{PairingEngine, BW6_761};
 
 const CHALLENGE_FILENAME: &str = "challenge";
 const CHALLENGE_HASH_FILENAME: &str = "challenge.hash";

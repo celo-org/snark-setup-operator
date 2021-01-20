@@ -29,7 +29,7 @@ use std::{
     str::FromStr,
 };
 use tracing::warn;
-use zexe_algebra::PairingEngine;
+use algebra::PairingEngine;
 
 pub fn copy_file_if_exists(file_path: &str, dest_path: &str) -> Result<()> {
     if Path::new(file_path).exists() {

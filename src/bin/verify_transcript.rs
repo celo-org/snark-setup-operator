@@ -26,7 +26,7 @@ use std::{
     io::{Read, Write},
 };
 use tracing::info;
-use zexe_algebra::{Bls12_377, PairingEngine, BW6_761};
+use algebra::{Bls12_377, PairingEngine, BW6_761};
 
 const CHALLENGE_FILENAME: &str = "challenge";
 const CHALLENGE_HASH_FILENAME: &str = "challenge.hash";

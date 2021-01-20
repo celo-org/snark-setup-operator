@@ -31,7 +31,7 @@ use std::{
 };
 use tracing::info;
 use url::Url;
-use zexe_algebra::{Bls12_377, PairingEngine, BW6_761};
+use algebra::{Bls12_377, PairingEngine, BW6_761};
 
 const RESPONSE_FILENAME: &str = "response";
 const RESPONSE_PREFIX_FOR_AGGREGATION: &str = "response";
