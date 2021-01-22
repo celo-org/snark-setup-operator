@@ -24,20 +24,20 @@ ethers = { git = "https://github.com/gakonst/ethers-rs", features = ["celo"] }
 hex = "0.4"
 #phase1 = { git = "https://github.com/celo-org/snark-setup", package = "phase1", branch = "straka/phase2_integration" }
 #phase1-cli = { git = "https://github.com/celo-org/snark-setup", package = "phase1-cli", branch = "straka/phase2_integration" }
-phase1 = { git = "https://github.com/celo-org/snark-setup", package = "phase1", rev = "a3a09d1eb5a9afed497df2608c96c8bbd262311a" }
-phase1-cli = { git = "https://github.com/celo-org/snark-setup", package = "phase1-cli", rev = "a3a09d1eb5a9afed497df2608c96c8bbd262311a" }
-phase2 = { git = "https://github.com/celo-org/snark-setup", package = "phase2", rev = "a3a09d1eb5a9afed497df2608c96c8bbd262311a" }
+phase1 = { git = "https://github.com/celo-org/snark-setup", package = "phase1", rev = "91adb98d89b8996b8188341fa00f3e7035f83c27" }
+phase1-cli = { git = "https://github.com/celo-org/snark-setup", package = "phase1-cli", rev = "91adb98d89b8996b8188341fa00f3e7035f83c27" }
+phase2 = { git = "https://github.com/celo-org/snark-setup", package = "phase2", rev = "91adb98d89b8996b8188341fa00f3e7035f83c27" }
 #phase2-cli = { git = "https://github.com/celo-org/snark-setup", package = "phase2-cli", branch = "straka/phase2_integration" }
 #phase2 = { git = "https://github.com/celo-org/snark-setup", package = "phase2", rev = "fe520be074d5612b0bb773cbe10a3dc568c8f0a4" }
-phase2-cli = { git = "https://github.com/celo-org/snark-setup", package = "phase2-cli", rev = "a3a09d1eb5a9afed497df2608c96c8bbd262311a" }
+phase2-cli = { git = "https://github.com/celo-org/snark-setup", package = "phase2-cli", rev = "91adb98d89b8996b8188341fa00f3e7035f83c27" }
 rand = "0.7"
 reqwest = { version = "0.10", features = [ "blocking", "stream", "gzip" ] }
 #setup-utils = { git = "https://github.com/celo-org/snark-setup", package = "setup-utils", branch = "straka/phase2_integration" }
-setup-utils = { git = "https://github.com/celo-org/snark-setup", package = "setup-utils", rev = "a3a09d1eb5a9afed497df2608c96c8bbd262311a"}
+setup-utils = { git = "https://github.com/celo-org/snark-setup", package = "setup-utils", rev = "91adb98d89b8996b8188341fa00f3e7035f83c27"}
 secrecy = { version = "0.7" }
 ctrlc = "3.1.7"
 indicatif = "0.15.0"
-algebra = { git = "https://github.com/celo-org/zexe", rev = "02ee669fa43059b55918210e025183e572cc249d", package = "algebra", default-features = false, features = [ "bw6_761", "bls12_377" ] }
+algebra = { git = "https://github.com/celo-org/zexe", package = "algebra", default-features = false, features = [ "bw6_761", "bls12_377" ] }
 openssl-sys = { version = "0.9", features = ["vendored"]}
 age = { git = "https://github.com/str4d/rage", version = "0.5.0", features = [ "cli-common", "armor" ] }
 bincode = "1.3"
@@ -62,9 +62,11 @@ cuda = [ "algebra/cuda" ]
 bw6_asm = [ "algebra/force_bw6_asm" ]
 
 [patch.'https://github.com/scipr-lab/zexe']
-algebra_core = { git = "https://github.com/celo-org/zexe", rev = "02ee669fa43059b55918210e025183e572cc249d", package = "algebra-core", default-features = false, features = ["derive"] }
-algebra = { git = "https://github.com/celo-org/zexe", rev = "02ee669fa43059b55918210e025183e572cc249d", package = "algebra", default-features = false, features = ["ed_on_bls12_381", "bls12_381", "bls12_377"] }
-fft = { git = "https://github.com/celo-org/zexe", rev = "02ee669fa43059b55918210e025183e572cc249d", package = "ff-fft", default-features = false, features = ["ed_on_bls12_381", "bls12_381", "bls12_377"] }
-bench_utils = { git = "https://github.com/celo-org/zexe", rev = "02ee669fa43059b55918210e025183e572cc249d", package = "bench-utils", default-features = false, features = ["ed_on_bls12_381", "bls12_381", "bls12_377"] }
-r1cs_core = { git = "https://github.com/celo-org/zexe", rev = "02ee669fa43059b55918210e025183e572cc249d", package = "r1cs-core", default-features = false, features = ["ed_on_bls12_381", "bls12_381", "bls12_377"] }
-groth16 = { git = "https://github.com/celo-org/zexe", rev = "02ee669fa43059b55918210e025183e572cc249d", package = "groth16", default-features = false, features = ["ed_on_bls12_381", "bls12_381", "bls12_377"] }
+algebra_core = { git = "https://github.com/celo-org/zexe", package = "algebra-core", default-features = false, features = ["derive"] }
+algebra = { git = "https://github.com/celo-org/zexe", package = "algebra", default-features = false, features = ["ed_on_bls12_381", "bls12_381", "bls12_377"] }
+crypto-primitives = { git = "https://github.com/celo-org/zexe", package = "crypto-primitives", default-features = false, features = ["ed_on_bls12_381", "bls12_381", "bls12_377"] }
+fft = { git = "https://github.com/celo-org/zexe", package = "ff-fft", default-features = false, features = ["ed_on_bls12_381", "bls12_381", "bls12_377"] }
+bench_utils = { git = "https://github.com/celo-org/zexe", package = "bench-utils", default-features = false, features = ["ed_on_bls12_381", "bls12_381", "bls12_377"] }
+r1cs_core = { git = "https://github.com/celo-org/zexe", package = "r1cs-core", default-features = false, features = ["ed_on_bls12_381", "bls12_381", "bls12_377"] }
+r1cs_std = { git = "https://github.com/celo-org/zexe", package = "r1cs-std", default-features = false, features = ["ed_on_bls12_381", "bls12_381", "bls12_377"] }
+groth16 = { git = "https://github.com/celo-org/zexe", package = "groth16", default-features = false, features = ["ed_on_bls12_381", "bls12_381", "bls12_377"] }
