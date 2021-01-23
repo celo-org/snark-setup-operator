@@ -3,7 +3,8 @@ use ethers::core::k256::ecdsa::SigningKey;
 use ethers::signers::LocalWallet;
 use gumdrop::Options;
 use phase1::{ContributionMode, Phase1Parameters, ProvingSystem};
-use phase1_cli::new_challenge;
+//use phase1_cli::new_challenge;
+use phase2_cli::new_challenge;
 use reqwest::header::AUTHORIZATION;
 use secrecy::ExposeSecret;
 use snark_setup_operator::data_structs::{
@@ -66,6 +67,15 @@ pub struct NewCeremonyOpts {
     pub unsafe_passphrase: bool,
     #[options(help = "use prepared ceremony")]
     pub prepared_ceremony: Option<String>,
+
+    #[options(help = "number max validators used in the circuit. Only used for phase 2")]
+    pub num_validators: Option<usize>,
+    #[options(help = "number max epochs used in the circuit. Only used for phase 2")]
+    pub num_epochs: Option<usize>,
+    #[options(help = "number powers used in phase1. Only used for phase 2")]
+    pub phase1_powers: Option<usize>,
+    #[options(help = "file with prepared output from phase1. Only used for phase 2")]
+    pub phase1_filename: Option<String>, 
 }
 
 fn build_ceremony_from_chunks(
@@ -172,12 +182,20 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
             opts.powers,
             chunk_size,
         );
-        new_challenge(
+/*        new_challenge(
             NEW_CHALLENGE_FILENAME,
             NEW_CHALLENGE_HASH_FILENAME,
             &parameters,
+        );*/ // phase1
+        new_challenge(
+            NEW_CHALLENGE_FILENAME,
+            NEW_CHALLENGE_HASH_FILENAME,
+            opts.chunk_size,
+            &opts.phase1_filename.as_ref().expect("phase1 filename not found while running phase2"),
+            opts.phase1_powers.expect("phase1 powers not found while running phase2"),
+            opts.num_validators.expect("num_validators not found while running phase2"),
+            opts.num_epochs.expect("num_epochs not found while running phase2"),
         );
-
         let new_challenge_hash_from_file = read_hash_from_file(NEW_CHALLENGE_HASH_FILENAME)?;
 
         let round = 0;
