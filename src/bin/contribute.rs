@@ -477,6 +477,7 @@ impl Contribute {
                     // Then they could modify the pipeline and cause deadlock.
                     CRASHES.fetch_add(1, SeqCst);
                     self.clear_pipeline()?;
+                    self.cleanup_files(total_tasks).await?;
                     progress_bar.println(&format!(
                         "Thread exited with error, trying to recover: {}",
                         err
@@ -486,6 +487,46 @@ impl Contribute {
                 Ok(_) => return Ok(()),
             }
         }
+    }
+
+    async fn cleanup_files(&self, tasks: usize) -> Result<()> {
+        let cl = CRASHES.load(SeqCst);
+        for index in 0..tasks {
+            if cl > 0 {
+                remove_file_if_exists(&format!(
+                    "{}_{}_{}",
+                    cl - 1,
+                    self.challenge_filename,
+                    index
+                ))?;
+                remove_file_if_exists(&format!(
+                    "{}_{}_{}",
+                    cl - 1,
+                    self.challenge_hash_filename,
+                    index
+                ))?;
+                remove_file_if_exists(&format!("{}_{}_{}", cl - 1, self.response_filename, index))?;
+                remove_file_if_exists(&format!(
+                    "{}_{}_{}",
+                    cl - 1,
+                    self.response_hash_filename,
+                    index
+                ))?;
+                remove_file_if_exists(&format!(
+                    "{}_{}_{}",
+                    cl - 1,
+                    self.new_challenge_filename,
+                    index
+                ))?;
+                remove_file_if_exists(&format!(
+                    "{}_{}_{}",
+                    cl - 1,
+                    self.new_challenge_hash_filename,
+                    index
+                ))?;
+            }
+        }
+        Ok(())
     }
 
     async fn wait_for_available_spot_in_lane(&self, lane: &PipelineLane) -> Result<()> {
@@ -647,6 +688,10 @@ impl Contribute {
         let mut pipeline = PIPELINE
             .write()
             .expect("Should have opened pipeline for writing");
+
+        if EXITING.load(SeqCst) || CRASHES.load(SeqCst) > self.crash_level {
+            return Err(ContributeError::GotExitSignalError.into());
+        }
 
         let lane_list = pipeline
             .get_mut(lane)
