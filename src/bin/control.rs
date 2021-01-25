@@ -347,7 +347,7 @@ impl Control {
         remove_file_if_exists(COMBINED_FILENAME)?;
         let parameters = create_parameters_for_chunk::<E>(&ceremony.parameters, 0)?;
         info!("Combining");
-        combine(RESPONSE_LIST_FILENAME, COMBINED_FILENAME, &parameters);
+        phase1_cli::combine(RESPONSE_LIST_FILENAME, COMBINED_FILENAME, &parameters);
         info!("Combined");
         let parameters = create_full_parameters::<E>(&ceremony.parameters)?;
         remove_file_if_exists(COMBINED_HASH_FILENAME)?;
@@ -490,7 +490,7 @@ impl Control {
         remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_FILENAME)?;
         remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME)?;
         let rng = derive_rng_from_seed(&from_slice(&beacon_hash));
-        contribute(
+        phase1_cli::contribute(
             COMBINED_FILENAME,
             COMBINED_HASH_FILENAME,
             COMBINED_VERIFIED_POK_AND_CORRECTNESS_FILENAME,
@@ -505,7 +505,7 @@ impl Control {
         remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME)?;
         remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME)?;
         remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME)?;
-        transform_pok_and_correctness(
+        phase1_cli::transform_pok_and_correctness(
             COMBINED_FILENAME,
             COMBINED_HASH_FILENAME,
             DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
@@ -518,7 +518,7 @@ impl Control {
             false,
             &parameters,
         );
-        transform_ratios(
+        phase1_cli::transform_ratios(
             COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME,
             DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
             &parameters,

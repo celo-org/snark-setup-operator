@@ -24,6 +24,7 @@ use lazy_static::lazy_static;
 use panic_control::{spawn_quiet, ThreadResultExt};
 use setup_utils::converters::{batch_exp_mode_from_str, subgroup_check_mode_from_str};
 use phase1_cli::{contribute, transform_pok_and_correctness};
+use phase2_cli::{contribute, verify};
 use rand::prelude::SliceRandom;
 use reqwest::header::{AUTHORIZATION, CONTENT_LENGTH};
 use secrecy::{ExposeSecret, SecretVec};
@@ -821,7 +822,6 @@ impl Contribute {
                                 force_correctness_checks,
                             ),
                             batch_exp_mode,
-                            &parameters,
                             rng,
                         );
                     });
@@ -961,7 +961,22 @@ impl Contribute {
                         self.ratio_check.clone(),
                     );
                     let h = spawn_quiet(move || {
-                        transform_pok_and_correctness(
+                        verify(
+                            &challenge_filename,
+                            &challenge_hash_filename,
+                            upgrade_correctness_check_config(
+                                DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+                                force_correctness_checks,
+                            ),
+                            &response_filename,
+                            &response_hash_filename,
+                            upgrade_correctness_check_config(
+                                DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
+                                force_correctness_checks,
+                            ),
+                            subgroup_check_mode,
+                        );
+                        /*transform_pok_and_correctness(
                             &challenge_filename,
                             &challenge_hash_filename,
                             upgrade_correctness_check_config(
@@ -979,7 +994,7 @@ impl Contribute {
                             subgroup_check_mode,
                             ratio_check,
                             &parameters,
-                        );
+                        );*/
                     });
                     let result = h.join();
                     if !result.is_ok() {

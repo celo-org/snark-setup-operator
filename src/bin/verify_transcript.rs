@@ -1,8 +1,12 @@
 use anyhow::Result;
 use gumdrop::Options;
 use setup_utils::converters::{batch_exp_mode_from_str, subgroup_check_mode_from_str};
-use phase1_cli::{
+/*use phase1_cli::{
     combine, contribute, new_challenge, transform_pok_and_correctness, transform_ratios,
+};*/
+use phase1_cli::*;
+use phase2_cli::{
+    combine, contribute, new_challenge, verify,
 };
 use setup_utils::{
     derive_rng_from_seed, from_slice, upgrade_correctness_check_config, BatchExpMode,
@@ -78,6 +82,17 @@ pub struct VerifyTranscriptOpts {
     pub skip_ratio_check: bool,
     #[options(help = "curve", default = "bw6")]
     pub curve: String,
+
+    #[options(help = "size of chunks used")]
+    pub chunk_size: Option<usize>,
+    #[options(help = "number max validators used in the circuit. Only used for phase 2")]
+    pub num_validators: Option<usize>,
+    #[options(help = "number max epochs used in the circuit. Only used for phase 2")]
+    pub num_epochs: Option<usize>,
+    #[options(help = "number powers used in phase1. Only used for phase 2")]
+    pub phase1_powers: Option<usize>,
+    #[options(help = "file with prepared output from phase1. Only used for phase 2")]
+    pub phase1_filename: Option<String>, 
 }
 
 pub struct TranscriptVerifier {
@@ -88,6 +103,14 @@ pub struct TranscriptVerifier {
     pub batch_exp_mode: BatchExpMode,
     pub subgroup_check_mode: SubgroupCheckMode,
     pub ratio_check: bool,
+    pub phase2_options: Option<Phase2Options>
+}
+
+pub struct Phase2Options {
+    pub num_validators: usize,
+    pub num_epochs: usize,
+    pub phase1_powers: usize,
+    pub phase1_filename: String,
 }
 
 impl TranscriptVerifier {
@@ -203,10 +226,20 @@ impl TranscriptVerifier {
                             // This is the initialization pseudo-contribution, so we verify it was
                             // deterministically created by `new`.
                             let verified_data = contribution.verified_data()?;
-                            new_challenge(
+                            /*new_challenge(
                                 NEW_CHALLENGE_FILENAME,
                                 NEW_CHALLENGE_HASH_FILENAME,
                                 &parameters,
+                            );*/
+                            let phase2_options = match self.phase2_options.expect("Phase2 options not used while running phase2 verification"); 
+                            phase2_cli::new_challenge(
+                                NEW_CHALLENGE_FILENAME,
+                                NEW_CHALLENGE_HASH_FILENAME,
+                                phase2_options.chunk_size,
+                                phase2_options.phase1_filename.as_ref().expect("phase1 filename not found while running phase2"),
+                                phase2_options.phase1_powers.expect("phase1 powers not found while running phase2"),
+                                phase2_options.num_validators.expect("num_validators not found while running phase2"),
+                                phase2_options.num_epochs.expect("num_epochs not found while running phase2"),
                             );
                             let new_challenge_hash_from_file =
                                 read_hash_from_file(NEW_CHALLENGE_HASH_FILENAME)?;
@@ -388,14 +421,14 @@ impl TranscriptVerifier {
         let current_parameters = current_parameters.unwrap();
         let parameters = create_parameters_for_chunk::<E>(&current_parameters, 0)?;
         // Combine the last contributions from each chunk into a single big contributions.
-        combine(RESPONSE_LIST_FILENAME, COMBINED_FILENAME, &parameters);
+        phase1_cli::combine(RESPONSE_LIST_FILENAME, COMBINED_FILENAME, &parameters);
         info!("combined, applying beacon");
         let parameters = create_full_parameters::<E>(&current_parameters)?;
         remove_file_if_exists(COMBINED_HASH_FILENAME)?;
         remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_FILENAME)?;
         remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME)?;
         if !self.apply_beacon {
-            transform_ratios(
+            phase1_cli::transform_ratios(
                 COMBINED_FILENAME,
                 upgrade_correctness_check_config(
                     DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
@@ -406,7 +439,7 @@ impl TranscriptVerifier {
         } else {
             let rng = derive_rng_from_seed(&from_slice(&self.beacon_hash));
             // Apply the random beacon.
-            contribute(
+            phase2_cli::contribute(
                 COMBINED_FILENAME,
                 COMBINED_HASH_FILENAME,
                 COMBINED_VERIFIED_POK_AND_CORRECTNESS_FILENAME,
@@ -416,7 +449,6 @@ impl TranscriptVerifier {
                     self.force_correctness_checks,
                 ),
                 self.batch_exp_mode,
-                &parameters,
                 rng,
             );
             let final_hash_computed = hex::decode(&read_hash_from_file(
