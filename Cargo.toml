@@ -53,6 +53,7 @@ sysinfo = { version = "0.15.3" }
 default = [ "bw6_asm" ]
 cuda = [ "zexe_algebra/cuda" ]
 bw6_asm = [ "zexe_algebra/force_bw6_asm" ]
+randomcrash = []
 
 [patch.'https://github.com/scipr-lab/zexe']
 zexe_algebra_core = { git = "https://github.com/celo-org/zexe", rev = "02ee669fa43059b55918210e025183e572cc249d", package = "algebra-core", default-features = false, features = ["derive"] }

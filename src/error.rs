@@ -96,6 +96,8 @@ pub enum ContributeError {
     CouldNotFindChunkWithIDLockedByParticipantError(String, String),
     #[error("Got exit signal")]
     GotExitSignalError,
+    #[error("Got panic")]
+    GotPanicError,
 }
 
 #[derive(Debug, Error)]
@@ -126,6 +128,8 @@ pub enum UtilsError {
     UnsupportedDecryptorError,
     #[error("Attestation too short, got length {0}")]
     AttestationTooShort(usize),
+    #[error("Random test error")]
+    RandomTestError,
 }
 
 #[derive(Debug, Error)]

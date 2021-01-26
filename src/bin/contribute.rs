@@ -18,6 +18,7 @@ use anyhow::Result;
 use chrono::Duration;
 use ethers::core::k256::ecdsa::SigningKey;
 use ethers::signers::LocalWallet;
+use futures::FutureExt;
 use gumdrop::Options;
 use indicatif::{ProgressBar, ProgressStyle};
 use lazy_static::lazy_static;
@@ -32,8 +33,10 @@ use setup_utils::{
     DEFAULT_CONTRIBUTE_CHECK_INPUT_CORRECTNESS, DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
     DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
 };
+use std::borrow::Borrow;
 use std::collections::{HashMap, HashSet};
 use std::ops::Deref;
+use std::panic::AssertUnwindSafe;
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering::SeqCst};
 use std::sync::RwLock;
 use tokio::time::Instant;
@@ -384,14 +387,33 @@ impl Contribute {
         });
         for i in 0..total_tasks {
             let delay_duration = Duration::seconds(DELAY_AFTER_ERROR_DURATION_SECS).to_std()?;
+            #[cfg(feature = "randomcrash")]
+            let delay_duration = Duration::seconds(5).to_std()?;
             let mut cloned = self.clone_with_new_filenames(i);
             let progress_bar_for_thread = progress_bar.clone();
             let jh = tokio::spawn(async move {
                 loop {
-                    let result = cloned.run::<E>().await;
+                    let result = AssertUnwindSafe(cloned.run::<E>()).catch_unwind().await;
                     if EXITING.load(SeqCst) {
                         return;
                     }
+                    let result = match result {
+                        Ok(Err(e)) => {
+                            warn!("Got error from run: {}, retrying...", e);
+                            Err(e.to_string())
+                        }
+                        Err(err) => match err.downcast::<anyhow::Error>() {
+                            Ok(msg) => {
+                                let msg: &anyhow::Error = msg.borrow();
+                                Err(msg.to_string())
+                            }
+                            Err(_err) => {
+                                let err: anyhow::Error = ContributeError::GotPanicError.into();
+                                Err(err.to_string())
+                            }
+                        },
+                        Ok(Ok(())) => Ok(()),
+                    };
                     match result {
                         Ok(_) => {}
                         Err(e) => {

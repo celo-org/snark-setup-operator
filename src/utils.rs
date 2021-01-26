@@ -32,6 +32,9 @@ use std::{
 use tracing::warn;
 use zexe_algebra::PairingEngine;
 
+#[cfg(feature = "randomcrash")]
+use std::time::{SystemTime, UNIX_EPOCH};
+
 pub fn copy_file_if_exists(file_path: &str, dest_path: &str) -> Result<()> {
     if Path::new(file_path).exists() {
         copy(file_path, dest_path)?;
@@ -149,6 +152,23 @@ pub async fn upload_file_direct_async(
     let mut file = File::open(file_path)?;
     let mut contents = Vec::new();
     file.read_to_end(&mut contents)?;
+
+    #[cfg(feature = "randomcrash")]
+    {
+        let start = SystemTime::now();
+        let since_the_epoch = start
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards");
+        let in_ms = since_the_epoch.as_millis();
+
+        if in_ms % 4 == 1 {
+            warn!("Going to crash");
+            return Err(UtilsError::RandomTestError.into());
+        } else if in_ms % 4 != 0 {
+            warn!("Going to crash");
+            panic!("Random crash")
+        }
+    }
 
     let client = reqwest::Client::new();
     client
