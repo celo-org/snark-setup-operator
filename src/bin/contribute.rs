@@ -42,8 +42,6 @@ use tracing_subscriber::EnvFilter;
 use url::Url;
 use zexe_algebra::{PairingEngine, BW6_761};
 
-use futures::FutureExt;
-
 const CHALLENGE_FILENAME: &str = "challenge";
 const CHALLENGE_HASH_FILENAME: &str = "challenge.hash";
 const RESPONSE_FILENAME: &str = "response";
