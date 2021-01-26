@@ -43,7 +43,6 @@ use url::Url;
 use zexe_algebra::{PairingEngine, BW6_761};
 
 use futures::FutureExt;
-use std::panic::AssertUnwindSafe;
 
 const CHALLENGE_FILENAME: &str = "challenge";
 const CHALLENGE_HASH_FILENAME: &str = "challenge.hash";
@@ -374,7 +373,6 @@ impl Contribute {
         tokio::spawn(async move {
             loop {
                 cloned_for_update.update_locks().await;
-                SHOULD_UPDATE_STATUS.store(true, SeqCst);
                 tokio::time::delay_for(
                     Duration::seconds(DELAY_STATUS_UPDATE_FORCE_SECS)
                         .to_std()
@@ -387,21 +385,21 @@ impl Contribute {
         loop {
             let mut futures = vec![];
             for i in 0..total_tasks {
-                let delay_duration = Duration::seconds(5).to_std()?;
+                let delay_duration = Duration::seconds(DELAY_AFTER_ERROR_DURATION_SECS).to_std()?;
                 let mut cloned = self.clone_with_new_filenames(i);
                 let progress_bar_for_thread = progress_bar.clone();
                 let jh = tokio::spawn(async move {
                     loop {
-                        let result = AssertUnwindSafe(cloned.run::<E>()).catch_unwind().await;
+                        let result = cloned.run::<E>().await;
                         if EXITING.load(SeqCst) || CRASHES.load(SeqCst) > cloned.crash_level {
                             return;
                         }
                         match result {
                             Ok(_) => {}
                             Err(e) => {
-                                warn!("Got error from run: {:?}, retrying...", e);
+                                warn!("Got error from run: {}, retrying...", e);
                                 progress_bar_for_thread
-                                    .println(&format!("Got error from run: {:?}, retrying...", e));
+                                    .println(&format!("Got error from run: {}, retrying...", e));
                                 if let Some(chunk_id) = cloned.chosen_chunk_id.as_ref() {
                                     if cloned
                                         .remove_chunk_id_from_lane_if_exists(
@@ -411,7 +409,7 @@ impl Contribute {
                                         .expect("Should have removed chunk ID from lane")
                                     {
                                         let _ = cloned
-                                            .unlock_chunk(&chunk_id, None)
+                                            .unlock_chunk(&chunk_id, Some(e.to_string()))
                                             .await;
                                     }
                                     if cloned
@@ -422,7 +420,7 @@ impl Contribute {
                                         .expect("Should have removed chunk ID from lane")
                                     {
                                         let _ = cloned
-                                            .unlock_chunk(&chunk_id, None)
+                                            .unlock_chunk(&chunk_id, Some(e.to_string()))
                                             .await;
                                     }
                                     if cloned
@@ -433,7 +431,7 @@ impl Contribute {
                                         .expect("Should have removed chunk ID from lane")
                                     {
                                         let _ = cloned
-                                            .unlock_chunk(&chunk_id, None)
+                                            .unlock_chunk(&chunk_id, Some(e.to_string()))
                                             .await;
                                     }
                                     cloned.set_status_update_signal();
@@ -496,6 +494,7 @@ impl Contribute {
                 }
             }
         };
+        SHOULD_UPDATE_STATUS.store(true, SeqCst);
     }
 
     async fn cleanup_files(&self, tasks: usize) -> Result<()> {
