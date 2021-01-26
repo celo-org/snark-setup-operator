@@ -4,7 +4,6 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum VerifyTranscriptError {
-    PhaseIsNotValid,
     #[error("Contributor data was none")]
     ContributorDataIsNoneError,
     #[error("Verified data was none")]

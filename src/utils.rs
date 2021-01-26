@@ -37,11 +37,11 @@ pub enum Phase {
     Phase2,
 }
 
-pub fn string_to_phase(str: &str) -> Result<Phase, &'static str> {
+pub fn string_to_phase(str: &str) -> Result<Phase> {
     match str.to_lowercase().as_ref() {
         "phase1" => Ok(Phase::Phase1),
         "phase2" => Ok(Phase::Phase2),
-        _ => UtilsError::UnknownPhaseError,
+        x => Err(UtilsError::UnknownPhaseError(x.to_string()).into()),
     }
 }
 
