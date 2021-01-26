@@ -23,8 +23,10 @@ use indicatif::{ProgressBar, ProgressStyle};
 use lazy_static::lazy_static;
 use panic_control::{spawn_quiet, ThreadResultExt};
 use setup_utils::converters::{batch_exp_mode_from_str, subgroup_check_mode_from_str};
-use phase1_cli::{contribute, transform_pok_and_correctness};
-use phase2_cli::{contribute, verify};
+//use phase1_cli::{contribute, transform_pok_and_correctness};
+//use phase2_cli::{contribute, verify};
+use phase1_cli::*;
+use phase2_cli::*;
 use rand::prelude::SliceRandom;
 use reqwest::header::{AUTHORIZATION, CONTENT_LENGTH};
 use secrecy::{ExposeSecret, SecretVec};
@@ -41,6 +43,7 @@ use tokio::time::Instant;
 use tracing::{debug, error, info, warn};
 use tracing_subscriber::EnvFilter;
 use url::Url;
+use snark_setup_operator::utils::{Phase, string_to_phase};
 use algebra::{PairingEngine, BW6_761};
 
 const CHALLENGE_FILENAME: &str = "challenge";
@@ -74,6 +77,10 @@ lazy_static! {
 #[derive(Debug, Options, Clone)]
 pub struct ContributeOpts {
     pub help: bool,
+    #[options(
+        help = "phase to be run. Must be either phase1 or phase2",
+    )]
+    pub phase: String,
     #[options(
         help = "the url of the coordinator API",
         default = "https://plumo-setup-phase-1.azurefd.net"
@@ -155,6 +162,7 @@ pub enum PipelineLane {
     Upload,
 }
 
+
 impl std::fmt::Display for PipelineLane {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{:?}", self)
@@ -163,6 +171,7 @@ impl std::fmt::Display for PipelineLane {
 
 #[derive(Clone)]
 pub struct Contribute {
+    pub phase: Phase,
     pub server_url: Url,
     pub participant_id: String,
     pub private_key: LocalWallet,
@@ -197,7 +206,8 @@ impl Contribute {
         attestation: &Attestation,
     ) -> Result<Self> {
         let private_key = LocalWallet::from(SigningKey::new(private_key)?);
-        let contribute = Self {
+        let contribute_struct = Self {
+            phase: string_to_phase(&opts.phase)?,
             server_url: Url::parse(&opts.coordinator_url)?,
             participant_id: address_to_string(&private_key.address()),
             private_key,
@@ -223,7 +233,7 @@ impl Contribute {
 
             chosen_chunk_id: None,
         };
-        Ok(contribute)
+        Ok(contribute_struct)
     }
 
     pub fn clone_with_new_filenames(&self, index: usize) -> Self {
@@ -812,7 +822,7 @@ impl Contribute {
                         self.batch_exp_mode.clone(),
                     );
                     let h = spawn_quiet(move || {
-                        contribute(
+                        phase2_cli::contribute(
                             &challenge_filename,
                             &challenge_hash_filename,
                             &response_filename,
@@ -1341,10 +1351,10 @@ fn main() {
 
         write_attestation_to_file(&attestation, &opts.attestation_path)
             .expect("Should have written attestation to file");
-        let contribute = Contribute::new(&opts, private_key.expose_secret(), &attestation)
+        let contribute_struct = Contribute::new(&opts, private_key.expose_secret(), &attestation)
             .expect("Should have been able to create a contribute.");
 
-        match contribute.run_and_catch_errors::<BW6_761>().await {
+        match contribute_struct.run_and_catch_errors::<BW6_761>().await {
             Err(e) => panic!("Got error from contribute: {}", e.to_string()),
             _ => {}
         }

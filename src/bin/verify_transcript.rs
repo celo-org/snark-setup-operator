@@ -107,6 +107,7 @@ pub struct TranscriptVerifier {
 }
 
 pub struct Phase2Options {
+    pub chunk_size: usize, 
     pub num_validators: usize,
     pub num_epochs: usize,
     pub phase1_powers: usize,
@@ -149,6 +150,7 @@ impl TranscriptVerifier {
             batch_exp_mode: opts.batch_exp_mode,
             subgroup_check_mode: opts.subgroup_check_mode,
             ratio_check: !opts.skip_ratio_check,
+            phase2_options: None,
         };
         Ok(verifier)
     }
@@ -231,15 +233,15 @@ impl TranscriptVerifier {
                                 NEW_CHALLENGE_HASH_FILENAME,
                                 &parameters,
                             );*/
-                            let phase2_options = match self.phase2_options.expect("Phase2 options not used while running phase2 verification"); 
+                            let phase2_options = self.phase2_options.as_ref().expect("Phase2 options not used while running phase2 verification"); 
                             phase2_cli::new_challenge(
                                 NEW_CHALLENGE_FILENAME,
                                 NEW_CHALLENGE_HASH_FILENAME,
                                 phase2_options.chunk_size,
-                                phase2_options.phase1_filename.as_ref().expect("phase1 filename not found while running phase2"),
-                                phase2_options.phase1_powers.expect("phase1 powers not found while running phase2"),
-                                phase2_options.num_validators.expect("num_validators not found while running phase2"),
-                                phase2_options.num_epochs.expect("num_epochs not found while running phase2"),
+                                &phase2_options.phase1_filename,
+                                phase2_options.phase1_powers,
+                                phase2_options.num_validators,
+                                phase2_options.num_epochs,
                             );
                             let new_challenge_hash_from_file =
                                 read_hash_from_file(NEW_CHALLENGE_HASH_FILENAME)?;

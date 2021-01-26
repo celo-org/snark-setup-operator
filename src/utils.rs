@@ -31,6 +31,20 @@ use std::{
 use tracing::warn;
 use algebra::PairingEngine;
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Phase {
+    Phase1,
+    Phase2,
+}
+
+pub fn string_to_phase(str: &str) -> Result<Phase, &'static str> {
+    match str.to_lowercase().as_ref() {
+        "phase1" => Ok(Phase::Phase1),
+        "phase2" => Ok(Phase::Phase2),
+        _ => UtilsError::UnknownPhaseError,
+    }
+}
+
 pub fn copy_file_if_exists(file_path: &str, dest_path: &str) -> Result<()> {
     if Path::new(file_path).exists() {
         copy(file_path, dest_path)?;

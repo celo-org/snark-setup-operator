@@ -4,6 +4,7 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum VerifyTranscriptError {
+    PhaseIsNotValid,
     #[error("Contributor data was none")]
     ContributorDataIsNoneError,
     #[error("Verified data was none")]
@@ -114,6 +115,8 @@ pub enum UtilsError {
     MissingOptionErr,
     #[error("Unknown participation mode: {0}")]
     UnknownParticipationModeError(String),
+    #[error("Unknown phase: {0}")]
+    UnknownPhaseError(String),
     #[error("Retry failed: {0}")]
     RetryFailedError(String),
     #[error("Could not read passphrase")]
