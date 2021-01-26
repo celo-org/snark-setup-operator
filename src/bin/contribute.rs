@@ -370,30 +370,7 @@ impl Contribute {
         let cloned_for_update = self.clone();
         tokio::spawn(async move {
             loop {
-                match cloned_for_update.get_chunk_info().await {
-                    Err(err) => {
-                        warn!("Cannot get locked chunks {}", err);
-                    }
-                    Ok(ceremony) => {
-                        let mut found: Vec<String> = vec![];
-                        let v = match cloned_for_update.get_participant_locked_chunk_ids() {
-                            Ok(lst) => lst,
-                            Err(err) => {
-                                warn!("Cannot get local chunks: {}", err);
-                                vec![]
-                            }
-                        };
-                        for chunk_id in &ceremony.locked_chunks {
-                            if !v.iter().any(|x| chunk_id == x) {
-                                found.push(chunk_id.clone());
-                            }
-                        }
-                        for chunk_id in found {
-                            warn!("Unlocking chunk that is not being processed {}\n", chunk_id);
-                            let _ = cloned_for_update.unlock_chunk(&chunk_id, None).await;
-                        }
-                    }
-                };
+                cloned_for_update.update_locks().await;
                 SHOULD_UPDATE_STATUS.store(true, SeqCst);
                 tokio::time::delay_for(
                     Duration::seconds(DELAY_STATUS_UPDATE_FORCE_SECS)
@@ -470,7 +447,7 @@ impl Contribute {
             match futures::future::try_join_all(futures).await {
                 Err(err) => {
                     warn!("Crash!!!");
-                    // Afetr crashes have been incremented, one of the threads might have the PIPELINE lock.
+                    // After crashes have been incremented, one of the threads might have the PIPELINE lock.
                     // But once that thread releases the lock, we clear the pipeline.
                     // After that no old thread can add to pipeline lanes.
                     // If the threads would test before they have the lock, the pipeline might be cleared just before they get the lock.
@@ -482,11 +459,39 @@ impl Contribute {
                         "Thread exited with error, trying to recover: {}",
                         err
                     ));
+                    self.update_locks().await;
                     tokio::time::delay_for(Duration::seconds(1).to_std()?).await;
                 }
                 Ok(_) => return Ok(()),
             }
         }
+    }
+
+    async fn update_locks(&self) {
+        match self.get_chunk_info().await {
+            Err(err) => {
+                warn!("Cannot get locked chunks {}", err);
+            }
+            Ok(ceremony) => {
+                let mut found: Vec<String> = vec![];
+                let v = match self.get_participant_locked_chunk_ids() {
+                    Ok(lst) => lst,
+                    Err(err) => {
+                        warn!("Cannot get local chunks: {}", err);
+                        vec![]
+                    }
+                };
+                for chunk_id in &ceremony.locked_chunks {
+                    if !v.iter().any(|x| chunk_id == x) {
+                        found.push(chunk_id.clone());
+                    }
+                }
+                for chunk_id in found {
+                    warn!("Unlocking chunk that is not being processed {}\n", chunk_id);
+                    let _ = self.unlock_chunk(&chunk_id, None).await;
+                }
+            }
+        };
     }
 
     async fn cleanup_files(&self, tasks: usize) -> Result<()> {
