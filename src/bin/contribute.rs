@@ -23,8 +23,6 @@ use indicatif::{ProgressBar, ProgressStyle};
 use lazy_static::lazy_static;
 use panic_control::{spawn_quiet, ThreadResultExt};
 use setup_utils::converters::{batch_exp_mode_from_str, subgroup_check_mode_from_str};
-//use phase1_cli::{contribute, transform_pok_and_correctness};
-//use phase2_cli::{contribute, verify};
 use phase1_cli::*;
 use phase2_cli::*;
 use rand::prelude::SliceRandom;
@@ -821,20 +819,40 @@ impl Contribute {
                         self.force_correctness_checks.clone(),
                         self.batch_exp_mode.clone(),
                     );
-                    let h = spawn_quiet(move || {
-                        phase2_cli::contribute(
-                            &challenge_filename,
-                            &challenge_hash_filename,
-                            &response_filename,
-                            &response_hash_filename,
-                            upgrade_correctness_check_config(
-                                DEFAULT_CONTRIBUTE_CHECK_INPUT_CORRECTNESS,
-                                force_correctness_checks,
-                            ),
-                            batch_exp_mode,
-                            rng,
-                        );
-                    });
+
+                    let h = if self.phase == Phase::Phase1 {
+                        spawn_quiet(move || {
+                            phase1_cli::contribute(
+                                &challenge_filename,
+                                &challenge_hash_filename,
+                                &response_filename,
+                                &response_hash_filename,
+                                upgrade_correctness_check_config(
+                                    DEFAULT_CONTRIBUTE_CHECK_INPUT_CORRECTNESS,
+                                    force_correctness_checks,
+                                ),
+                                batch_exp_mode,
+                                &parameters,
+                                rng,
+                            );
+                        })
+                    } else {
+                        spawn_quiet(move || {
+                            phase2_cli::contribute(
+                                &challenge_filename,
+                                &challenge_hash_filename,
+                                &response_filename,
+                                &response_hash_filename,
+                                upgrade_correctness_check_config(
+                                    DEFAULT_CONTRIBUTE_CHECK_INPUT_CORRECTNESS,
+                                    force_correctness_checks,
+                                ),
+                                batch_exp_mode,
+                                rng,
+                            );         
+                        })
+                    };
+
                     let result = h.join();
                     if !result.is_ok() {
                         if let Some(panic_value) = result.panic_value_as_str() {
@@ -970,42 +988,47 @@ impl Contribute {
                         self.subgroup_check_mode.clone(),
                         self.ratio_check.clone(),
                     );
-                    let h = spawn_quiet(move || {
-                        verify(
-                            &challenge_filename,
-                            &challenge_hash_filename,
-                            upgrade_correctness_check_config(
-                                DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
-                                force_correctness_checks,
-                            ),
-                            &response_filename,
-                            &response_hash_filename,
-                            upgrade_correctness_check_config(
-                                DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
-                                force_correctness_checks,
-                            ),
-                            subgroup_check_mode,
-                        );
-                        /*transform_pok_and_correctness(
-                            &challenge_filename,
-                            &challenge_hash_filename,
-                            upgrade_correctness_check_config(
-                                DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
-                                force_correctness_checks,
-                            ),
-                            &response_filename,
-                            &response_hash_filename,
-                            upgrade_correctness_check_config(
-                                DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
-                                force_correctness_checks,
-                            ),
-                            &new_challenge_filename,
-                            &new_challenge_hash_filename,
-                            subgroup_check_mode,
-                            ratio_check,
-                            &parameters,
-                        );*/
-                    });
+                    let h = if self.phase == Phase::Phase1 {
+                        spawn_quiet(move || {
+                            phase1_cli::transform_pok_and_correctness(
+                                &challenge_filename,
+                                &challenge_hash_filename,
+                                upgrade_correctness_check_config(
+                                    DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+                                    force_correctness_checks,
+                                ),
+                                &response_filename,
+                                &response_hash_filename,
+                                upgrade_correctness_check_config(
+                                    DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
+                                    force_correctness_checks,
+                                ),
+                                &new_challenge_filename,
+                                &new_challenge_hash_filename,
+                                subgroup_check_mode,
+                                ratio_check,
+                                &parameters,
+                            );
+                        })
+                    } else {
+                        spawn_quiet(move || {
+                            phase2_cli::verify(
+                                &challenge_filename,
+                                &challenge_hash_filename,
+                                upgrade_correctness_check_config(
+                                    DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+                                    force_correctness_checks,
+                                ),
+                                &response_filename,
+                                &response_hash_filename,
+                                upgrade_correctness_check_config(
+                                    DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
+                                    force_correctness_checks,
+                                ),
+                                subgroup_check_mode,
+                            );
+                        })
+                    };
                     let result = h.join();
                     if !result.is_ok() {
                         if let Some(panic_value) = result.panic_value_as_str() {

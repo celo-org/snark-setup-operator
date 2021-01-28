@@ -7,7 +7,9 @@ use anyhow::Result;
 use ethers::core::k256::ecdsa::SigningKey;
 use ethers::signers::LocalWallet;
 use gumdrop::Options;
-use phase1_cli::{combine, contribute, transform_pok_and_correctness, transform_ratios};
+//use phase1_cli::{combine, contribute, transform_pok_and_correctness, transform_ratios};
+use phase1_cli::*;
+use phase2_cli::*;
 use reqwest::header::AUTHORIZATION;
 use secrecy::ExposeSecret;
 use setup_utils::{
@@ -21,7 +23,7 @@ use snark_setup_operator::error::{NewRoundError, VerifyTranscriptError};
 use snark_setup_operator::utils::{
     backup_transcript, create_full_parameters, create_parameters_for_chunk,
     download_file_from_azure_async, get_authorization_value, load_transcript, read_hash_from_file,
-    read_keys, remove_file_if_exists, response_size, save_transcript, BEACON_HASH_LENGTH,
+    read_keys, remove_file_if_exists, response_size, save_transcript, BEACON_HASH_LENGTH, Phase, string_to_phase,
 };
 use std::{
     collections::HashSet,
@@ -116,6 +118,18 @@ pub struct RemoveLastContributionOpts {
 pub struct ControlOpts {
     help: bool,
     #[options(
+        help = "phase to be run. Must be either phase1 or phase2",
+    )]
+    pub phase: String,
+    #[options(
+        help = "initial query filename. Used only for phase2",
+    )]
+    pub initial_query_filename: Option<String>,
+    #[options(
+        help = "initial full filename. Used only for phase2",
+    )]
+    pub initial_full_filename: Option<String>,    
+    #[options(
         help = "the url of the coordinator API",
         default = "http://localhost:8080"
     )]
@@ -149,16 +163,24 @@ pub enum Command {
 }
 
 pub struct Control {
+    pub phase: Phase,
     pub server_url: Url,
     pub private_key: LocalWallet,
+
+    // Used onlu for Phase2
+    pub initial_query_filename: Option<String>,
+    pub initial_full_filename: Option<String>,    
 }
 
 impl Control {
     pub fn new(opts: &ControlOpts, private_key: &[u8]) -> Result<Self> {
         let private_key = LocalWallet::from(SigningKey::new(private_key)?);
         let control = Self {
+            phase: string_to_phase(&opts.phase)?,
             server_url: Url::parse(&opts.coordinator_url)?.join("ceremony")?,
             private_key,
+            initial_query_filename: opts.initial_query_filename.clone(),
+            initial_full_filename: opts.initial_full_filename.clone(),
         };
         Ok(control)
     }
@@ -347,17 +369,32 @@ impl Control {
         remove_file_if_exists(COMBINED_FILENAME)?;
         let parameters = create_parameters_for_chunk::<E>(&ceremony.parameters, 0)?;
         info!("Combining");
-        phase1_cli::combine(RESPONSE_LIST_FILENAME, COMBINED_FILENAME, &parameters);
+        if self.phase == Phase::Phase1 {
+            phase1_cli::combine(
+                RESPONSE_LIST_FILENAME, 
+                COMBINED_FILENAME, 
+                &parameters,
+            );
+        } else {
+            phase2_cli::combine(
+                &self.initial_query_filename.as_ref().expect("initial_query_filename needed when running phase2"), 
+                &self.initial_full_filename.as_ref().expect("initial_full_filename needed when running phase2"), 
+                RESPONSE_LIST_FILENAME, 
+                COMBINED_FILENAME,
+            );
+        }
         info!("Combined");
         let parameters = create_full_parameters::<E>(&ceremony.parameters)?;
         remove_file_if_exists(COMBINED_HASH_FILENAME)?;
-        info!("Transforming ratios");
-        transform_ratios(
-            COMBINED_FILENAME,
-            DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
-            &parameters,
-        );
-        info!("Transformed ratios");
+        if self.phase == Phase::Phase1 {
+            info!("Transforming ratios");
+            phase1_cli::transform_ratios(
+                COMBINED_FILENAME,
+                DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+                &parameters,
+            );
+            info!("Transformed ratios");
+        }
 
         info!("Verified round {}", ceremony.round);
         Ok(())
@@ -490,39 +527,63 @@ impl Control {
         remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_FILENAME)?;
         remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME)?;
         let rng = derive_rng_from_seed(&from_slice(&beacon_hash));
-        phase1_cli::contribute(
-            COMBINED_FILENAME,
-            COMBINED_HASH_FILENAME,
-            COMBINED_VERIFIED_POK_AND_CORRECTNESS_FILENAME,
-            COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME,
-            DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
-            BatchExpMode::Auto,
-            &parameters,
-            rng,
-        );
+        if self.phase == Phase::Phase1 {
+            phase1_cli::contribute(
+                COMBINED_FILENAME,
+                COMBINED_HASH_FILENAME,
+                COMBINED_VERIFIED_POK_AND_CORRECTNESS_FILENAME,
+                COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME,
+                DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+                BatchExpMode::Auto,
+                &parameters,
+                rng,
+            );
+        } else {
+            phase2_cli::contribute(
+                COMBINED_FILENAME,
+                COMBINED_HASH_FILENAME,
+                COMBINED_VERIFIED_POK_AND_CORRECTNESS_FILENAME,
+                COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME,
+                DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+                BatchExpMode::Auto,
+                rng,
+            );
+        }
         info!("applied beacon, verifying");
         remove_file_if_exists(COMBINED_HASH_FILENAME)?;
         remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME)?;
         remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME)?;
         remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME)?;
-        phase1_cli::transform_pok_and_correctness(
-            COMBINED_FILENAME,
-            COMBINED_HASH_FILENAME,
-            DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
-            COMBINED_VERIFIED_POK_AND_CORRECTNESS_FILENAME,
-            COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME,
-            DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
-            COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME,
-            COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME,
-            SubgroupCheckMode::Auto,
-            false,
-            &parameters,
-        );
-        phase1_cli::transform_ratios(
-            COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME,
-            DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
-            &parameters,
-        );
+        if self.phase == Phase::Phase1 {
+            phase1_cli::transform_pok_and_correctness(
+                COMBINED_FILENAME,
+                COMBINED_HASH_FILENAME,
+                DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+                COMBINED_VERIFIED_POK_AND_CORRECTNESS_FILENAME,
+                COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME,
+                DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
+                COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME,
+                COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME,
+                SubgroupCheckMode::Auto,
+                false,
+                &parameters,
+            );
+            phase1_cli::transform_ratios(
+                COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME,
+                DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+                &parameters,
+            );
+        } else {
+            phase2_cli::verify(
+               COMBINED_FILENAME,
+               COMBINED_HASH_FILENAME,
+               DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+               COMBINED_VERIFIED_POK_AND_CORRECTNESS_FILENAME,
+               COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME,
+               DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
+               SubgroupCheckMode::Auto,
+            );
+        }
 
         let response_hash_from_file =
             read_hash_from_file(COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME)?;
