@@ -3,8 +3,8 @@ use ethers::core::k256::ecdsa::SigningKey;
 use ethers::signers::LocalWallet;
 use gumdrop::Options;
 use phase1::{ContributionMode, Phase1Parameters, ProvingSystem};
-//use phase1_cli::new_challenge;
-use phase2_cli::new_challenge;
+use phase1_cli::*;
+use phase2_cli::*;
 use reqwest::header::AUTHORIZATION;
 use secrecy::ExposeSecret;
 use snark_setup_operator::data_structs::{
@@ -16,6 +16,7 @@ use snark_setup_operator::utils::{
     address_to_string, get_authorization_value, proving_system_from_str, read_hash_from_file,
     read_keys, remove_file_if_exists, upload_file_to_azure_with_access_key_async,
     upload_mode_from_str, UploadMode,
+    string_to_phase, Phase,
 };
 use std::fs::File;
 use std::io::{Read, Write};
@@ -30,6 +31,10 @@ const NEW_CHALLENGE_HASH_FILENAME: &str = "new_challenge.hash";
 #[derive(Debug, Options, Clone)]
 pub struct NewCeremonyOpts {
     help: bool,
+    #[options(
+        help = "phase to be run. Must be either phase1 or phase2",
+    )]
+    pub phase: String,
     #[options(help = "the server url", required)]
     pub server_url: String,
     #[options(help = "the upload mode", required)]
@@ -115,6 +120,7 @@ fn build_ceremony_from_chunks(
 }
 
 async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Result<()> {
+    let phase = string_to_phase(&opts.phase)?;
     let server_url = Url::parse(opts.server_url.as_str())?.join("ceremony")?;
     let data = reqwest::get(server_url.as_str())
         .await?
@@ -182,20 +188,23 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
             opts.powers,
             chunk_size,
         );
-/*        new_challenge(
-            NEW_CHALLENGE_FILENAME,
-            NEW_CHALLENGE_HASH_FILENAME,
-            &parameters,
-        );*/ // phase1
-        new_challenge(
-            NEW_CHALLENGE_FILENAME,
-            NEW_CHALLENGE_HASH_FILENAME,
-            opts.chunk_size,
-            &opts.phase1_filename.as_ref().expect("phase1 filename not found while running phase2"),
-            opts.phase1_powers.expect("phase1 powers not found while running phase2"),
-            opts.num_validators.expect("num_validators not found while running phase2"),
-            opts.num_epochs.expect("num_epochs not found while running phase2"),
-        );
+        if phase == Phase::Phase1 {
+            phase1_cli::new_challenge(
+                NEW_CHALLENGE_FILENAME,
+                NEW_CHALLENGE_HASH_FILENAME,
+                &parameters,
+            );
+        } else {
+            phase2_cli::new_challenge(
+                NEW_CHALLENGE_FILENAME,
+                NEW_CHALLENGE_HASH_FILENAME,
+                opts.chunk_size,
+                &opts.phase1_filename.as_ref().expect("phase1 filename not found while running phase2"),
+                opts.phase1_powers.expect("phase1 powers not found while running phase2"),
+                opts.num_validators.expect("num_validators not found while running phase2"),
+                opts.num_epochs.expect("num_epochs not found while running phase2"),
+            );
+        }
         let new_challenge_hash_from_file = read_hash_from_file(NEW_CHALLENGE_HASH_FILENAME)?;
 
         let round = 0;

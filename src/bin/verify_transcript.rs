@@ -22,6 +22,7 @@ use snark_setup_operator::{
         copy_file_if_exists, create_full_parameters, create_parameters_for_chunk,
         download_file_from_azure_async, read_hash_from_file, remove_file_if_exists, response_size,
         verify_signed_data, BEACON_HASH_LENGTH,
+        Phase, string_to_phase,
     },
 };
 use std::{
@@ -55,6 +56,10 @@ const COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME: &str =
 #[derive(Debug, Options, Clone)]
 pub struct VerifyTranscriptOpts {
     help: bool,
+    #[options(
+        help = "phase to be run. Must be either phase1 or phase2",
+    )]
+    pub phase: String,
     #[options(help = "the path of the transcript json file", default = "transcript")]
     pub transcript_path: String,
     #[options(help = "apply beacon")]
@@ -93,9 +98,18 @@ pub struct VerifyTranscriptOpts {
     pub phase1_powers: Option<usize>,
     #[options(help = "file with prepared output from phase1. Only used for phase 2")]
     pub phase1_filename: Option<String>, 
+    #[options(
+        help = "initial query filename. Used only for phase2",
+    )]
+    pub initial_query_filename: Option<String>,
+    #[options(
+        help = "initial full filename. Used only for phase2",
+    )]
+    pub initial_full_filename: Option<String>,    
 }
 
 pub struct TranscriptVerifier {
+    pub phase: Phase,
     pub transcript: Transcript,
     pub apply_beacon: bool,
     pub beacon_hash: Vec<u8>,
@@ -112,6 +126,22 @@ pub struct Phase2Options {
     pub num_epochs: usize,
     pub phase1_powers: usize,
     pub phase1_filename: String,
+    pub initial_query_filename: String,
+    pub initial_full_filename: String,
+}
+
+impl Phase2Options {
+    pub fn new(opts: &VerifyTranscriptOpts) -> Result<Self> {
+        Ok(Self {
+            chunk_size: opts.chunk_size.expect("chunk_size must be used when running phase2"),
+            num_validators: opts.num_validators.expect("num_validators must be used when running phase2"),
+            num_epochs: opts.num_epochs.expect("num_epochs must be used when running phase2"),
+            phase1_powers: opts.phase1_powers.expect("phase1_powers must be used when running phase2"),
+            phase1_filename: opts.phase1_filename.as_ref().expect("phase1_filename must be used when running phase2").to_string(),
+            initial_query_filename: opts.initial_query_filename.as_ref().expect("initial_query_filename needed when running phase2").to_string(), 
+            initial_full_filename: opts.initial_full_filename.as_ref().expect("initial_full_filename needed when running phase2").to_string(), 
+        })
+    }
 }
 
 impl TranscriptVerifier {
@@ -142,7 +172,13 @@ impl TranscriptVerifier {
             )
             .into());
         }
+        let phase = string_to_phase(&opts.phase)?;
+        let phase2_options = match phase {
+            Phase::Phase1 => None,
+            Phase::Phase2 => Some(Phase2Options::new(&opts)?),
+        };
         let verifier = Self {
+            phase,
             transcript,
             beacon_hash,
             apply_beacon: opts.apply_beacon,
@@ -150,7 +186,7 @@ impl TranscriptVerifier {
             batch_exp_mode: opts.batch_exp_mode,
             subgroup_check_mode: opts.subgroup_check_mode,
             ratio_check: !opts.skip_ratio_check,
-            phase2_options: None,
+            phase2_options,
         };
         Ok(verifier)
     }
@@ -162,6 +198,7 @@ impl TranscriptVerifier {
             .build()
             .unwrap();
 
+            let phase2_options = self.phase2_options.as_ref().expect("Phase2 options not used while running phase2 verification"); 
         let mut current_parameters = None;
         let mut previous_round: Option<Ceremony> = None;
         for (round_index, ceremony) in self.transcript.rounds.iter().enumerate() {
@@ -233,7 +270,6 @@ impl TranscriptVerifier {
                                 NEW_CHALLENGE_HASH_FILENAME,
                                 &parameters,
                             );*/
-                            let phase2_options = self.phase2_options.as_ref().expect("Phase2 options not used while running phase2 verification"); 
                             phase2_cli::new_challenge(
                                 NEW_CHALLENGE_FILENAME,
                                 NEW_CHALLENGE_HASH_FILENAME,
@@ -423,7 +459,20 @@ impl TranscriptVerifier {
         let current_parameters = current_parameters.unwrap();
         let parameters = create_parameters_for_chunk::<E>(&current_parameters, 0)?;
         // Combine the last contributions from each chunk into a single big contributions.
-        phase1_cli::combine(RESPONSE_LIST_FILENAME, COMBINED_FILENAME, &parameters);
+        if self.phase == Phase::Phase1 {
+            phase1_cli::combine(
+                RESPONSE_LIST_FILENAME, 
+                COMBINED_FILENAME, 
+                &parameters
+            );
+        } else {
+            phase2_cli::combine(
+                phase2_options.initial_query_filename.as_ref(),
+                phase2_options.initial_full_filename.as_ref(),
+                RESPONSE_LIST_FILENAME,
+                COMBINED_FILENAME,
+            );
+        }
         info!("combined, applying beacon");
         let parameters = create_full_parameters::<E>(&current_parameters)?;
         remove_file_if_exists(COMBINED_HASH_FILENAME)?;
