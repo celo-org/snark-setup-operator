@@ -5,3 +5,4 @@ ceremony_*
 *.keys
 new_challenge
 new_challenge.hash
+snark-setup-coordinator
