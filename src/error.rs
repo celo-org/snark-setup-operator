@@ -116,6 +116,8 @@ pub enum UtilsError {
     UnknownParticipationModeError(String),
     #[error("Unknown phase: {0}")]
     UnknownPhaseError(String),
+    #[error("Phase not selected")]
+    NoPhaseError,
     #[error("Retry failed: {0}")]
     RetryFailedError(String),
     #[error("Could not read passphrase")]

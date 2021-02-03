@@ -1,17 +1,12 @@
 use anyhow::Result;
 use gumdrop::Options;
 use setup_utils::converters::{batch_exp_mode_from_str, subgroup_check_mode_from_str};
-/*use phase1_cli::{
-    combine, contribute, new_challenge, transform_pok_and_correctness, transform_ratios,
-};*/
 use phase1_cli::*;
-use phase2_cli::{
-    combine, contribute, new_challenge, verify,
-};
 use setup_utils::{
     derive_rng_from_seed, from_slice, upgrade_correctness_check_config, BatchExpMode,
     SubgroupCheckMode, DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
     DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
+    groth16_utils::*,
 };
 use snark_setup_operator::data_structs::Ceremony;
 use snark_setup_operator::transcript_data_structs::Transcript;
@@ -54,12 +49,8 @@ const COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME: &str =
     "combined_verified_pok_and_correctness_new_challenge.hash";
 
 #[derive(Debug, Options, Clone)]
-pub struct VerifyTranscriptOpts {
+pub struct IntermediateTransformOpts {
     help: bool,
-    #[options(
-        help = "phase to be run. Must be either phase1 or phase2",
-    )]
-    pub phase: String,
     #[options(help = "the path of the transcript json file", default = "transcript")]
     pub transcript_path: String,
     #[options(help = "apply beacon")]
@@ -90,26 +81,9 @@ pub struct VerifyTranscriptOpts {
 
     #[options(help = "size of chunks used")]
     pub chunk_size: Option<usize>,
-    #[options(help = "number max validators used in the circuit. Only used for phase 2")]
-    pub num_validators: Option<usize>,
-    #[options(help = "number max epochs used in the circuit. Only used for phase 2")]
-    pub num_epochs: Option<usize>,
-    #[options(help = "number powers used in phase1. Only used for phase 2")]
-    pub phase1_powers: Option<usize>,
-    #[options(help = "file with prepared output from phase1. Only used for phase 2")]
-    pub phase1_filename: Option<String>, 
-    #[options(
-        help = "initial query filename. Used only for phase2",
-    )]
-    pub initial_query_filename: Option<String>,
-    #[options(
-        help = "initial full filename. Used only for phase2",
-    )]
-    pub initial_full_filename: Option<String>,    
 }
 
-pub struct TranscriptVerifier {
-    pub phase: Phase,
+pub struct IntermediateTransform {
     pub transcript: Transcript,
     pub apply_beacon: bool,
     pub beacon_hash: Vec<u8>,
@@ -117,35 +91,10 @@ pub struct TranscriptVerifier {
     pub batch_exp_mode: BatchExpMode,
     pub subgroup_check_mode: SubgroupCheckMode,
     pub ratio_check: bool,
-    pub phase2_options: Option<Phase2Options>
 }
 
-pub struct Phase2Options {
-    pub chunk_size: usize, 
-    pub num_validators: usize,
-    pub num_epochs: usize,
-    pub phase1_powers: usize,
-    pub phase1_filename: String,
-    pub initial_query_filename: String,
-    pub initial_full_filename: String,
-}
-
-impl Phase2Options {
-    pub fn new(opts: &VerifyTranscriptOpts) -> Result<Self> {
-        Ok(Self {
-            chunk_size: opts.chunk_size.expect("chunk_size must be used when running phase2"),
-            num_validators: opts.num_validators.expect("num_validators must be used when running phase2"),
-            num_epochs: opts.num_epochs.expect("num_epochs must be used when running phase2"),
-            phase1_powers: opts.phase1_powers.expect("phase1_powers must be used when running phase2"),
-            phase1_filename: opts.phase1_filename.as_ref().expect("phase1_filename must be used when running phase2").to_string(),
-            initial_query_filename: opts.initial_query_filename.as_ref().expect("initial_query_filename needed when running phase2").to_string(), 
-            initial_full_filename: opts.initial_full_filename.as_ref().expect("initial_full_filename needed when running phase2").to_string(), 
-        })
-    }
-}
-
-impl TranscriptVerifier {
-    pub fn new(opts: &VerifyTranscriptOpts) -> Result<Self> {
+impl IntermediateTransform {
+    pub fn new(opts: &IntermediateTransformOpts) -> Result<Self> {
         let mut transcript = String::new();
         File::open(&opts.transcript_path)
             .expect("Should have opened transcript file.")
@@ -172,13 +121,7 @@ impl TranscriptVerifier {
             )
             .into());
         }
-        let phase = string_to_phase(&opts.phase)?;
-        let phase2_options = match phase {
-            Phase::Phase1 => None,
-            Phase::Phase2 => Some(Phase2Options::new(&opts)?),
-        };
-        let verifier = Self {
-            phase,
+        let parameters = Self {
             transcript,
             beacon_hash,
             apply_beacon: opts.apply_beacon,
@@ -186,9 +129,8 @@ impl TranscriptVerifier {
             batch_exp_mode: opts.batch_exp_mode,
             subgroup_check_mode: opts.subgroup_check_mode,
             ratio_check: !opts.skip_ratio_check,
-            phase2_options,
         };
-        Ok(verifier)
+        Ok(parameters)
     }
 
     fn run<E: PairingEngine>(&self) -> Result<()> {
@@ -264,24 +206,11 @@ impl TranscriptVerifier {
                             // This is the initialization pseudo-contribution, so we verify it was
                             // deterministically created by `new`.
                             let verified_data = contribution.verified_data()?;
-                            if self.phase == Phase::Phase1 {
                                 phase1_cli::new_challenge(
                                     NEW_CHALLENGE_FILENAME,
                                     NEW_CHALLENGE_HASH_FILENAME,
                                     &parameters,
                                 );
-                            } else {
-                                let phase2_options = self.phase2_options.as_ref().expect("Phase2 options not used while running phase2 verification"); 
-                                phase2_cli::new_challenge(
-                                    NEW_CHALLENGE_FILENAME,
-                                    NEW_CHALLENGE_HASH_FILENAME,
-                                    phase2_options.chunk_size,
-                                    &phase2_options.phase1_filename,
-                                    phase2_options.phase1_powers,
-                                    phase2_options.num_validators,
-                                    phase2_options.num_epochs,
-                                );
-                            }
                             let new_challenge_hash_from_file =
                                 read_hash_from_file(NEW_CHALLENGE_HASH_FILENAME)?;
                             check_new_challenge_hashes_same(
@@ -369,43 +298,25 @@ impl TranscriptVerifier {
 
                     // Run verification between challenge and response, and produce the next new
                     // challenge.
-                    if self.phase == Phase::Phase1 {
-                        phase1_cli::transform_pok_and_correctness(
-                            CHALLENGE_FILENAME,
-                            CHALLENGE_HASH_FILENAME,
-                            upgrade_correctness_check_config(
-                               DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
-                               self.force_correctness_checks,
-                            ),
-                            RESPONSE_FILENAME,
-                            RESPONSE_HASH_FILENAME,
-                            upgrade_correctness_check_config(
-                               DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
-                               self.force_correctness_checks,
-                            ),
-                            NEW_CHALLENGE_FILENAME,
-                            NEW_CHALLENGE_HASH_FILENAME,
-                            self.subgroup_check_mode,
-                            self.ratio_check,
-                            &parameters,
-                        );
-                    } else {
-                        phase2_cli::verify(
-                           CHALLENGE_FILENAME,
-                           CHALLENGE_HASH_FILENAME,
-                           upgrade_correctness_check_config(
-                              DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
-                              self.force_correctness_checks,
-                           ), 
-                           NEW_CHALLENGE_FILENAME,
-                           NEW_CHALLENGE_HASH_FILENAME,
-                           upgrade_correctness_check_config(
-                              DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
-                              self.force_correctness_checks,
-                           ),
-                           self.subgroup_check_mode,
-                        );
-                    }
+                    phase1_cli::transform_pok_and_correctness(
+                        CHALLENGE_FILENAME,
+                        CHALLENGE_HASH_FILENAME,
+                        upgrade_correctness_check_config(
+                           DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+                           self.force_correctness_checks,
+                        ),
+                        RESPONSE_FILENAME,
+                        RESPONSE_HASH_FILENAME,
+                        upgrade_correctness_check_config(
+                           DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
+                           self.force_correctness_checks,
+                        ),
+                        NEW_CHALLENGE_FILENAME,
+                        NEW_CHALLENGE_HASH_FILENAME,
+                        self.subgroup_check_mode,
+                        self.ratio_check,
+                        &parameters,
+                    );
 
                     let challenge_hash_from_file = read_hash_from_file(CHALLENGE_HASH_FILENAME)?;
                     // Check that the challenge hash is indeed the one the participant and the verifier
@@ -480,68 +391,41 @@ impl TranscriptVerifier {
         let current_parameters = current_parameters.unwrap();
         let parameters = create_parameters_for_chunk::<E>(&current_parameters, 0)?;
         // Combine the last contributions from each chunk into a single big contributions.
-        if self.phase == Phase::Phase1 {
-            phase1_cli::combine(
-                RESPONSE_LIST_FILENAME, 
-                COMBINED_FILENAME, 
-                &parameters
-            );
-        } else {
-            let phase2_options = self.phase2_options.as_ref().expect("Phase2 options not used while running phase2 verification"); 
-            phase2_cli::combine(
-                phase2_options.initial_query_filename.as_ref(),
-                phase2_options.initial_full_filename.as_ref(),
-                RESPONSE_LIST_FILENAME,
-                COMBINED_FILENAME,
-            );
-        }
+        phase1_cli::combine(
+            RESPONSE_LIST_FILENAME, 
+            COMBINED_FILENAME, 
+            &parameters
+        );
         info!("combined, applying beacon");
         let parameters = create_full_parameters::<E>(&current_parameters)?;
         remove_file_if_exists(COMBINED_HASH_FILENAME)?;
         remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_FILENAME)?;
         remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME)?;
         if !self.apply_beacon {
-            if self.phase == Phase::Phase1 {
-                phase1_cli::transform_ratios(
-                    COMBINED_FILENAME,
-                    upgrade_correctness_check_config(
-                        DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
-                        self.force_correctness_checks,
-                    ),
-                    &parameters,
-                );
-            }
+            phase1_cli::transform_ratios(
+                COMBINED_FILENAME,
+                upgrade_correctness_check_config(
+                    DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+                    self.force_correctness_checks,
+                ),
+                &parameters,
+            );
         } else {
             let rng = derive_rng_from_seed(&from_slice(&self.beacon_hash));
             // Apply the random beacon.
-            if self.phase == Phase::Phase1 {
-                phase1_cli::contribute(
-                    COMBINED_FILENAME,
-                    COMBINED_HASH_FILENAME,
-                    COMBINED_VERIFIED_POK_AND_CORRECTNESS_FILENAME,
-                    COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME,
-                    upgrade_correctness_check_config(
-                        DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
-                        self.force_correctness_checks,
-                    ),
-                    self.batch_exp_mode,
-                    &parameters,
-                    rng,
-                );
-            } else {
-                phase2_cli::contribute(
-                    COMBINED_FILENAME,
-                    COMBINED_HASH_FILENAME,
-                    COMBINED_VERIFIED_POK_AND_CORRECTNESS_FILENAME,
-                    COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME,
-                    upgrade_correctness_check_config(
-                        DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
-                        self.force_correctness_checks,
-                    ),
-                    self.batch_exp_mode,
-                    rng,
-                );
-            }
+            phase1_cli::contribute(
+                COMBINED_FILENAME,
+                COMBINED_HASH_FILENAME,
+                COMBINED_VERIFIED_POK_AND_CORRECTNESS_FILENAME,
+                COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME,
+                upgrade_correctness_check_config(
+                    DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+                    self.force_correctness_checks,
+                ),
+                self.batch_exp_mode,
+                &parameters,
+                rng,
+            );
             let final_hash_computed = hex::decode(&read_hash_from_file(
                 COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME,
             )?)?;
@@ -561,55 +445,35 @@ impl TranscriptVerifier {
                 COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME,
             )?;
             // Verify the correctness of the random beacon.
-            if self.phase == Phase::Phase1 {
-                phase1_cli::transform_pok_and_correctness(
-                    COMBINED_FILENAME,
-                    COMBINED_HASH_FILENAME,
-                    upgrade_correctness_check_config(
-                        DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
-                        self.force_correctness_checks,
-                    ),
-                    COMBINED_VERIFIED_POK_AND_CORRECTNESS_FILENAME,
-                    COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME,
-                    upgrade_correctness_check_config(
-                        DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
-                        self.force_correctness_checks,
-                    ),
-                    COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME,
-                    COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME,
-                    self.subgroup_check_mode,
-                    self.ratio_check,
-                    &parameters,
-                );
-            } else {
-                phase2_cli::verify(
-                   COMBINED_FILENAME,
-                   COMBINED_HASH_FILENAME,
-                   upgrade_correctness_check_config(
-                       DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
-                       self.force_correctness_checks,
-                   ),
-                   COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME,
-                   COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME,
-                   upgrade_correctness_check_config(
-                       DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
-                       self.force_correctness_checks,
-                   ),
-                   self.subgroup_check_mode,
-                );
-            }
+            phase1_cli::transform_pok_and_correctness(
+                COMBINED_FILENAME,
+                COMBINED_HASH_FILENAME,
+                upgrade_correctness_check_config(
+                    DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+                    self.force_correctness_checks,
+                ),
+                COMBINED_VERIFIED_POK_AND_CORRECTNESS_FILENAME,
+                COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME,
+                upgrade_correctness_check_config(
+                    DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
+                    self.force_correctness_checks,
+                ),
+                COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME,
+                COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME,
+                self.subgroup_check_mode,
+                self.ratio_check,
+                &parameters,
+            );
             // Verify the consistency of the entire combined contribution, making sure that the
             // correct ratios hold between elements.
-            if self.phase == Phase::Phase1 {
-                phase1_cli::transform_ratios(
-                    COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME,
-                    upgrade_correctness_check_config(
-                        DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
-                        self.force_correctness_checks,
-                    ),
-                    &parameters,
-                );
-            }
+            phase1_cli::transform_ratios(
+                COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME,
+                upgrade_correctness_check_config(
+                    DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+                    self.force_correctness_checks,
+                ),
+                &parameters,
+            );
         }
 
         Ok(())
@@ -619,9 +483,9 @@ impl TranscriptVerifier {
 fn main() {
     tracing_subscriber::fmt().json().init();
 
-    let opts: VerifyTranscriptOpts = VerifyTranscriptOpts::parse_args_default_or_exit();
+    let opts: IntermediateTransformOpts = IntermediateTransformOpts::parse_args_default_or_exit();
 
-    let verifier = TranscriptVerifier::new(&opts)
+    let verifier = IntermediateTransform::new(&opts)
         .expect("Should have been able to create a transcript verifier");
     (match opts.curve.as_str() {
         "bw6" => verifier.run::<BW6_761>(),

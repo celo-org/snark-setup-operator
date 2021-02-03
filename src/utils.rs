@@ -41,6 +41,7 @@ pub fn string_to_phase(str: &str) -> Result<Phase> {
     match str.to_lowercase().as_ref() {
         "phase1" => Ok(Phase::Phase1),
         "phase2" => Ok(Phase::Phase2),
+        "" => Err(UtilsError::NoPhaseError.into()),
         x => Err(UtilsError::UnknownPhaseError(x.to_string()).into()),
     }
 }

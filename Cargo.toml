@@ -24,16 +24,16 @@ ethers = { git = "https://github.com/gakonst/ethers-rs", features = ["celo"] }
 hex = "0.4"
 #phase1 = { git = "https://github.com/celo-org/snark-setup", package = "phase1", branch = "straka/phase2_integration" }
 #phase1-cli = { git = "https://github.com/celo-org/snark-setup", package = "phase1-cli", branch = "straka/phase2_integration" }
-phase1 = { git = "https://github.com/celo-org/snark-setup", package = "phase1", rev = "91adb98d89b8996b8188341fa00f3e7035f83c27" }
-phase1-cli = { git = "https://github.com/celo-org/snark-setup", package = "phase1-cli", rev = "91adb98d89b8996b8188341fa00f3e7035f83c27" }
-phase2 = { git = "https://github.com/celo-org/snark-setup", package = "phase2", rev = "91adb98d89b8996b8188341fa00f3e7035f83c27" }
+phase1 = { git = "https://github.com/celo-org/snark-setup", package = "phase1", rev = "25c2f84d0f73a6f5bb30fc93539f7b486c489824" }
+phase1-cli = { git = "https://github.com/celo-org/snark-setup", package = "phase1-cli", rev = "25c2f84d0f73a6f5bb30fc93539f7b486c489824" }
+phase2 = { git = "https://github.com/celo-org/snark-setup", package = "phase2", rev = "25c2f84d0f73a6f5bb30fc93539f7b486c489824" }
 #phase2-cli = { git = "https://github.com/celo-org/snark-setup", package = "phase2-cli", branch = "straka/phase2_integration" }
 #phase2 = { git = "https://github.com/celo-org/snark-setup", package = "phase2", rev = "fe520be074d5612b0bb773cbe10a3dc568c8f0a4" }
-phase2-cli = { git = "https://github.com/celo-org/snark-setup", package = "phase2-cli", rev = "91adb98d89b8996b8188341fa00f3e7035f83c27" }
+phase2-cli = { git = "https://github.com/celo-org/snark-setup", package = "phase2-cli", rev = "25c2f84d0f73a6f5bb30fc93539f7b486c489824" }
 rand = "0.7"
 reqwest = { version = "0.10", features = [ "blocking", "stream", "gzip" ] }
 #setup-utils = { git = "https://github.com/celo-org/snark-setup", package = "setup-utils", branch = "straka/phase2_integration" }
-setup-utils = { git = "https://github.com/celo-org/snark-setup", package = "setup-utils", rev = "91adb98d89b8996b8188341fa00f3e7035f83c27"}
+setup-utils = { git = "https://github.com/celo-org/snark-setup", package = "setup-utils", rev = "25c2f84d0f73a6f5bb30fc93539f7b486c489824"}
 secrecy = { version = "0.7" }
 ctrlc = "3.1.7"
 indicatif = "0.15.0"
