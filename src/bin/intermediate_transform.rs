@@ -6,7 +6,6 @@ use setup_utils::{
     derive_rng_from_seed, from_slice, upgrade_correctness_check_config, BatchExpMode,
     SubgroupCheckMode, DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
     DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
-    groth16_utils::*,
 };
 use snark_setup_operator::data_structs::Ceremony;
 use snark_setup_operator::transcript_data_structs::Transcript;
@@ -81,6 +80,9 @@ pub struct IntermediateTransformOpts {
 
     #[options(help = "size of chunks used")]
     pub chunk_size: Option<usize>,
+
+    #[options(help = "number powers used")]
+    pub num_powers: usize,
 }
 
 pub struct IntermediateTransform {
@@ -91,6 +93,7 @@ pub struct IntermediateTransform {
     pub batch_exp_mode: BatchExpMode,
     pub subgroup_check_mode: SubgroupCheckMode,
     pub ratio_check: bool,
+    pub num_powers: usize,
 }
 
 impl IntermediateTransform {
@@ -129,6 +132,7 @@ impl IntermediateTransform {
             batch_exp_mode: opts.batch_exp_mode,
             subgroup_check_mode: opts.subgroup_check_mode,
             ratio_check: !opts.skip_ratio_check,
+            num_powers: opts.num_powers,
         };
         Ok(parameters)
     }
@@ -475,6 +479,13 @@ impl IntermediateTransform {
                 &parameters,
             );
         }
+
+        phase1_cli::prepare_phase2(
+            COMBINED_FILENAME,
+            RESPONSE_FILENAME,
+            self.num_powers,
+            &parameters,
+        )?;
 
         Ok(())
     }
