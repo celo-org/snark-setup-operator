@@ -46,6 +46,7 @@ const COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME: &str =
     "combined_new_verified_pok_and_correctness_new_challenge";
 const COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME: &str =
     "combined_verified_pok_and_correctness_new_challenge.hash";
+const PHASE2_FILENAME: &str = "phase2_init"; 
 
 #[derive(Debug, Options, Clone)]
 pub struct IntermediateTransformOpts {
@@ -480,9 +481,11 @@ impl IntermediateTransform {
             );
         }
 
+        remove_file_if_exists(PHASE2_FILENAME);
+
         phase1_cli::prepare_phase2(
+            PHASE2_FILENAME,
             COMBINED_FILENAME,
-            RESPONSE_FILENAME,
             self.num_powers,
             &parameters,
         )?;

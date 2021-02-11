@@ -22,6 +22,7 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::path::Path;
 use tracing::info;
+use tracing::debug;
 use url::Url;
 use algebra::{Bls12_377, PairingEngine, BW6_761};
 
@@ -77,8 +78,6 @@ pub struct NewCeremonyOpts {
     pub num_validators: Option<usize>,
     #[options(help = "number max epochs used in the circuit. Only used for phase 2")]
     pub num_epochs: Option<usize>,
-    #[options(help = "number powers used in phase1. Only used for phase 2")]
-    pub phase1_powers: Option<usize>,
     #[options(help = "file with prepared output from phase1. Only used for phase 2")]
     pub phase1_filename: Option<String>, 
 }
@@ -200,7 +199,7 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
                 NEW_CHALLENGE_HASH_FILENAME,
                 opts.chunk_size,
                 &opts.phase1_filename.as_ref().expect("phase1 filename not found while running phase2"),
-                opts.phase1_powers.expect("phase1 powers not found while running phase2"),
+                opts.powers,
                 opts.num_validators.expect("num_validators not found while running phase2"),
                 opts.num_epochs.expect("num_epochs not found while running phase2"),
             );

@@ -2706,7 +2706,7 @@ checksum = "d4fd5641d01c8f18a23da7b6fe29298ff4b55afcccdf78973b24cf3175fee32e"
 [[package]]
 name = "phase1"
 version = "0.3.0"
-source = "git+https://github.com/celo-org/snark-setup?rev=8953715627830078943c6292239144ea798d7ace#8953715627830078943c6292239144ea798d7ace"
+source = "git+https://github.com/celo-org/snark-setup?rev=604dea0ffcb1353e22fc2b82a928d2af8ffcd721#604dea0ffcb1353e22fc2b82a928d2af8ffcd721"
 dependencies = [
  "algebra",
  "algebra-core",
@@ -2725,7 +2725,7 @@ dependencies = [
 [[package]]
 name = "phase1-cli"
 version = "0.3.0"
-source = "git+https://github.com/celo-org/snark-setup?rev=8953715627830078943c6292239144ea798d7ace#8953715627830078943c6292239144ea798d7ace"
+source = "git+https://github.com/celo-org/snark-setup?rev=604dea0ffcb1353e22fc2b82a928d2af8ffcd721#604dea0ffcb1353e22fc2b82a928d2af8ffcd721"
 dependencies = [
  "algebra",
  "gumdrop",
@@ -2742,7 +2742,7 @@ dependencies = [
 [[package]]
 name = "phase2"
 version = "0.3.0"
-source = "git+https://github.com/celo-org/snark-setup?rev=8953715627830078943c6292239144ea798d7ace#8953715627830078943c6292239144ea798d7ace"
+source = "git+https://github.com/celo-org/snark-setup?rev=604dea0ffcb1353e22fc2b82a928d2af8ffcd721#604dea0ffcb1353e22fc2b82a928d2af8ffcd721"
 dependencies = [
  "algebra",
  "byteorder",
@@ -2761,7 +2761,7 @@ dependencies = [
 [[package]]
 name = "phase2-cli"
 version = "0.3.0"
-source = "git+https://github.com/celo-org/snark-setup?rev=8953715627830078943c6292239144ea798d7ace#8953715627830078943c6292239144ea798d7ace"
+source = "git+https://github.com/celo-org/snark-setup?rev=604dea0ffcb1353e22fc2b82a928d2af8ffcd721#604dea0ffcb1353e22fc2b82a928d2af8ffcd721"
 dependencies = [
  "algebra",
  "bench-utils",
@@ -3522,7 +3522,7 @@ dependencies = [
 [[package]]
 name = "setup-utils"
 version = "0.3.0"
-source = "git+https://github.com/celo-org/snark-setup?rev=8953715627830078943c6292239144ea798d7ace#8953715627830078943c6292239144ea798d7ace"
+source = "git+https://github.com/celo-org/snark-setup?rev=604dea0ffcb1353e22fc2b82a928d2af8ffcd721#604dea0ffcb1353e22fc2b82a928d2af8ffcd721"
 dependencies = [
  "algebra",
  "blake2 0.8.1",
