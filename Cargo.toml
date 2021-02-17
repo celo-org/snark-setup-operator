@@ -6,8 +6,8 @@ edition = "2018"
 
 [dependencies]
 anyhow = "1"
-azure_core = { git = "https://github.com/Azure/azure-sdk-for-rust", package = "azure_core", version = "0.1.0", default-features = false }
-azure_storage = { git = "https://github.com/Azure/azure-sdk-for-rust", package = "azure_storage", version = "0.1.0", default-features = false, features = ["blob"] }
+azure_core = { git = "https://github.com/Azure/azure-sdk-for-rust", package = "azure_core", version = "0.1.0", default-features = false, rev = "10e48f6962d35f07a51457ac12d4c64595f9f066" }
+azure_storage = { git = "https://github.com/Azure/azure-sdk-for-rust", package = "azure_storage", version = "0.1.0", default-features = false, features = ["blob"], rev = "10e48f6962d35f07a51457ac12d4c64595f9f066" }
 tokio = { version = "0.2", features = [ "full" ] }
 byteorder = "1.3.4"
 retry = "1.1.0"
@@ -22,13 +22,13 @@ tracing-appender = "0.1.1"
 tracing-subscriber = "0.2"
 ethers = { git = "https://github.com/gakonst/ethers-rs", features = ["celo"] }
 hex = "0.4"
-phase1 = { git = "https://github.com/celo-org/snark-setup", package = "phase1", rev = "604dea0ffcb1353e22fc2b82a928d2af8ffcd721" }
-phase1-cli = { git = "https://github.com/celo-org/snark-setup", package = "phase1-cli", rev = "604dea0ffcb1353e22fc2b82a928d2af8ffcd721" }
-phase2 = { git = "https://github.com/celo-org/snark-setup", package = "phase2", rev = "604dea0ffcb1353e22fc2b82a928d2af8ffcd721" }
-phase2-cli = { git = "https://github.com/celo-org/snark-setup", package = "phase2-cli", rev = "604dea0ffcb1353e22fc2b82a928d2af8ffcd721" }
+phase1 = { git = "https://github.com/celo-org/snark-setup", package = "phase1", rev = "14bfb120c5b52f9310f4181061952083de344792" }
+phase1-cli = { git = "https://github.com/celo-org/snark-setup", package = "phase1-cli", rev = "14bfb120c5b52f9310f4181061952083de344792" }
+phase2 = { git = "https://github.com/celo-org/snark-setup", package = "phase2", rev = "14bfb120c5b52f9310f4181061952083de344792" }
+phase2-cli = { git = "https://github.com/celo-org/snark-setup", package = "phase2-cli", rev = "14bfb120c5b52f9310f4181061952083de344792" }
 rand = "0.7"
 reqwest = { version = "0.10", features = [ "blocking", "stream", "gzip" ] }
-setup-utils = { git = "https://github.com/celo-org/snark-setup", package = "setup-utils", rev = "604dea0ffcb1353e22fc2b82a928d2af8ffcd721"}
+setup-utils = { git = "https://github.com/celo-org/snark-setup", package = "setup-utils", rev = "14bfb120c5b52f9310f4181061952083de344792" } 
 secrecy = { version = "0.7" }
 ctrlc = "3.1.7"
 indicatif = "0.15.0"

@@ -296,7 +296,7 @@ checksum = "cdb031dd78e28731d87d56cc8ffef4a8f36ca26c38fe2de700543e627f8a464a"
 [[package]]
 name = "azure_core"
 version = "0.1.0"
-source = "git+https://github.com/Azure/azure-sdk-for-rust#10e48f6962d35f07a51457ac12d4c64595f9f066"
+source = "git+https://github.com/Azure/azure-sdk-for-rust?rev=10e48f6962d35f07a51457ac12d4c64595f9f066#10e48f6962d35f07a51457ac12d4c64595f9f066"
 dependencies = [
  "RustyXML",
  "async-trait",
@@ -322,7 +322,7 @@ dependencies = [
 [[package]]
 name = "azure_storage"
 version = "0.1.0"
-source = "git+https://github.com/Azure/azure-sdk-for-rust#10e48f6962d35f07a51457ac12d4c64595f9f066"
+source = "git+https://github.com/Azure/azure-sdk-for-rust?rev=10e48f6962d35f07a51457ac12d4c64595f9f066#10e48f6962d35f07a51457ac12d4c64595f9f066"
 dependencies = [
  "RustyXML",
  "azure_core",
@@ -508,7 +508,7 @@ checksum = "8d696c370c750c948ada61c69a0ee2cbbb9c50b1019ddb86d9317157a99c2cae"
 [[package]]
 name = "bls-crypto"
 version = "0.2.0"
-source = "git+https://github.com/celo-org/celo-bls-snark-rs?branch=straka/zexe-patch#254ffbff00ff3b8738c4880ce4c654c55a8a6c41"
+source = "git+https://github.com/celo-org/celo-bls-snark-rs?rev=54af6105607f2ec3ceffff77fbc46eb11564c246#54af6105607f2ec3ceffff77fbc46eb11564c246"
 dependencies = [
  "algebra",
  "bench-utils",
@@ -530,7 +530,7 @@ dependencies = [
 [[package]]
 name = "bls-gadgets"
 version = "0.2.0"
-source = "git+https://github.com/celo-org/celo-bls-snark-rs?branch=straka/zexe-patch#254ffbff00ff3b8738c4880ce4c654c55a8a6c41"
+source = "git+https://github.com/celo-org/celo-bls-snark-rs?rev=54af6105607f2ec3ceffff77fbc46eb11564c246#54af6105607f2ec3ceffff77fbc46eb11564c246"
 dependencies = [
  "algebra",
  "algebra-core",
@@ -1195,7 +1195,7 @@ dependencies = [
 [[package]]
 name = "epoch-snark"
 version = "0.2.0"
-source = "git+https://github.com/celo-org/celo-bls-snark-rs?branch=straka/zexe-patch#254ffbff00ff3b8738c4880ce4c654c55a8a6c41"
+source = "git+https://github.com/celo-org/celo-bls-snark-rs?rev=54af6105607f2ec3ceffff77fbc46eb11564c246#54af6105607f2ec3ceffff77fbc46eb11564c246"
 dependencies = [
  "algebra",
  "algebra-core",
@@ -2706,7 +2706,7 @@ checksum = "d4fd5641d01c8f18a23da7b6fe29298ff4b55afcccdf78973b24cf3175fee32e"
 [[package]]
 name = "phase1"
 version = "0.3.0"
-source = "git+https://github.com/celo-org/snark-setup?rev=604dea0ffcb1353e22fc2b82a928d2af8ffcd721#604dea0ffcb1353e22fc2b82a928d2af8ffcd721"
+source = "git+https://github.com/celo-org/snark-setup?rev=14bfb120c5b52f9310f4181061952083de344792#14bfb120c5b52f9310f4181061952083de344792"
 dependencies = [
  "algebra",
  "algebra-core",
@@ -2725,7 +2725,7 @@ dependencies = [
 [[package]]
 name = "phase1-cli"
 version = "0.3.0"
-source = "git+https://github.com/celo-org/snark-setup?rev=604dea0ffcb1353e22fc2b82a928d2af8ffcd721#604dea0ffcb1353e22fc2b82a928d2af8ffcd721"
+source = "git+https://github.com/celo-org/snark-setup?rev=14bfb120c5b52f9310f4181061952083de344792#14bfb120c5b52f9310f4181061952083de344792"
 dependencies = [
  "algebra",
  "gumdrop",
@@ -2742,7 +2742,7 @@ dependencies = [
 [[package]]
 name = "phase2"
 version = "0.3.0"
-source = "git+https://github.com/celo-org/snark-setup?rev=604dea0ffcb1353e22fc2b82a928d2af8ffcd721#604dea0ffcb1353e22fc2b82a928d2af8ffcd721"
+source = "git+https://github.com/celo-org/snark-setup?rev=14bfb120c5b52f9310f4181061952083de344792#14bfb120c5b52f9310f4181061952083de344792"
 dependencies = [
  "algebra",
  "byteorder",
@@ -2761,7 +2761,7 @@ dependencies = [
 [[package]]
 name = "phase2-cli"
 version = "0.3.0"
-source = "git+https://github.com/celo-org/snark-setup?rev=604dea0ffcb1353e22fc2b82a928d2af8ffcd721#604dea0ffcb1353e22fc2b82a928d2af8ffcd721"
+source = "git+https://github.com/celo-org/snark-setup?rev=14bfb120c5b52f9310f4181061952083de344792#14bfb120c5b52f9310f4181061952083de344792"
 dependencies = [
  "algebra",
  "bench-utils",
@@ -3522,7 +3522,7 @@ dependencies = [
 [[package]]
 name = "setup-utils"
 version = "0.3.0"
-source = "git+https://github.com/celo-org/snark-setup?rev=604dea0ffcb1353e22fc2b82a928d2af8ffcd721#604dea0ffcb1353e22fc2b82a928d2af8ffcd721"
+source = "git+https://github.com/celo-org/snark-setup?rev=14bfb120c5b52f9310f4181061952083de344792#14bfb120c5b52f9310f4181061952083de344792"
 dependencies = [
  "algebra",
  "blake2 0.8.1",
