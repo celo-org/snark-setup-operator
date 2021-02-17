@@ -1,0 +1,600 @@
+{
+  "rounds": [
+    {
+      "round": 0,
+      "version": 34,
+      "maxLocks": 3,
+      "shutdownSignal": false,
+      "contributorIds": [
+        "0xc31130dc73f078f99fac28e250535cbc3407608d"
+      ],
+      "verifierIds": [
+        "0xb522a4df212f0baa380d1dd480affbb955b39595",
+        "0xb522a4df212f0baa380d1dd480affbb955b39595"
+      ],
+      "chunks": [
+        {
+          "chunkId": "0",
+          "lockHolder": null,
+          "contributions": [
+            {
+              "metadata": {
+                "contributedTime": null,
+                "contributedLockHolderTime": null,
+                "verifiedTime": null,
+                "verifiedLockHolderTime": null
+              },
+              "contributorId": null,
+              "contributedLocation": null,
+              "contributedData": null,
+              "verifierId": "0xb522a4df212f0baa380d1dd480affbb955b39595",
+              "verifiedLocation": "http://localhost:8080/chunks/0/0/contribution/0",
+              "verified": true,
+              "verifiedData": {
+                "data": {
+                  "challengeHash": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+                  "responseHash": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+                  "newChallengeHash": "aee1d526c950abdb21ad5800de661fe0222c8df475f3514c3c17dcfd797e6477d2de244ba05b4f7aabd6dd44cca8abb3e13bd59c58c7e4fd7a4a283622f63d3c",
+                  "verificationDuration": null
+                },
+                "signature": "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+              }
+            },
+            {
+              "metadata": {
+                "contributedTime": "2021-02-17T02:21:46.167Z",
+                "contributedLockHolderTime": "2021-02-17T02:21:45.887Z",
+                "verifiedTime": "2021-02-17T02:22:55.555Z",
+                "verifiedLockHolderTime": "2021-02-17T02:22:54.272Z"
+              },
+              "contributorId": "0xc31130dc73f078f99fac28e250535cbc3407608d",
+              "contributedLocation": "http://localhost:8080/chunks/0/0/contribution/1",
+              "contributedData": {
+                "data": {
+                  "challengeHash": "aee1d526c950abdb21ad5800de661fe0222c8df475f3514c3c17dcfd797e6477d2de244ba05b4f7aabd6dd44cca8abb3e13bd59c58c7e4fd7a4a283622f63d3c",
+                  "responseHash": "3e62449108fccbdb0b92bf5a13b201e9dc9e0c459c9f166208a5724f6ad4cc62aa1d4098f9a87a3fd9d1843e4c31f59d3eac71c721764c7e06603280c1059641",
+                  "contributionDuration": 264,
+                  "processorData": null
+                },
+                "signature": "0x49017ab08a783a9cd5a0875b313699a2bc4c7672ce4adf6b0cd4cec0b572b29e4ed547244bf7d4fc41150b733c9233c9e79e3c1cd81250e0b4723dc6ed8171f71b"
+              },
+              "verifierId": "0xb522a4df212f0baa380d1dd480affbb955b39595",
+              "verifiedLocation": "http://localhost:8080/chunks/0/0/contribution/2",
+              "verified": true,
+              "verifiedData": {
+                "data": {
+                  "challengeHash": "aee1d526c950abdb21ad5800de661fe0222c8df475f3514c3c17dcfd797e6477d2de244ba05b4f7aabd6dd44cca8abb3e13bd59c58c7e4fd7a4a283622f63d3c",
+                  "responseHash": "3e62449108fccbdb0b92bf5a13b201e9dc9e0c459c9f166208a5724f6ad4cc62aa1d4098f9a87a3fd9d1843e4c31f59d3eac71c721764c7e06603280c1059641",
+                  "newChallengeHash": "bcc9b16ef83c18b44b4bf1a235a70d52617ec4247c4b9310a204afc7cdec65b243dacf5be7ea1adc35f4c3f1507abaa4a144f8117135e593d63583801efbed67",
+                  "verificationDuration": 1266
+                },
+                "signature": "0xcf6c83501e685e6855d39a6d2d005fccd2ba283734ae6e35ea28eae9db4d90e43cfe328b6e516a24aaa2598e178cd71eab8f1454d82ba0d7c200705fa0dc6dd91c"
+              }
+            }
+          ],
+          "metadata": {
+            "lockHolderTime": "2021-02-17T02:22:55.555Z"
+          }
+        },
+        {
+          "chunkId": "1",
+          "lockHolder": null,
+          "contributions": [
+            {
+              "metadata": {
+                "contributedTime": null,
+                "contributedLockHolderTime": null,
+                "verifiedTime": null,
+                "verifiedLockHolderTime": null
+              },
+              "contributorId": null,
+              "contributedLocation": null,
+              "contributedData": null,
+              "verifierId": "0xb522a4df212f0baa380d1dd480affbb955b39595",
+              "verifiedLocation": "http://localhost:8080/chunks/0/1/contribution/0",
+              "verified": true,
+              "verifiedData": {
+                "data": {
+                  "challengeHash": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+                  "responseHash": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+                  "newChallengeHash": "aee1d526c950abdb21ad5800de661fe0222c8df475f3514c3c17dcfd797e6477d2de244ba05b4f7aabd6dd44cca8abb3e13bd59c58c7e4fd7a4a283622f63d3c",
+                  "verificationDuration": null
+                },
+                "signature": "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+              }
+            },
+            {
+              "metadata": {
+                "contributedTime": "2021-02-17T02:21:47.055Z",
+                "contributedLockHolderTime": "2021-02-17T02:21:46.760Z",
+                "verifiedTime": "2021-02-17T02:22:56.805Z",
+                "verifiedLockHolderTime": "2021-02-17T02:22:55.559Z"
+              },
+              "contributorId": "0xc31130dc73f078f99fac28e250535cbc3407608d",
+              "contributedLocation": "http://localhost:8080/chunks/0/1/contribution/1",
+              "contributedData": {
+                "data": {
+                  "challengeHash": "aee1d526c950abdb21ad5800de661fe0222c8df475f3514c3c17dcfd797e6477d2de244ba05b4f7aabd6dd44cca8abb3e13bd59c58c7e4fd7a4a283622f63d3c",
+                  "responseHash": "ce77b2bf9344c6760c1c9566551de75a1c3e4d7e3b414a3d2748b03690d754d23c2f6d93ef56bfd191703efd5ebb4cd57ad932cf245e8f943139648532f4aede",
+                  "contributionDuration": 282,
+                  "processorData": null
+                },
+                "signature": "0xe153948691291641dc740ae8cbefa9753994637a47846171072b7c02225b4e1462dad2cdabbec4f06965fb6a40a35f50a15af5a638781d738487028cf0781bbc1b"
+              },
+              "verifierId": "0xb522a4df212f0baa380d1dd480affbb955b39595",
+              "verifiedLocation": "http://localhost:8080/chunks/0/1/contribution/2",
+              "verified": true,
+              "verifiedData": {
+                "data": {
+                  "challengeHash": "aee1d526c950abdb21ad5800de661fe0222c8df475f3514c3c17dcfd797e6477d2de244ba05b4f7aabd6dd44cca8abb3e13bd59c58c7e4fd7a4a283622f63d3c",
+                  "responseHash": "ce77b2bf9344c6760c1c9566551de75a1c3e4d7e3b414a3d2748b03690d754d23c2f6d93ef56bfd191703efd5ebb4cd57ad932cf245e8f943139648532f4aede",
+                  "newChallengeHash": "23339ffab6f81f8cc0d91046eb49f09e1df997fd66429f9aa081426f1d900be96e12833e9054e654ee8663b57d22862dc90c03d25d08f3f384d7c22dbb43d697",
+                  "verificationDuration": 1230
+                },
+                "signature": "0x1f23a0dda9e6bab93caac4bf1b86e0f1d56686dc4de2a4bbb256e2d1a88ebf164a84793126793f4fb922e704a78fedd3ddf09a415f4ee774cd8ff0823b1ce3501c"
+              }
+            }
+          ],
+          "metadata": {
+            "lockHolderTime": "2021-02-17T02:22:56.805Z"
+          }
+        },
+        {
+          "chunkId": "2",
+          "lockHolder": null,
+          "contributions": [
+            {
+              "metadata": {
+                "contributedTime": null,
+                "contributedLockHolderTime": null,
+                "verifiedTime": null,
+                "verifiedLockHolderTime": null
+              },
+              "contributorId": null,
+              "contributedLocation": null,
+              "contributedData": null,
+              "verifierId": "0xb522a4df212f0baa380d1dd480affbb955b39595",
+              "verifiedLocation": "http://localhost:8080/chunks/0/2/contribution/0",
+              "verified": true,
+              "verifiedData": {
+                "data": {
+                  "challengeHash": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+                  "responseHash": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+                  "newChallengeHash": "aee1d526c950abdb21ad5800de661fe0222c8df475f3514c3c17dcfd797e6477d2de244ba05b4f7aabd6dd44cca8abb3e13bd59c58c7e4fd7a4a283622f63d3c",
+                  "verificationDuration": null
+                },
+                "signature": "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+              }
+            },
+            {
+              "metadata": {
+                "contributedTime": "2021-02-17T02:21:46.756Z",
+                "contributedLockHolderTime": "2021-02-17T02:21:46.467Z",
+                "verifiedTime": "2021-02-17T02:22:53.614Z",
+                "verifiedLockHolderTime": "2021-02-17T02:22:52.433Z"
+              },
+              "contributorId": "0xc31130dc73f078f99fac28e250535cbc3407608d",
+              "contributedLocation": "http://localhost:8080/chunks/0/2/contribution/1",
+              "contributedData": {
+                "data": {
+                  "challengeHash": "aee1d526c950abdb21ad5800de661fe0222c8df475f3514c3c17dcfd797e6477d2de244ba05b4f7aabd6dd44cca8abb3e13bd59c58c7e4fd7a4a283622f63d3c",
+                  "responseHash": "4f6bafd94498fd965d46a4eb4cb22ab5fc48fcd72e377b1f093c0e0bf4a5b2ee483545aeada788bdbb8705b2935c024ee86e3406128ca1c2069211ba1563e6a5",
+                  "contributionDuration": 272,
+                  "processorData": null
+                },
+                "signature": "0xc946b1c1e7ce090d04e8388b244f82717dd0de2665a31f88c2d4e39a2f2e0858555afd65104c6eea3b65601810a04407c51f2f49e9485a4ff17871c52a5aa2281c"
+              },
+              "verifierId": "0xb522a4df212f0baa380d1dd480affbb955b39595",
+              "verifiedLocation": "http://localhost:8080/chunks/0/2/contribution/2",
+              "verified": true,
+              "verifiedData": {
+                "data": {
+                  "challengeHash": "aee1d526c950abdb21ad5800de661fe0222c8df475f3514c3c17dcfd797e6477d2de244ba05b4f7aabd6dd44cca8abb3e13bd59c58c7e4fd7a4a283622f63d3c",
+                  "responseHash": "4f6bafd94498fd965d46a4eb4cb22ab5fc48fcd72e377b1f093c0e0bf4a5b2ee483545aeada788bdbb8705b2935c024ee86e3406128ca1c2069211ba1563e6a5",
+                  "newChallengeHash": "e88577f8fc0a10b880b345716e0075ca2b8b20feb0016589db203b90b3e83a43ffe2fe3c4ad00324ec12c7496868d2373ad462ea909d7b878711e75cd1a46616",
+                  "verificationDuration": 1163
+                },
+                "signature": "0x822368e1321e3f29fa1629c05737b23121ac8594af0ad6bc937cffb34fa690215e419c051f754ef119a3e6dda726f3ddc9bef55cb0cf5fd8bb65c93594f5d6191c"
+              }
+            }
+          ],
+          "metadata": {
+            "lockHolderTime": "2021-02-17T02:22:53.614Z"
+          }
+        },
+        {
+          "chunkId": "3",
+          "lockHolder": null,
+          "contributions": [
+            {
+              "metadata": {
+                "contributedTime": null,
+                "contributedLockHolderTime": null,
+                "verifiedTime": null,
+                "verifiedLockHolderTime": null
+              },
+              "contributorId": null,
+              "contributedLocation": null,
+              "contributedData": null,
+              "verifierId": "0xb522a4df212f0baa380d1dd480affbb955b39595",
+              "verifiedLocation": "http://localhost:8080/chunks/0/3/contribution/0",
+              "verified": true,
+              "verifiedData": {
+                "data": {
+                  "challengeHash": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+                  "responseHash": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+                  "newChallengeHash": "aee1d526c950abdb21ad5800de661fe0222c8df475f3514c3c17dcfd797e6477d2de244ba05b4f7aabd6dd44cca8abb3e13bd59c58c7e4fd7a4a283622f63d3c",
+                  "verificationDuration": null
+                },
+                "signature": "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+              }
+            },
+            {
+              "metadata": {
+                "contributedTime": "2021-02-17T02:21:46.463Z",
+                "contributedLockHolderTime": "2021-02-17T02:21:46.172Z",
+                "verifiedTime": "2021-02-17T02:22:52.428Z",
+                "verifiedLockHolderTime": "2021-02-17T02:22:51.310Z"
+              },
+              "contributorId": "0xc31130dc73f078f99fac28e250535cbc3407608d",
+              "contributedLocation": "http://localhost:8080/chunks/0/3/contribution/1",
+              "contributedData": {
+                "data": {
+                  "challengeHash": "aee1d526c950abdb21ad5800de661fe0222c8df475f3514c3c17dcfd797e6477d2de244ba05b4f7aabd6dd44cca8abb3e13bd59c58c7e4fd7a4a283622f63d3c",
+                  "responseHash": "1f20cf861eda33aa436908426fb2d7f7f9e22aa594bbe24422cfdf60e2e8c96a2675991d9de5d45bc042a2361636c114c2aa51643a75f5f6eaefacde0654eb60",
+                  "contributionDuration": 275,
+                  "processorData": null
+                },
+                "signature": "0x4386d640a2190ee44488854c2cd6531bbeab4090fe291d957a4c429f4628445a321c8290b72cdc8b5dc473f30b48869eef41e0b0c184f9ebc09e0125c2c7ce221c"
+              },
+              "verifierId": "0xb522a4df212f0baa380d1dd480affbb955b39595",
+              "verifiedLocation": "http://localhost:8080/chunks/0/3/contribution/2",
+              "verified": true,
+              "verifiedData": {
+                "data": {
+                  "challengeHash": "aee1d526c950abdb21ad5800de661fe0222c8df475f3514c3c17dcfd797e6477d2de244ba05b4f7aabd6dd44cca8abb3e13bd59c58c7e4fd7a4a283622f63d3c",
+                  "responseHash": "1f20cf861eda33aa436908426fb2d7f7f9e22aa594bbe24422cfdf60e2e8c96a2675991d9de5d45bc042a2361636c114c2aa51643a75f5f6eaefacde0654eb60",
+                  "newChallengeHash": "2b9b1dc43526aaf3fda2fce016c156fa01fae595d30aaa68cbade0f63dc829d2b554ccea850696a3c5c92f02fb12ef08ef0575e26eec732496703c4cb1ef11b6",
+                  "verificationDuration": 1100
+                },
+                "signature": "0x22e83bc25928bed03acf126ac3d5e3d52b88fed4f7eb58c1fde8a5efab1ae6c06aa33918298c5fbf762bdff3b503e560ff75f56d23677a85b9e72891379564501b"
+              }
+            }
+          ],
+          "metadata": {
+            "lockHolderTime": "2021-02-17T02:22:52.428Z"
+          }
+        },
+        {
+          "chunkId": "4",
+          "lockHolder": null,
+          "contributions": [
+            {
+              "metadata": {
+                "contributedTime": null,
+                "contributedLockHolderTime": null,
+                "verifiedTime": null,
+                "verifiedLockHolderTime": null
+              },
+              "contributorId": null,
+              "contributedLocation": null,
+              "contributedData": null,
+              "verifierId": "0xb522a4df212f0baa380d1dd480affbb955b39595",
+              "verifiedLocation": "http://localhost:8080/chunks/0/4/contribution/0",
+              "verified": true,
+              "verifiedData": {
+                "data": {
+                  "challengeHash": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+                  "responseHash": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+                  "newChallengeHash": "3986009447addbe0a2de3c70ec51dc635848a86081a42d0c91dd7e1c8f5132d1d095706583b9c29028f6f13abe8ab990070e82d0c9312c158bb7e0cc72117401",
+                  "verificationDuration": null
+                },
+                "signature": "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+              }
+            },
+            {
+              "metadata": {
+                "contributedTime": "2021-02-17T02:21:47.155Z",
+                "contributedLockHolderTime": "2021-02-17T02:21:47.059Z",
+                "verifiedTime": "2021-02-17T02:22:53.940Z",
+                "verifiedLockHolderTime": "2021-02-17T02:22:53.782Z"
+              },
+              "contributorId": "0xc31130dc73f078f99fac28e250535cbc3407608d",
+              "contributedLocation": "http://localhost:8080/chunks/0/4/contribution/1",
+              "contributedData": {
+                "data": {
+                  "challengeHash": "3986009447addbe0a2de3c70ec51dc635848a86081a42d0c91dd7e1c8f5132d1d095706583b9c29028f6f13abe8ab990070e82d0c9312c158bb7e0cc72117401",
+                  "responseHash": "2ed941a6bfffdb0cdc26d67450386017360514c42e069e128120e08a75dfb4ee55cc013cc8442d8da2ed49aadb73897599009bf4a460557ccdbcc335c38f924c",
+                  "contributionDuration": 84,
+                  "processorData": null
+                },
+                "signature": "0xbf7d973919ef2766e44126adf6996f3eb9ac668d5b73a103fd3debd2bbd47bf6754dcb219fd3ec25abf19bc2d0c1586079bb69dbe8c74d59e905e0ad5cf63f911c"
+              },
+              "verifierId": "0xb522a4df212f0baa380d1dd480affbb955b39595",
+              "verifiedLocation": "http://localhost:8080/chunks/0/4/contribution/2",
+              "verified": true,
+              "verifiedData": {
+                "data": {
+                  "challengeHash": "3986009447addbe0a2de3c70ec51dc635848a86081a42d0c91dd7e1c8f5132d1d095706583b9c29028f6f13abe8ab990070e82d0c9312c158bb7e0cc72117401",
+                  "responseHash": "2ed941a6bfffdb0cdc26d67450386017360514c42e069e128120e08a75dfb4ee55cc013cc8442d8da2ed49aadb73897599009bf4a460557ccdbcc335c38f924c",
+                  "newChallengeHash": "5a7f48cddaa06675c5cc2e4bb3abfad1caaa3639276cf0ce14d2506107c7ce96200235d8a65c701305df9ad6b9546fc7b63ce90f00617f2aaf22aaa49578f688",
+                  "verificationDuration": 146
+                },
+                "signature": "0xd2b2ee810f210b032357456662ce9b0f6358e0e8b0fdd3f845906b4fefc455771384086996bce07ce86cfafc77ab83cae458851d8f9a1454dc8fa547db9ac0361b"
+              }
+            }
+          ],
+          "metadata": {
+            "lockHolderTime": "2021-02-17T02:22:53.940Z"
+          }
+        },
+        {
+          "chunkId": "5",
+          "lockHolder": null,
+          "contributions": [
+            {
+              "metadata": {
+                "contributedTime": null,
+                "contributedLockHolderTime": null,
+                "verifiedTime": null,
+                "verifiedLockHolderTime": null
+              },
+              "contributorId": null,
+              "contributedLocation": null,
+              "contributedData": null,
+              "verifierId": "0xb522a4df212f0baa380d1dd480affbb955b39595",
+              "verifiedLocation": "http://localhost:8080/chunks/0/5/contribution/0",
+              "verified": true,
+              "verifiedData": {
+                "data": {
+                  "challengeHash": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+                  "responseHash": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+                  "newChallengeHash": "3986009447addbe0a2de3c70ec51dc635848a86081a42d0c91dd7e1c8f5132d1d095706583b9c29028f6f13abe8ab990070e82d0c9312c158bb7e0cc72117401",
+                  "verificationDuration": null
+                },
+                "signature": "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+              }
+            },
+            {
+              "metadata": {
+                "contributedTime": "2021-02-17T02:21:47.261Z",
+                "contributedLockHolderTime": "2021-02-17T02:21:47.159Z",
+                "verifiedTime": "2021-02-17T02:22:54.268Z",
+                "verifiedLockHolderTime": "2021-02-17T02:22:54.112Z"
+              },
+              "contributorId": "0xc31130dc73f078f99fac28e250535cbc3407608d",
+              "contributedLocation": "http://localhost:8080/chunks/0/5/contribution/1",
+              "contributedData": {
+                "data": {
+                  "challengeHash": "3986009447addbe0a2de3c70ec51dc635848a86081a42d0c91dd7e1c8f5132d1d095706583b9c29028f6f13abe8ab990070e82d0c9312c158bb7e0cc72117401",
+                  "responseHash": "ca8dc776127a8bbb65f6714b990b1e3838c46eb3fe7431a9bf0c37badb4987684445e344ea75f89b31247c7bb7cabe79610feab159f57e9bc91a84416c34fc91",
+                  "contributionDuration": 90,
+                  "processorData": null
+                },
+                "signature": "0xadf661a8662fa8046353a28c421d33276c2df42753476fdc85fa10685be70dec27b73f8edfec53c4943b69fb479a294d60ec2bd9e59b7f862b22ea0cd509545c1b"
+              },
+              "verifierId": "0xb522a4df212f0baa380d1dd480affbb955b39595",
+              "verifiedLocation": "http://localhost:8080/chunks/0/5/contribution/2",
+              "verified": true,
+              "verifiedData": {
+                "data": {
+                  "challengeHash": "3986009447addbe0a2de3c70ec51dc635848a86081a42d0c91dd7e1c8f5132d1d095706583b9c29028f6f13abe8ab990070e82d0c9312c158bb7e0cc72117401",
+                  "responseHash": "ca8dc776127a8bbb65f6714b990b1e3838c46eb3fe7431a9bf0c37badb4987684445e344ea75f89b31247c7bb7cabe79610feab159f57e9bc91a84416c34fc91",
+                  "newChallengeHash": "dba1c12f9c4fbd8ab66ee420653ca9245bd88954d2fc3b42e07787a09b8db5828a54174810e803620919f859b4f61f576f53faf720fb77ebea90b347755f4227",
+                  "verificationDuration": 144
+                },
+                "signature": "0xce5ab063344dc3547ceef145103bad1ac4a9dc28280d8090fdf6ad9bd8f7f7c04a650bc735c46787ced6394e7cd2f20f5760499e3b30caca8884c109a4d0ab161c"
+              }
+            }
+          ],
+          "metadata": {
+            "lockHolderTime": "2021-02-17T02:22:54.268Z"
+          }
+        },
+        {
+          "chunkId": "6",
+          "lockHolder": null,
+          "contributions": [
+            {
+              "metadata": {
+                "contributedTime": null,
+                "contributedLockHolderTime": null,
+                "verifiedTime": null,
+                "verifiedLockHolderTime": null
+              },
+              "contributorId": null,
+              "contributedLocation": null,
+              "contributedData": null,
+              "verifierId": "0xb522a4df212f0baa380d1dd480affbb955b39595",
+              "verifiedLocation": "http://localhost:8080/chunks/0/6/contribution/0",
+              "verified": true,
+              "verifiedData": {
+                "data": {
+                  "challengeHash": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+                  "responseHash": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+                  "newChallengeHash": "3986009447addbe0a2de3c70ec51dc635848a86081a42d0c91dd7e1c8f5132d1d095706583b9c29028f6f13abe8ab990070e82d0c9312c158bb7e0cc72117401",
+                  "verificationDuration": null
+                },
+                "signature": "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+              }
+            },
+            {
+              "metadata": {
+                "contributedTime": "2021-02-17T02:21:45.883Z",
+                "contributedLockHolderTime": "2021-02-17T02:21:45.798Z",
+                "verifiedTime": "2021-02-17T02:22:53.778Z",
+                "verifiedLockHolderTime": "2021-02-17T02:22:53.618Z"
+              },
+              "contributorId": "0xc31130dc73f078f99fac28e250535cbc3407608d",
+              "contributedLocation": "http://localhost:8080/chunks/0/6/contribution/1",
+              "contributedData": {
+                "data": {
+                  "challengeHash": "3986009447addbe0a2de3c70ec51dc635848a86081a42d0c91dd7e1c8f5132d1d095706583b9c29028f6f13abe8ab990070e82d0c9312c158bb7e0cc72117401",
+                  "responseHash": "ff0602f7c20889934bce276b9a94387312f8bb3770df40df4833cc6737e6dd4b813e19ba98fbe7864e76ffb8dd147ca71718cb2ac712b0a348f0b26214397868",
+                  "contributionDuration": 71,
+                  "processorData": null
+                },
+                "signature": "0x980d7d0a25314f03faead3ff9fda542cc5e43c924d65831b2dd764bdcdc107c477adc45617dc2257d2ea2fd0f47e90b93f094750b454a109d278c32e7c6a01ed1c"
+              },
+              "verifierId": "0xb522a4df212f0baa380d1dd480affbb955b39595",
+              "verifiedLocation": "http://localhost:8080/chunks/0/6/contribution/2",
+              "verified": true,
+              "verifiedData": {
+                "data": {
+                  "challengeHash": "3986009447addbe0a2de3c70ec51dc635848a86081a42d0c91dd7e1c8f5132d1d095706583b9c29028f6f13abe8ab990070e82d0c9312c158bb7e0cc72117401",
+                  "responseHash": "ff0602f7c20889934bce276b9a94387312f8bb3770df40df4833cc6737e6dd4b813e19ba98fbe7864e76ffb8dd147ca71718cb2ac712b0a348f0b26214397868",
+                  "newChallengeHash": "27f339d9fe64492bd740f612360319b1c80282d8b408ca958ff5670d78b8e6f0380ae37602105e9d6e404b7cd94847b688ee52300131a073e40a18506d4a0b3e",
+                  "verificationDuration": 148
+                },
+                "signature": "0xdb6e04434a784e0ebb8eefb457236835f3bdc24411badf93e61dd2e502771e0d703f4cb52b7765eda03d064b755e973df3780b7d1697269d25ce4ec63b7e0ba31b"
+              }
+            }
+          ],
+          "metadata": {
+            "lockHolderTime": "2021-02-17T02:22:53.778Z"
+          }
+        },
+        {
+          "chunkId": "7",
+          "lockHolder": null,
+          "contributions": [
+            {
+              "metadata": {
+                "contributedTime": null,
+                "contributedLockHolderTime": null,
+                "verifiedTime": null,
+                "verifiedLockHolderTime": null
+              },
+              "contributorId": null,
+              "contributedLocation": null,
+              "contributedData": null,
+              "verifierId": "0xb522a4df212f0baa380d1dd480affbb955b39595",
+              "verifiedLocation": "http://localhost:8080/chunks/0/7/contribution/0",
+              "verified": true,
+              "verifiedData": {
+                "data": {
+                  "challengeHash": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+                  "responseHash": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+                  "newChallengeHash": "6be0617abed1a0305673e9aa8bd8f5c307e30ec114a0e4edde14217952a73cf2d55c6ccddb17ea5f8bd2764cb9ae36e75ba9bd1e7fb88469effeac2adcf22627",
+                  "verificationDuration": null
+                },
+                "signature": "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+              }
+            },
+            {
+              "metadata": {
+                "contributedTime": "2021-02-17T02:21:45.793Z",
+                "contributedLockHolderTime": "2021-02-17T02:21:45.681Z",
+                "verifiedTime": "2021-02-17T02:22:54.107Z",
+                "verifiedLockHolderTime": "2021-02-17T02:22:53.944Z"
+              },
+              "contributorId": "0xc31130dc73f078f99fac28e250535cbc3407608d",
+              "contributedLocation": "http://localhost:8080/chunks/0/7/contribution/1",
+              "contributedData": {
+                "data": {
+                  "challengeHash": "6be0617abed1a0305673e9aa8bd8f5c307e30ec114a0e4edde14217952a73cf2d55c6ccddb17ea5f8bd2764cb9ae36e75ba9bd1e7fb88469effeac2adcf22627",
+                  "responseHash": "a775ce9c714d4d243f284915c48eaef708a156a40e06b1f9f791e10b9a8e899026c17d115f7663aa8409b9c552982bc238d379b663a0115f4cc6128be20c15d9",
+                  "contributionDuration": 75,
+                  "processorData": [
+                    {
+                      "name": "1",
+                      "brand": "GenuineIntel\u0000",
+                      "frequency": "2600"
+                    },
+                    {
+                      "name": "2",
+                      "brand": "GenuineIntel\u0000",
+                      "frequency": "2600"
+                    },
+                    {
+                      "name": "3",
+                      "brand": "GenuineIntel\u0000",
+                      "frequency": "2600"
+                    },
+                    {
+                      "name": "4",
+                      "brand": "GenuineIntel\u0000",
+                      "frequency": "2600"
+                    },
+                    {
+                      "name": "5",
+                      "brand": "GenuineIntel\u0000",
+                      "frequency": "2600"
+                    },
+                    {
+                      "name": "6",
+                      "brand": "GenuineIntel\u0000",
+                      "frequency": "2600"
+                    },
+                    {
+                      "name": "7",
+                      "brand": "GenuineIntel\u0000",
+                      "frequency": "2600"
+                    },
+                    {
+                      "name": "8",
+                      "brand": "GenuineIntel\u0000",
+                      "frequency": "2600"
+                    },
+                    {
+                      "name": "9",
+                      "brand": "GenuineIntel\u0000",
+                      "frequency": "2600"
+                    },
+                    {
+                      "name": "10",
+                      "brand": "GenuineIntel\u0000",
+                      "frequency": "2600"
+                    },
+                    {
+                      "name": "11",
+                      "brand": "GenuineIntel\u0000",
+                      "frequency": "2600"
+                    },
+                    {
+                      "name": "12",
+                      "brand": "GenuineIntel\u0000",
+                      "frequency": "2600"
+                    }
+                  ]
+                },
+                "signature": "0xdce605b2c6519c71022c702da8a5077fdc51824989cf528b2e102d1642f1c6c10ef14904620d2b612fc3384695b3c119d2bcb8b7d55cbbe104723ee8c4d4113a1b"
+              },
+              "verifierId": "0xb522a4df212f0baa380d1dd480affbb955b39595",
+              "verifiedLocation": "http://localhost:8080/chunks/0/7/contribution/2",
+              "verified": true,
+              "verifiedData": {
+                "data": {
+                  "challengeHash": "6be0617abed1a0305673e9aa8bd8f5c307e30ec114a0e4edde14217952a73cf2d55c6ccddb17ea5f8bd2764cb9ae36e75ba9bd1e7fb88469effeac2adcf22627",
+                  "responseHash": "a775ce9c714d4d243f284915c48eaef708a156a40e06b1f9f791e10b9a8e899026c17d115f7663aa8409b9c552982bc238d379b663a0115f4cc6128be20c15d9",
+                  "newChallengeHash": "854d6cc5fa5a93740d093843a22adb33f0dfdbd109f2a25d7659e3b9cba51d285f750845ef9a165f2e4075dc5d4d7c3da862fa1a92451322afe3344db8b722f4",
+                  "verificationDuration": 151
+                },
+                "signature": "0xaef2c73de5f418a3e1c4ab3a471e23ffbb6998bf8aa7f534fa27c8db696d05fd0ac7d9f2017a1d1e0ae3ee061af40dc9affa70fdc68c99cf5bd301047f7d3e0a1b"
+              }
+            }
+          ],
+          "metadata": {
+            "lockHolderTime": "2021-02-17T02:22:54.107Z"
+          }
+        }
+      ],
+      "parameters": {
+        "provingSystem": "groth16",
+        "curveKind": "bw6",
+        "chunkSize": 1024,
+        "batchSize": 1024,
+        "power": 12
+      },
+      "attestations": [
+        {
+          "id": "contributor1",
+          "signature": "6ffa92ac1fd1635ceaa94d15e721eca7ff1050c21e23c4b99f26717eba443524267b140193893a7e57bdc7823bd1351b220eee003ebc25ca3c64de2d75537ee51c",
+          "address": "0xc31130dc73f078f99fac28e250535cbc3407608d"
+        }
+      ]
+    }
+  ],
+  "beaconHash": null,
+  "finalHash": null
+}
