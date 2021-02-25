@@ -976,7 +976,8 @@ impl Contribute {
                             ),
                             &new_challenge_filename,
                             &new_challenge_hash_filename,
-                            subgroup_check_mode,
+                            false,
+                            Some(subgroup_check_mode),
                             ratio_check,
                             &parameters,
                         );

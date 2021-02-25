@@ -78,6 +78,8 @@ pub struct VerifyTranscriptOpts {
     pub skip_ratio_check: bool,
     #[options(help = "curve", default = "bw6")]
     pub curve: String,
+    #[options(help = "the round at which full checks begin", default = "0")]
+    pub round_threshold: u64,
 }
 
 pub struct TranscriptVerifier {
@@ -88,6 +90,7 @@ pub struct TranscriptVerifier {
     pub batch_exp_mode: BatchExpMode,
     pub subgroup_check_mode: SubgroupCheckMode,
     pub ratio_check: bool,
+    pub round_threshold: u64,
 }
 
 impl TranscriptVerifier {
@@ -126,6 +129,7 @@ impl TranscriptVerifier {
             batch_exp_mode: opts.batch_exp_mode,
             subgroup_check_mode: opts.subgroup_check_mode,
             ratio_check: !opts.skip_ratio_check,
+            round_threshold: opts.round_threshold,
         };
         Ok(verifier)
     }
@@ -294,26 +298,50 @@ impl TranscriptVerifier {
                     ))?;
 
                     // Run verification between challenge and response, and produce the next new
-                    // challenge.
-                    transform_pok_and_correctness(
-                        CHALLENGE_FILENAME,
-                        CHALLENGE_HASH_FILENAME,
-                        upgrade_correctness_check_config(
-                            DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
-                            self.force_correctness_checks,
-                        ),
-                        RESPONSE_FILENAME,
-                        RESPONSE_HASH_FILENAME,
-                        upgrade_correctness_check_config(
-                            DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
-                            self.force_correctness_checks,
-                        ),
-                        NEW_CHALLENGE_FILENAME,
-                        NEW_CHALLENGE_HASH_FILENAME,
-                        self.subgroup_check_mode,
-                        self.ratio_check,
-                        &parameters,
-                    );
+                    // challenge. Skip both subgroup and ratio checks if below round threshold.
+                    if round_index < self.round_threshold {
+                        transform_pok_and_correctness(
+                            CHALLENGE_FILENAME,
+                            CHALLENGE_HASH_FILENAME,
+                            upgrade_correctness_check_config(
+                                DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+                                self.force_correctness_checks,
+                            ),
+                            RESPONSE_FILENAME,
+                            RESPONSE_HASH_FILENAME,
+                            upgrade_correctness_check_config(
+                                DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
+                                self.force_correctness_checks,
+                            ),
+                            NEW_CHALLENGE_FILENAME,
+                            NEW_CHALLENGE_HASH_FILENAME,
+                            false, // subgroup_check
+                            None, // subgroup check mode
+                            false, // ratio_check
+                            &parameters,
+                        );
+                    } else {
+                        transform_pok_and_correctness(
+                            CHALLENGE_FILENAME,
+                            CHALLENGE_HASH_FILENAME,
+                            upgrade_correctness_check_config(
+                                DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+                                self.force_correctness_checks,
+                            ),
+                            RESPONSE_FILENAME,
+                            RESPONSE_HASH_FILENAME,
+                            upgrade_correctness_check_config(
+                                DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
+                                self.force_correctness_checks,
+                            ),
+                            NEW_CHALLENGE_FILENAME,
+                            NEW_CHALLENGE_HASH_FILENAME,
+                            true, // subgroup_check
+                            Some(self.subgroup_check_mode),
+                            self.ratio_check,
+                            &parameters,
+                        );
+                    }
 
                     let challenge_hash_from_file = read_hash_from_file(CHALLENGE_HASH_FILENAME)?;
                     // Check that the challenge hash is indeed the one the participant and the verifier
@@ -453,7 +481,8 @@ impl TranscriptVerifier {
                 ),
                 COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME,
                 COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME,
-                self.subgroup_check_mode,
+                false,
+                Some(self.subgroup_check_mode),
                 self.ratio_check,
                 &parameters,
             );
