@@ -316,7 +316,7 @@ impl TranscriptVerifier {
                             NEW_CHALLENGE_FILENAME,
                             NEW_CHALLENGE_HASH_FILENAME,
                             false, // subgroup_check
-                            None, // subgroup check mode
+                            Some(self.subgroup_check_mode), // subgroup check mode
                             false, // ratio_check
                             &parameters,
                         );
