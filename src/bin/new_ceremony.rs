@@ -151,7 +151,7 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
         opts.powers,
         chunk_size,
     );
-    let num_chunks = match proving_system {
+    let mut num_chunks = match proving_system {
         ProvingSystem::Groth16 => (parameters.powers_g1_length + chunk_size - 1) / chunk_size,
         ProvingSystem::Marlin => (parameters.powers_length + chunk_size - 1) / chunk_size,
     };
@@ -174,11 +174,21 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
         return Ok(());
     }
 
+    if phase == Phase::Phase2 {
+        num_chunks = phase2_cli::new_challenge(
+            NEW_CHALLENGE_FILENAME,
+            NEW_CHALLENGE_HASH_FILENAME,
+            opts.chunk_size,
+            &opts.phase1_filename.as_ref().expect("phase1 filename not found while running phase2"),
+            opts.powers,
+            opts.num_validators.expect("num_validators not found while running phase2"),
+            opts.num_epochs.expect("num_epochs not found while running phase2"),
+        );
+    }
+
     let mut chunks = vec![];
     for chunk_index in 0..num_chunks {
         info!("Working on chunk {}", chunk_index);
-        remove_file_if_exists(NEW_CHALLENGE_FILENAME)?;
-        remove_file_if_exists(NEW_CHALLENGE_HASH_FILENAME)?;
         let parameters = Phase1Parameters::<E>::new_chunk(
             ContributionMode::Chunked,
             chunk_index,
@@ -188,23 +198,28 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
             chunk_size,
         );
         if phase == Phase::Phase1 {
+            remove_file_if_exists(NEW_CHALLENGE_FILENAME)?;
+            remove_file_if_exists(NEW_CHALLENGE_HASH_FILENAME)?;
             phase1_cli::new_challenge(
                 NEW_CHALLENGE_FILENAME,
                 NEW_CHALLENGE_HASH_FILENAME,
                 &parameters,
             );
-        } else {
-            phase2_cli::new_challenge(
-                NEW_CHALLENGE_FILENAME,
-                NEW_CHALLENGE_HASH_FILENAME,
-                opts.chunk_size,
-                &opts.phase1_filename.as_ref().expect("phase1 filename not found while running phase2"),
-                opts.powers,
-                opts.num_validators.expect("num_validators not found while running phase2"),
-                opts.num_epochs.expect("num_epochs not found while running phase2"),
-            );
         }
-        let new_challenge_hash_from_file = read_hash_from_file(NEW_CHALLENGE_HASH_FILENAME)?;
+
+        let fname = format!("{}.{}", NEW_CHALLENGE_FILENAME, chunk_index);
+        let challenge_filename = if phase == Phase::Phase1 {
+            NEW_CHALLENGE_FILENAME
+        } else {
+            &fname
+        };
+        let new_challenge_hash_from_file = if phase == Phase::Phase1 {
+            read_hash_from_file(NEW_CHALLENGE_HASH_FILENAME)?
+        } else {
+            let challenge_contents = std::fs::read(challenge_filename).expect("should have read challenge");
+            hex::encode(setup_utils::calculate_hash(&challenge_contents))
+        };
+        println!("Hash was generated");
 
         let round = 0;
         let path = format!("{}.{}.0", round, chunk_index);
@@ -223,7 +238,7 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
                     .as_ref()
                     .ok_or(UtilsError::MissingOptionErr)?;
                 upload_file_to_azure_with_access_key_async(
-                    NEW_CHALLENGE_FILENAME,
+                    challenge_filename,
                     &access_key,
                     &storage_account,
                     &container,
@@ -243,7 +258,8 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
                         .ok_or(UtilsError::MissingOptionErr)?,
                 )
                 .join(path);
-                std::fs::copy(NEW_CHALLENGE_FILENAME, output_path)?;
+                println!("nput {}, output {:?}", challenge_filename, output_path.to_str());
+                std::fs::copy(challenge_filename, output_path)?;
                 format!(
                     "{}/chunks/{}/{}/contribution/0",
                     opts.server_url, round, chunk_index
@@ -313,13 +329,14 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
         .await?
         .error_for_status()?;
     info!("Done!");
+    println!("Done!");
 
     Ok(())
 }
 
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt().json().init();
+    // tracing_subscriber::fmt().json().init();
 
     let opts: NewCeremonyOpts = NewCeremonyOpts::parse_args_default_or_exit();
     let (_, private_key, _) = read_keys(&opts.keys_file, opts.unsafe_passphrase, false)

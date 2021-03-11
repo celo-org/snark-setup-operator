@@ -544,7 +544,7 @@ impl Control {
                 COMBINED_VERIFIED_POK_AND_CORRECTNESS_FILENAME,
                 COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME,
                 DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
-                BatchExpMode::Auto,
+                BatchExpMode::Direct,
                 rng,
             );
         }

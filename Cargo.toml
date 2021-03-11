@@ -22,13 +22,21 @@ tracing-appender = "0.1.1"
 tracing-subscriber = "0.2"
 ethers = { git = "https://github.com/gakonst/ethers-rs", features = ["celo"] }
 hex = "0.4"
-phase1 = { git = "https://github.com/celo-org/snark-setup", package = "phase1", rev = "99e8d2f84f2228677ea973a03a7d0686dd8e390e" }
-phase1-cli = { git = "https://github.com/celo-org/snark-setup", package = "phase1-cli", rev = "99e8d2f84f2228677ea973a03a7d0686dd8e390e" }
-phase2 = { git = "https://github.com/celo-org/snark-setup", package = "phase2", rev = "99e8d2f84f2228677ea973a03a7d0686dd8e390e" }
-phase2-cli = { git = "https://github.com/celo-org/snark-setup", package = "phase2-cli", rev = "99e8d2f84f2228677ea973a03a7d0686dd8e390e" }
+
+# phase1 = { git = "https://github.com/celo-org/snark-setup", package = "phase1", rev = "99e8d2f84f2228677ea973a03a7d0686dd8e390e" }
+# phase1-cli = { git = "https://github.com/celo-org/snark-setup", package = "phase1-cli", rev = "99e8d2f84f2228677ea973a03a7d0686dd8e390e" }
+# phase2 = { git = "https://github.com/celo-org/snark-setup", package = "phase2", rev = "99e8d2f84f2228677ea973a03a7d0686dd8e390e" }
+# phase2-cli = { git = "https://github.com/celo-org/snark-setup", package = "phase2-cli", rev = "99e8d2f84f2228677ea973a03a7d0686dd8e390e" }
+# setup-utils = { git = "https://github.com/celo-org/snark-setup", package = "setup-utils", rev = "99e8d2f84f2228677ea973a03a7d0686dd8e390e" } 
+
+phase1 = { path = "/home/sami/snark-setup/phase1", package = "phase1" }
+phase1-cli = { path = "/home/sami/snark-setup/phase1-cli", package = "phase1-cli" }
+phase2 = { path = "/home/sami/snark-setup/phase2", package = "phase2" }
+phase2-cli = { path = "/home/sami/snark-setup/phase2-cli", package = "phase2-cli" }
+setup-utils = { path = "/home/sami/snark-setup/setup-utils", package = "setup-utils" } 
+
 rand = "0.7"
 reqwest = { version = "0.10", features = [ "blocking", "stream", "gzip" ] }
-setup-utils = { git = "https://github.com/celo-org/snark-setup", package = "setup-utils", rev = "99e8d2f84f2228677ea973a03a7d0686dd8e390e" } 
 secrecy = { version = "0.7" }
 ctrlc = "3.1.7"
 indicatif = "0.15.0"
