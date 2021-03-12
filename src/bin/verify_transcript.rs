@@ -245,19 +245,46 @@ impl TranscriptVerifier {
                 )
                 .into());
             }
+
+            if self.phase == Phase::Phase2 {
+                let phase2_options = self.phase2_options.as_ref().expect("Phase2 options not used while running phase2 verification"); 
+                phase2_cli::new_challenge(
+                    NEW_CHALLENGE_FILENAME,
+                    NEW_CHALLENGE_HASH_FILENAME,
+                    phase2_options.chunk_size,
+                    &phase2_options.phase1_filename,
+                    phase2_options.phase1_powers,
+                    phase2_options.num_validators,
+                    phase2_options.num_epochs,
+                );
+            }
+
             for (chunk_index, chunk) in ceremony.chunks.iter().enumerate() {
                 let parameters =
                     create_parameters_for_chunk::<E>(&ceremony.parameters, chunk_index)?;
                 let mut current_new_challenge_hash = String::new();
                 for (i, contribution) in chunk.contributions.iter().enumerate() {
+                    println!("At chunk {} contribution {} round {}", chunk_index, i, round_index);
                     // Clean up the previous contribution challenge and response.
-                    remove_file_if_exists(CHALLENGE_FILENAME)?;
-                    remove_file_if_exists(CHALLENGE_HASH_FILENAME)?;
-                    remove_file_if_exists(RESPONSE_FILENAME)?;
-                    remove_file_if_exists(RESPONSE_HASH_FILENAME)?;
-                    copy_file_if_exists(NEW_CHALLENGE_FILENAME, CHALLENGE_FILENAME)?;
-                    remove_file_if_exists(NEW_CHALLENGE_FILENAME)?;
-                    remove_file_if_exists(NEW_CHALLENGE_HASH_FILENAME)?;
+                    if self.phase == Phase::Phase1 {
+                        remove_file_if_exists(CHALLENGE_FILENAME)?;
+                        remove_file_if_exists(CHALLENGE_HASH_FILENAME)?;
+                        remove_file_if_exists(RESPONSE_FILENAME)?;
+                        remove_file_if_exists(RESPONSE_HASH_FILENAME)?;
+                        copy_file_if_exists(NEW_CHALLENGE_FILENAME, CHALLENGE_FILENAME)?;
+                        remove_file_if_exists(NEW_CHALLENGE_FILENAME)?;
+                        remove_file_if_exists(NEW_CHALLENGE_HASH_FILENAME)?;
+                    } else {
+                        copy_file_if_exists(NEW_CHALLENGE_FILENAME, CHALLENGE_FILENAME)?;
+                        let challenge_filename = format!("{}.{}", NEW_CHALLENGE_FILENAME, chunk_index);
+                        copy_file_if_exists(&format!("{}.{}", NEW_CHALLENGE_FILENAME, chunk_index), NEW_CHALLENGE_FILENAME)?;
+                        let challenge_contents = std::fs::read(challenge_filename).expect("should have read challenge");
+                        let hash = setup_utils::calculate_hash(&challenge_contents);
+                        std::fs::File::create(format!("{}.hash", NEW_CHALLENGE_FILENAME))
+                            .expect("unable to open new challenge hash file")
+                            .write_all(hash.as_slice())
+                            .expect("unable to write new challenge hash");
+                    }
 
                     if i == 0 {
                         if round_index == 0 {
@@ -270,7 +297,7 @@ impl TranscriptVerifier {
                                     NEW_CHALLENGE_HASH_FILENAME,
                                     &parameters,
                                 );
-                            } else {
+                            } /* else {
                                 let phase2_options = self.phase2_options.as_ref().expect("Phase2 options not used while running phase2 verification"); 
                                 phase2_cli::new_challenge(
                                     NEW_CHALLENGE_FILENAME,
@@ -281,9 +308,9 @@ impl TranscriptVerifier {
                                     phase2_options.num_validators,
                                     phase2_options.num_epochs,
                                 );
-                            }
-                            let new_challenge_hash_from_file =
-                                read_hash_from_file(NEW_CHALLENGE_HASH_FILENAME)?;
+                            } */
+                            println!("hash from file {}", NEW_CHALLENGE_HASH_FILENAME);
+                            let new_challenge_hash_from_file = read_hash_from_file(NEW_CHALLENGE_HASH_FILENAME)?;
                             check_new_challenge_hashes_same(
                                 &verified_data.data.new_challenge_hash,
                                 &new_challenge_hash_from_file,
@@ -291,6 +318,7 @@ impl TranscriptVerifier {
                             current_new_challenge_hash =
                                 verified_data.data.new_challenge_hash.clone();
                         } else {
+                            println!("hash from contribution");
                             check_new_challenge_hashes_same(
                                 &contribution.verified_data()?.data.new_challenge_hash,
                                 &previous_round.as_ref().unwrap().chunks[chunk_index]
@@ -331,6 +359,7 @@ impl TranscriptVerifier {
 
                     // Verify that the challenge the participant attested they worked on is
                     // indeed the one we have as the expected computed challenge.
+                    println!("Verify that the challenge the participant attested ...");
                     check_new_challenge_hashes_same(
                         &contributed_data.data.challenge_hash,
                         &current_new_challenge_hash,
@@ -367,6 +396,10 @@ impl TranscriptVerifier {
                         RESPONSE_FILENAME,
                     ))?;
 
+                    if self.phase == Phase::Phase2 {
+                        copy_file_if_exists(RESPONSE_FILENAME, NEW_CHALLENGE_FILENAME)?;
+                    }
+
                     // Run verification between challenge and response, and produce the next new
                     // challenge.
                     if self.phase == Phase::Phase1 {
@@ -397,14 +430,18 @@ impl TranscriptVerifier {
                               DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
                               self.force_correctness_checks,
                            ), 
-                           NEW_CHALLENGE_FILENAME,
-                           NEW_CHALLENGE_HASH_FILENAME,
+                           RESPONSE_FILENAME,
+                           RESPONSE_HASH_FILENAME,
                            upgrade_correctness_check_config(
                               DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
                               self.force_correctness_checks,
                            ),
                            self.subgroup_check_mode,
                         );
+                    }
+
+                    if self.phase == Phase::Phase2 {
+                        copy_file_if_exists(RESPONSE_HASH_FILENAME, NEW_CHALLENGE_HASH_FILENAME)?;
                     }
 
                     let challenge_hash_from_file = read_hash_from_file(CHALLENGE_HASH_FILENAME)?;
@@ -427,6 +464,7 @@ impl TranscriptVerifier {
                         read_hash_from_file(NEW_CHALLENGE_HASH_FILENAME)?;
                     // Check that the new challenge hash is indeed the one the verifier attested to
                     // produce.
+                    println!("Check that the new challenge hash is indeed the one the verifier ...");
                     check_new_challenge_hashes_same(
                         &verified_data.data.new_challenge_hash,
                         &new_challenge_hash_from_file,
@@ -617,7 +655,7 @@ impl TranscriptVerifier {
 }
 
 fn main() {
-    tracing_subscriber::fmt().json().init();
+    // tracing_subscriber::fmt().json().init();
 
     let opts: VerifyTranscriptOpts = VerifyTranscriptOpts::parse_args_default_or_exit();
 
