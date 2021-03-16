@@ -219,7 +219,6 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
             let challenge_contents = std::fs::read(challenge_filename).expect("should have read challenge");
             hex::encode(setup_utils::calculate_hash(&challenge_contents))
         };
-        println!("Hash was generated");
 
         let round = 0;
         let path = format!("{}.{}.0", round, chunk_index);
@@ -258,7 +257,6 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
                         .ok_or(UtilsError::MissingOptionErr)?,
                 )
                 .join(path);
-                println!("nput {}, output {:?}", challenge_filename, output_path.to_str());
                 std::fs::copy(challenge_filename, output_path)?;
                 format!(
                     "{}/chunks/{}/{}/contribution/0",
@@ -329,7 +327,6 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
         .await?
         .error_for_status()?;
     info!("Done!");
-    println!("Done!");
 
     Ok(())
 }

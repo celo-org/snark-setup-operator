@@ -264,7 +264,6 @@ impl TranscriptVerifier {
                     create_parameters_for_chunk::<E>(&ceremony.parameters, chunk_index)?;
                 let mut current_new_challenge_hash = String::new();
                 for (i, contribution) in chunk.contributions.iter().enumerate() {
-                    println!("At chunk {} contribution {} round {}", chunk_index, i, round_index);
                     // Clean up the previous contribution challenge and response.
                     if self.phase == Phase::Phase1 {
                         remove_file_if_exists(CHALLENGE_FILENAME)?;
@@ -297,19 +296,7 @@ impl TranscriptVerifier {
                                     NEW_CHALLENGE_HASH_FILENAME,
                                     &parameters,
                                 );
-                            } /* else {
-                                let phase2_options = self.phase2_options.as_ref().expect("Phase2 options not used while running phase2 verification"); 
-                                phase2_cli::new_challenge(
-                                    NEW_CHALLENGE_FILENAME,
-                                    NEW_CHALLENGE_HASH_FILENAME,
-                                    phase2_options.chunk_size,
-                                    &phase2_options.phase1_filename,
-                                    phase2_options.phase1_powers,
-                                    phase2_options.num_validators,
-                                    phase2_options.num_epochs,
-                                );
-                            } */
-                            println!("hash from file {}", NEW_CHALLENGE_HASH_FILENAME);
+                            }
                             let new_challenge_hash_from_file = read_hash_from_file(NEW_CHALLENGE_HASH_FILENAME)?;
                             check_new_challenge_hashes_same(
                                 &verified_data.data.new_challenge_hash,
@@ -318,7 +305,6 @@ impl TranscriptVerifier {
                             current_new_challenge_hash =
                                 verified_data.data.new_challenge_hash.clone();
                         } else {
-                            println!("hash from contribution");
                             check_new_challenge_hashes_same(
                                 &contribution.verified_data()?.data.new_challenge_hash,
                                 &previous_round.as_ref().unwrap().chunks[chunk_index]
@@ -359,7 +345,6 @@ impl TranscriptVerifier {
 
                     // Verify that the challenge the participant attested they worked on is
                     // indeed the one we have as the expected computed challenge.
-                    println!("Verify that the challenge the participant attested ...");
                     check_new_challenge_hashes_same(
                         &contributed_data.data.challenge_hash,
                         &current_new_challenge_hash,
@@ -464,7 +449,6 @@ impl TranscriptVerifier {
                         read_hash_from_file(NEW_CHALLENGE_HASH_FILENAME)?;
                     // Check that the new challenge hash is indeed the one the verifier attested to
                     // produce.
-                    println!("Check that the new challenge hash is indeed the one the verifier ...");
                     check_new_challenge_hashes_same(
                         &verified_data.data.new_challenge_hash,
                         &new_challenge_hash_from_file,

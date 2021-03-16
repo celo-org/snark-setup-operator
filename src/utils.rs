@@ -211,7 +211,6 @@ pub fn verify_signed_data<T: Serialize>(data: &T, signature: &str, id: &str) -> 
 }
 
 pub fn read_hash_from_file(file_name: &str) -> Result<String> {
-    println!("reading hash {}", file_name);
     let mut hash = vec![];
     File::open(file_name)
         .expect("Should have opened hash file.")
