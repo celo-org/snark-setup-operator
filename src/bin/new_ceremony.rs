@@ -107,7 +107,7 @@ fn build_ceremony_from_chunks(
         chunks: chunks.to_vec(),
     };
     let filename = format!("ceremony_{}", chrono::Utc::now().timestamp_nanos());
-    info!(
+    println!(
         "Saving ceremony with {} chunks to {}",
         chunks.len(),
         filename
@@ -151,16 +151,12 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
         opts.powers,
         chunk_size,
     );
-    let num_chunks = match proving_system {
-        ProvingSystem::Groth16 => (parameters.powers_g1_length + chunk_size - 1) / chunk_size,
-        ProvingSystem::Marlin => (parameters.powers_length + chunk_size - 1) / chunk_size,
-    };
 
     if let Some(prepared_ceremony) = opts.prepared_ceremony.as_ref() {
         let mut ceremony_contents = String::new();
         File::open(&prepared_ceremony)?.read_to_string(&mut ceremony_contents)?;
         let ceremony: Ceremony = serde_json::from_str::<Ceremony>(&ceremony_contents)?;
-        info!("Updating ceremony");
+        println!("Updating ceremony");
         let client = reqwest::Client::new();
         let authorization = get_authorization_value(&private_key, "PUT", "/ceremony")?;
         client
@@ -170,13 +166,32 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
             .send()
             .await?
             .error_for_status()?;
-        info!("Done!");
+        println!("Done!");
         return Ok(());
     }
 
+    let num_chunks = match phase {
+        Phase::Phase1 => {
+            match proving_system {
+                ProvingSystem::Groth16 => (parameters.powers_g1_length + chunk_size - 1) / chunk_size,
+                ProvingSystem::Marlin => (parameters.powers_length + chunk_size - 1) / chunk_size,
+            }
+        },
+        Phase::Phase2 => 
+            phase2_cli::new_challenge(
+                NEW_CHALLENGE_FILENAME,
+                NEW_CHALLENGE_HASH_FILENAME,
+                opts.chunk_size,
+                &opts.phase1_filename.as_ref().expect("phase1 filename not found while running phase2"),
+                opts.powers,
+                opts.num_validators.expect("num_validators not found while running phase2"),
+                opts.num_epochs.expect("num_epochs not found while running phase2"),
+            ), 
+    };
+
     let mut chunks = vec![];
     for chunk_index in 0..num_chunks {
-        info!("Working on chunk {}", chunk_index);
+        println!("Working on chunk {}", chunk_index);
         remove_file_if_exists(NEW_CHALLENGE_FILENAME)?;
         remove_file_if_exists(NEW_CHALLENGE_HASH_FILENAME)?;
         let parameters = Phase1Parameters::<E>::new_chunk(
@@ -193,18 +208,23 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
                 NEW_CHALLENGE_HASH_FILENAME,
                 &parameters,
             );
-        } else {
-            phase2_cli::new_challenge(
-                NEW_CHALLENGE_FILENAME,
-                NEW_CHALLENGE_HASH_FILENAME,
-                opts.chunk_size,
-                &opts.phase1_filename.as_ref().expect("phase1 filename not found while running phase2"),
-                opts.powers,
-                opts.num_validators.expect("num_validators not found while running phase2"),
-                opts.num_epochs.expect("num_epochs not found while running phase2"),
-            );
         }
-        let new_challenge_hash_from_file = read_hash_from_file(NEW_CHALLENGE_HASH_FILENAME)?;
+        println!("About to read new challenge hash from file");
+        let fname = format!("{}.{}", NEW_CHALLENGE_FILENAME, chunk_index);
+        let challenge_filename = if phase == Phase::Phase1 {
+            NEW_CHALLENGE_FILENAME
+        } else {
+            &fname
+        };
+        let new_challenge_hash_from_file = if phase == Phase::Phase1 {
+            read_hash_from_file(NEW_CHALLENGE_HASH_FILENAME)?
+        } else {
+            println!("About to read challenge filename for phase 2");
+            let challenge_contents = std::fs::read(challenge_filename).expect("should have read challenge");
+            println!("Read challenge filename for phase 2");
+            hex::encode(setup_utils::calculate_hash(&challenge_contents))
+        };
+        println!("Read challenge hash for phase 2: {}", new_challenge_hash_from_file);
 
         let round = 0;
         let path = format!("{}.{}.0", round, chunk_index);
@@ -222,6 +242,7 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
                     .container
                     .as_ref()
                     .ok_or(UtilsError::MissingOptionErr)?;
+                println!("About to upload new challange file to azure");
                 upload_file_to_azure_with_access_key_async(
                     NEW_CHALLENGE_FILENAME,
                     &access_key,
@@ -230,12 +251,14 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
                     &path,
                 )
                 .await?;
+            println!("Uploaded new challenge file to azure");
                 format!(
                     "https://{}.blob.core.windows.net/{}/{}",
                     storage_account, container, path,
                 )
             }
             UploadMode::Direct => {
+                println!("Doing upload mode direct");
                 let output_path = Path::new(
                     &opts
                         .output_dir
@@ -243,18 +266,22 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
                         .ok_or(UtilsError::MissingOptionErr)?,
                 )
                 .join(path);
-                std::fs::copy(NEW_CHALLENGE_FILENAME, output_path)?;
+                println!("Made output path: {:?}", output_path);
+                std::fs::copy(challenge_filename, output_path)?;
+                println!("Copied output path");
                 format!(
                     "{}/chunks/{}/{}/contribution/0",
                     opts.server_url, round, chunk_index
                 )
             }
             UploadMode::Auto => {
+                println!("Doing upload mode auto");
                 return Err(anyhow!(
                     "Unsupported upload mode Auto in the creation of a new ceremony"
                 ))
             }
         };
+        println!("Uploaded to azure");
         let chunk = Chunk {
             chunk_id: chunk_index.to_string(),
             lock_holder: None,
@@ -296,13 +323,14 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
         )?;
     }
 
+    println!("About to build ceremony from chunks");
     let ceremony = build_ceremony_from_chunks(
         &opts,
         &chunks,
         &ceremony.contributor_ids,
         &ceremony.verifier_ids,
     )?;
-    info!("Updating ceremony");
+    println!("Updating ceremony");
     let client = reqwest::Client::new();
     let authorization = get_authorization_value(&private_key, "PUT", "ceremony")?;
     client
@@ -312,7 +340,7 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
         .send()
         .await?
         .error_for_status()?;
-    info!("Done!");
+    println!("Done!");
 
     Ok(())
 }
