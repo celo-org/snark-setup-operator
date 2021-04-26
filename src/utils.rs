@@ -561,3 +561,8 @@ pub fn trim_newline(s: &mut String) {
         }
     }
 }
+
+pub fn compute_hash_from_file(fname: &str) -> Result<String> {
+    let challenge_contents = std::fs::read(fname)?;
+    Ok(hex::encode(setup_utils::calculate_hash(&challenge_contents)))
+}

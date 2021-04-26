@@ -1026,8 +1026,7 @@ impl Contribute {
                                 &challenge_filename,
                                 &challenge_hash_filename,
                                 upgrade_correctness_check_config(
-                                    DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
-                                    //DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+                                    DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
                                     force_correctness_checks,
                                 ),
                                 &response_filename,

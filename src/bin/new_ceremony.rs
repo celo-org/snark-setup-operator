@@ -15,7 +15,7 @@ use snark_setup_operator::error::UtilsError;
 use snark_setup_operator::utils::{
     address_to_string, get_authorization_value, proving_system_from_str, read_hash_from_file,
     read_keys, remove_file_if_exists, upload_file_to_azure_with_access_key_async,
-    upload_mode_from_str, UploadMode,
+    compute_hash_from_file, upload_mode_from_str, UploadMode,
     string_to_phase, Phase,
 };
 use std::fs::File;
@@ -151,10 +151,6 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
         opts.powers,
         chunk_size,
     );
-    let mut num_chunks = match proving_system {
-        ProvingSystem::Groth16 => (parameters.powers_g1_length + chunk_size - 1) / chunk_size,
-        ProvingSystem::Marlin => (parameters.powers_length + chunk_size - 1) / chunk_size,
-    };
 
     if let Some(prepared_ceremony) = opts.prepared_ceremony.as_ref() {
         let mut ceremony_contents = String::new();
@@ -174,8 +170,15 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
         return Ok(());
     }
 
-    if phase == Phase::Phase2 {
-        num_chunks = phase2_cli::new_challenge(
+    // phase 1 new_challenge creates one chunk per call, phase 2 new_challenge creates all chunks
+    // and returns how many have been created
+    let num_chunks = if phase == Phase::Phase1 {
+        match proving_system {
+            ProvingSystem::Groth16 => (parameters.powers_g1_length + chunk_size - 1) / chunk_size,
+            ProvingSystem::Marlin => (parameters.powers_length + chunk_size - 1) / chunk_size,
+        }
+    } else {
+        phase2_cli::new_challenge(
             NEW_CHALLENGE_FILENAME,
             NEW_CHALLENGE_HASH_FILENAME,
             opts.chunk_size,
@@ -183,8 +186,8 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
             opts.powers,
             opts.num_validators.expect("num_validators not found while running phase2"),
             opts.num_epochs.expect("num_epochs not found while running phase2"),
-        );
-    }
+        )
+    };
 
     let mut chunks = vec![];
     for chunk_index in 0..num_chunks {
@@ -207,17 +210,16 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
             );
         }
 
-        let fname = format!("{}.{}", NEW_CHALLENGE_FILENAME, chunk_index);
+        let phase2_new_challenge_fname = format!("{}.{}", NEW_CHALLENGE_FILENAME, chunk_index);
         let challenge_filename = if phase == Phase::Phase1 {
             NEW_CHALLENGE_FILENAME
         } else {
-            &fname
+            &phase2_new_challenge_fname
         };
         let new_challenge_hash_from_file = if phase == Phase::Phase1 {
             read_hash_from_file(NEW_CHALLENGE_HASH_FILENAME)?
         } else {
-            let challenge_contents = std::fs::read(challenge_filename).expect("should have read challenge");
-            hex::encode(setup_utils::calculate_hash(&challenge_contents))
+            compute_hash_from_file(challenge_filename)?
         };
 
         let round = 0;

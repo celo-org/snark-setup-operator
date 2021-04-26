@@ -382,20 +382,21 @@ impl Control {
                 COMBINED_FILENAME,
             );
         }
-        info!("Combined");
+        info!("Finished combining");
         let parameters = create_full_parameters::<E>(&ceremony.parameters)?;
         remove_file_if_exists(COMBINED_HASH_FILENAME)?;
         if self.phase == Phase::Phase1 {
-            info!("Transforming ratios");
+            info!("Verifying round {}", ceremony.round);
             phase1_cli::transform_ratios(
                 COMBINED_FILENAME,
                 DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
                 &parameters,
             );
-            info!("Transformed ratios");
+            info!("Verified round {}", ceremony.round);
+        } else {
+            info!("Combined round {}, verification not run for phase 2", ceremony.round); 
         }
 
-        info!("Verified round {}", ceremony.round);
         Ok(())
     }
 
@@ -543,8 +544,7 @@ impl Control {
                 COMBINED_HASH_FILENAME,
                 COMBINED_VERIFIED_POK_AND_CORRECTNESS_FILENAME,
                 COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME,
-                DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
-                //DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+                DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
                 BatchExpMode::Direct,
                 rng,
             );
@@ -577,8 +577,7 @@ impl Control {
             phase2_cli::verify(
                COMBINED_FILENAME,
                COMBINED_HASH_FILENAME,
-               DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
-               //DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+               DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
                COMBINED_VERIFIED_POK_AND_CORRECTNESS_FILENAME,
                COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME,
                DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
