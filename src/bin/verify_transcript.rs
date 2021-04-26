@@ -1,13 +1,8 @@
 use anyhow::Result;
 use gumdrop::Options;
 use setup_utils::converters::{batch_exp_mode_from_str, subgroup_check_mode_from_str};
-/*use phase1_cli::{
-    combine, contribute, new_challenge, transform_pok_and_correctness, transform_ratios,
-};*/
 use phase1_cli::*;
-use phase2_cli::{
-    combine, contribute, new_challenge, verify,
-};
+use phase2_cli::*;
 use setup_utils::{
     derive_rng_from_seed, from_slice, upgrade_correctness_check_config, BatchExpMode,
     SubgroupCheckMode, DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
@@ -202,7 +197,7 @@ impl TranscriptVerifier {
         let mut previous_round: Option<Ceremony> = None;
         for (round_index, ceremony) in self.transcript.rounds.iter().enumerate() {
             let round_index = round_index as u64;
-            println!("verifying round {}", round_index);
+            info!("verifying round {}", round_index);
 
             // These are the participant IDs we discover in the transcript.
             let mut participant_ids_from_poks = HashSet::new();
@@ -368,12 +363,12 @@ impl TranscriptVerifier {
                         &contributed_data.data.challenge_hash,
                         &verified_data.data.challenge_hash,
                     )?;
-                    println!("About to check first response hashes");
+                    info!("About to check first response hashes");
                     check_response_hashes_same(
                         &contributed_data.data.response_hash,
                         &verified_data.data.response_hash,
                     )?;
-                    println!("Checked first response hash");
+                    info!("Checked first response hash");
 
                     let contributed_location = contribution.contributed_location()?;
                     // Download the response computed by the participant.
@@ -442,12 +437,12 @@ impl TranscriptVerifier {
                     let response_hash_from_file = read_hash_from_file(RESPONSE_HASH_FILENAME)?;
                     // Check that the response hash is indeed the one the participant attested they produced
                     // and the verifier attested to work on.
-                    println!("About to check second response hashes");
+                    info!("About to check second response hashes");
                     check_response_hashes_same(
                         &verified_data.data.response_hash,
                         &response_hash_from_file,
                     )?;
-                    println!("Checked second response hash");
+                    info!("Checked second response hash");
 
                     let new_challenge_hash_from_file =
                         read_hash_from_file(NEW_CHALLENGE_HASH_FILENAME)?;
@@ -473,12 +468,12 @@ impl TranscriptVerifier {
                         copy(NEW_CHALLENGE_FILENAME, &new_challenge_filename)?;
                     }
                 }
-                println!("chunk {} verified", chunk.chunk_id);
+                info!("chunk {} verified", chunk.chunk_id);
             }
 
             drop(response_list_file);
 
-            println!(
+            info!(
                 "participants found in the transcript of round {}:\n{}",
                 round_index,
                 participant_ids_from_poks
@@ -498,10 +493,10 @@ impl TranscriptVerifier {
             }
 
             previous_round = Some(ceremony.clone());
-            println!("Verified round {}", round_index);
+            info!("Verified round {}", round_index);
         }
 
-        println!("all rounds and chunks verified, aggregating");
+        info!("all rounds and chunks verified, aggregating");
         remove_file_if_exists(COMBINED_FILENAME)?;
         let current_parameters = current_parameters.unwrap();
         let parameters = create_parameters_for_chunk::<E>(&current_parameters, 0)?;
@@ -521,7 +516,7 @@ impl TranscriptVerifier {
                 COMBINED_FILENAME,
             );
         }
-        println!("combined, applying beacon");
+        info!("combined, applying beacon");
         let parameters = create_full_parameters::<E>(&current_parameters)?;
         remove_file_if_exists(COMBINED_HASH_FILENAME)?;
         remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_FILENAME)?;
@@ -579,7 +574,7 @@ impl TranscriptVerifier {
                 )
                 .into());
             }
-            println!("applied beacon, verifying");
+            info!("applied beacon, verifying");
             remove_file_if_exists(COMBINED_HASH_FILENAME)?;
             remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME)?;
             remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME)?;
@@ -638,7 +633,7 @@ impl TranscriptVerifier {
             }
         }
 
-        println!("Finished verification successfully!");
+        info!("Finished verification successfully!");
         Ok(())
     }
 }
