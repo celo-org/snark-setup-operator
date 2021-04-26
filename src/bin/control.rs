@@ -100,8 +100,6 @@ pub struct ApplyBeaconOpts {
     pub beacon_hash: String,
     #[options(help = "expected participants")]
     pub expected_participant: Vec<String>,
-    #[options(help = "verify transcript")]
-    pub verify_transcript: bool,
 }
 
 #[derive(Debug, Options, Clone)]
@@ -340,7 +338,7 @@ impl Control {
         Ok(())
     }
 
-    async fn verify_round<E: PairingEngine>(&self, ceremony: &Ceremony) -> Result<()> {
+    async fn combine_and_verify_round<E: PairingEngine>(&self, ceremony: &Ceremony) -> Result<()> {
         let mut response_list_file = File::create(RESPONSE_LIST_FILENAME)?;
         info!("Verifying round {}", ceremony.round);
         for (chunk_index, contribution) in ceremony
@@ -393,8 +391,6 @@ impl Control {
                 &parameters,
             );
             info!("Verified round {}", ceremony.round);
-        } else {
-            info!("Combined round {}, verification not run for phase 2", ceremony.round); 
         }
 
         Ok(())
@@ -433,8 +429,11 @@ impl Control {
         self.backup_ceremony(&ceremony)?;
         transcript.rounds.push(ceremony.clone());
         if verify_transcript {
+            if self.phase == Phase::Phase2 {
+                return Err(NewRoundError::NoVerificationPhase2.into());
+            }
             info!("Verifying transcript");
-            self.verify_round::<E>(&ceremony).await?;
+            self.combine_and_verify_round::<E>(&ceremony).await?;
             info!("Verified transcript");
         }
         let new_chunks = ceremony
@@ -495,7 +494,6 @@ impl Control {
         &self,
         beacon_hash: &str,
         expected_participants: &[String],
-        verify_transcript: bool,
     ) -> Result<()> {
         let mut transcript = load_transcript()?;
         backup_transcript(&transcript)?;
@@ -518,9 +516,10 @@ impl Control {
             )
             .into());
         }
-        if verify_transcript {
-            self.verify_round::<E>(&ceremony).await?;
-        }
+
+        // Generate combined file from transcript
+        // Verify result if running phase 1 
+        self.combine_and_verify_round::<E>(&ceremony).await?;
 
         let parameters = create_full_parameters::<E>(&ceremony.parameters)?;
         remove_file_if_exists(COMBINED_HASH_FILENAME)?;
@@ -717,7 +716,6 @@ async fn main() {
                     .apply_beacon::<BW6_761>(
                         &opts.beacon_hash,
                         &opts.expected_participant,
-                        opts.verify_transcript,
                     )
                     .await
                     .expect("Should have run command successfully");
@@ -727,7 +725,6 @@ async fn main() {
                     .apply_beacon::<Bls12_377>(
                         &opts.beacon_hash,
                         &opts.expected_participant,
-                        opts.verify_transcript,
                     )
                     .await
                     .expect("Should have run command successfully");

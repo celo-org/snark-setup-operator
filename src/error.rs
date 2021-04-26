@@ -138,4 +138,6 @@ pub enum NewRoundError {
     RoundSameError(u64),
     #[error("Expected participants were different: current {0:?}, expected {1:?}")]
     DifferentExpectedParticipantsError(HashSet<String>, HashSet<String>),
+    #[error("Transcript cannot be verified independently in phase 2")]
+    NoVerificationPhase2,
 }
