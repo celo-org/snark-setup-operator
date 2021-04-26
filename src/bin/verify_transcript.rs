@@ -202,7 +202,7 @@ impl TranscriptVerifier {
         let mut previous_round: Option<Ceremony> = None;
         for (round_index, ceremony) in self.transcript.rounds.iter().enumerate() {
             let round_index = round_index as u64;
-            info!("verifying round {}", round_index);
+            println!("verifying round {}", round_index);
 
             // These are the participant IDs we discover in the transcript.
             let mut participant_ids_from_poks = HashSet::new();
@@ -368,10 +368,12 @@ impl TranscriptVerifier {
                         &contributed_data.data.challenge_hash,
                         &verified_data.data.challenge_hash,
                     )?;
+                    println!("About to check first response hashes");
                     check_response_hashes_same(
                         &contributed_data.data.response_hash,
                         &verified_data.data.response_hash,
                     )?;
+                    println!("Checked first response hash");
 
                     let contributed_location = contribution.contributed_location()?;
                     // Download the response computed by the participant.
@@ -440,10 +442,12 @@ impl TranscriptVerifier {
                     let response_hash_from_file = read_hash_from_file(RESPONSE_HASH_FILENAME)?;
                     // Check that the response hash is indeed the one the participant attested they produced
                     // and the verifier attested to work on.
+                    println!("About to check second response hashes");
                     check_response_hashes_same(
                         &verified_data.data.response_hash,
                         &response_hash_from_file,
                     )?;
+                    println!("Checked second response hash");
 
                     let new_challenge_hash_from_file =
                         read_hash_from_file(NEW_CHALLENGE_HASH_FILENAME)?;
@@ -469,12 +473,12 @@ impl TranscriptVerifier {
                         copy(NEW_CHALLENGE_FILENAME, &new_challenge_filename)?;
                     }
                 }
-                info!("chunk {} verified", chunk.chunk_id);
+                println!("chunk {} verified", chunk.chunk_id);
             }
 
             drop(response_list_file);
 
-            info!(
+            println!(
                 "participants found in the transcript of round {}:\n{}",
                 round_index,
                 participant_ids_from_poks
@@ -494,10 +498,10 @@ impl TranscriptVerifier {
             }
 
             previous_round = Some(ceremony.clone());
-            info!("Verified round {}", round_index);
+            println!("Verified round {}", round_index);
         }
 
-        info!("all rounds and chunks verified, aggregating");
+        println!("all rounds and chunks verified, aggregating");
         remove_file_if_exists(COMBINED_FILENAME)?;
         let current_parameters = current_parameters.unwrap();
         let parameters = create_parameters_for_chunk::<E>(&current_parameters, 0)?;
@@ -517,7 +521,7 @@ impl TranscriptVerifier {
                 COMBINED_FILENAME,
             );
         }
-        info!("combined, applying beacon");
+        println!("combined, applying beacon");
         let parameters = create_full_parameters::<E>(&current_parameters)?;
         remove_file_if_exists(COMBINED_HASH_FILENAME)?;
         remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_FILENAME)?;
@@ -575,7 +579,7 @@ impl TranscriptVerifier {
                 )
                 .into());
             }
-            info!("applied beacon, verifying");
+            println!("applied beacon, verifying");
             remove_file_if_exists(COMBINED_HASH_FILENAME)?;
             remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME)?;
             remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME)?;
@@ -634,6 +638,7 @@ impl TranscriptVerifier {
             }
         }
 
+        println!("Finished verification successfully!");
         Ok(())
     }
 }
