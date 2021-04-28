@@ -151,25 +151,6 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
         opts.powers,
         chunk_size,
     );
-
-    if let Some(prepared_ceremony) = opts.prepared_ceremony.as_ref() {
-        let mut ceremony_contents = String::new();
-        File::open(&prepared_ceremony)?.read_to_string(&mut ceremony_contents)?;
-        let ceremony: Ceremony = serde_json::from_str::<Ceremony>(&ceremony_contents)?;
-        info!("Updating ceremony");
-        let client = reqwest::Client::new();
-        let authorization = get_authorization_value(&private_key, "PUT", "/ceremony")?;
-        client
-            .put(server_url.as_str())
-            .header(AUTHORIZATION, authorization)
-            .json(&ceremony)
-            .send()
-            .await?
-            .error_for_status()?;
-        info!("Done!");
-        return Ok(());
-    }
-
     // phase 1 new_challenge creates one chunk per call, phase 2 new_challenge creates all chunks
     // and returns how many have been created
     let num_chunks = if phase == Phase::Phase1 {
@@ -188,6 +169,26 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
             opts.num_epochs.expect("num_epochs not found while running phase2"),
         )
     };
+    // init tracing after phase 2 new_challenge to avoid memory blowout in circuit generation
+    tracing_subscriber::fmt().json().init();
+
+    if let Some(prepared_ceremony) = opts.prepared_ceremony.as_ref() {
+        let mut ceremony_contents = String::new();
+        File::open(&prepared_ceremony)?.read_to_string(&mut ceremony_contents)?;
+        let ceremony: Ceremony = serde_json::from_str::<Ceremony>(&ceremony_contents)?;
+        info!("Updating ceremony");
+        let client = reqwest::Client::new();
+        let authorization = get_authorization_value(&private_key, "PUT", "/ceremony")?;
+        client
+            .put(server_url.as_str())
+            .header(AUTHORIZATION, authorization)
+            .json(&ceremony)
+            .send()
+            .await?
+            .error_for_status()?;
+        info!("Done!");
+        return Ok(());
+    }
 
     let mut chunks = vec![];
     for chunk_index in 0..num_chunks {
@@ -335,8 +336,6 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
 
 #[tokio::main]
 async fn main() {
-    // tracing_subscriber::fmt().json().init();
-
     let opts: NewCeremonyOpts = NewCeremonyOpts::parse_args_default_or_exit();
     let (_, private_key, _) = read_keys(&opts.keys_file, opts.unsafe_passphrase, false)
         .expect("Should have loaded Plumo setup keys");
