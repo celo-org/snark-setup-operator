@@ -378,9 +378,9 @@ impl TranscriptVerifier {
                         RESPONSE_FILENAME,
                     ))?;
 
-                    if self.phase == Phase::Phase2 {
+                    /*if self.phase == Phase::Phase2 {
                         copy_file_if_exists(RESPONSE_FILENAME, NEW_CHALLENGE_FILENAME)?;
-                    }
+                    }*/
 
                     // Run verification between challenge and response, and produce the next new
                     // challenge.
@@ -418,13 +418,15 @@ impl TranscriptVerifier {
                               DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
                               self.force_correctness_checks,
                            ),
+                           NEW_CHALLENGE_FILENAME,
+                           NEW_CHALLENGE_HASH_FILENAME,
                            self.subgroup_check_mode,
                         );
                     }
 
-                    if self.phase == Phase::Phase2 {
+                    /*if self.phase == Phase::Phase2 {
                         copy_file_if_exists(RESPONSE_HASH_FILENAME, NEW_CHALLENGE_HASH_FILENAME)?;
-                    }
+                    }*/
 
                     let challenge_hash_from_file = read_hash_from_file(CHALLENGE_HASH_FILENAME)?;
                     // Check that the challenge hash is indeed the one the participant and the verifier
@@ -616,6 +618,8 @@ impl TranscriptVerifier {
                        DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
                        self.force_correctness_checks,
                    ),
+                   COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME,
+                   COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME,
                    self.subgroup_check_mode,
                 );
             }

@@ -205,12 +205,12 @@ impl Contribute {
     ) -> Result<Self> {
         let private_key = LocalWallet::from(SigningKey::new(private_key)?);
         let phase = string_to_phase(&opts.phase)?;
-        let (new_challenge_filename, new_challenge_hash_filename) =
+        /*let (new_challenge_filename, new_challenge_hash_filename) =
           if phase == Phase::Phase1 {
               (NEW_CHALLENGE_FILENAME.to_string(), NEW_CHALLENGE_HASH_FILENAME.to_string())
           } else {
             (RESPONSE_FILENAME.to_string(), RESPONSE_HASH_FILENAME.to_string())
-          };
+          };*/
 
         let contribute_struct = Self {
             phase: phase,
@@ -226,8 +226,8 @@ impl Contribute {
             challenge_hash_filename: CHALLENGE_HASH_FILENAME.to_string(),
             response_filename: RESPONSE_FILENAME.to_string(),
             response_hash_filename: RESPONSE_HASH_FILENAME.to_string(),
-            new_challenge_filename: new_challenge_filename,
-            new_challenge_hash_filename: new_challenge_hash_filename,
+            new_challenge_filename: NEW_CHALLENGE_FILENAME.to_string(),
+            new_challenge_hash_filename: NEW_CHALLENGE_HASH_FILENAME.to_string(),
             disable_pipelining: opts.disable_pipelining,
             force_correctness_checks: opts.force_correctness_checks,
             batch_exp_mode: opts.batch_exp_mode,
@@ -1035,6 +1035,8 @@ impl Contribute {
                                     DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
                                     force_correctness_checks,
                                 ),
+                                &new_challenge_filename,
+                                &new_challenge_hash_filename,
                                 subgroup_check_mode,
                             );
                         })
