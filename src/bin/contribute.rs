@@ -972,10 +972,10 @@ impl Contribute {
                     )
                     .await?;
                     let start = Instant::now();
-                    if self.phase == Phase::Phase1 {
-                        remove_file_if_exists(&self.new_challenge_filename)?;
-                        remove_file_if_exists(&self.new_challenge_hash_filename)?;
-                    }
+                    //if self.phase == Phase::Phase1 {
+                    remove_file_if_exists(&self.new_challenge_filename)?;
+                    remove_file_if_exists(&self.new_challenge_hash_filename)?;
+                    //}
 
                     let (
                         challenge_filename,
