@@ -28,6 +28,11 @@ use std::{
 use tracing::info;
 use algebra::{Bls12_377, PairingEngine, BW6_761};
 
+const INITIAL_CHALLENGE_FILENAME: &str = "initial_challenge";
+const INITIAL_CHALLENGE_HASH_FILENAME: &str = "initial_challenge.hash";
+const COMBINED_NEW_CHALLENGE_FILENAME: &str = "combined_new_challenge";
+const COMBINED_NEW_CHALLENGE_HASH_FILENAME: &str = "combined_new_challenge.hash";
+const NEW_CHALLENGE_LIST_FILENAME: &str = "new_challenge_list";
 const CHALLENGE_FILENAME: &str = "challenge";
 const CHALLENGE_HASH_FILENAME: &str = "challenge.hash";
 const RESPONSE_FILENAME: &str = "response";
@@ -252,6 +257,15 @@ impl TranscriptVerifier {
                     phase2_options.num_validators,
                     phase2_options.num_epochs,
                 );
+                // Generate full initial contribution to check consistency of final contribution
+                // later
+                phase2_cli::combine(
+                    phase2_options.initial_query_filename.as_ref(),
+                    phase2_options.initial_full_filename.as_ref(),
+                    NEW_CHALLENGE_LIST_FILENAME,
+                    INITIAL_CHALLENGE_FILENAME,
+                    true,
+                );
             }
 
             for (chunk_index, chunk) in ceremony.chunks.iter().enumerate() {
@@ -261,24 +275,13 @@ impl TranscriptVerifier {
                 for (i, contribution) in chunk.contributions.iter().enumerate() {
                     // Clean up the previous contribution challenge and response.
                     //if self.phase == Phase::Phase1 {
-                        remove_file_if_exists(CHALLENGE_FILENAME)?;
-                        remove_file_if_exists(CHALLENGE_HASH_FILENAME)?;
-                        remove_file_if_exists(RESPONSE_FILENAME)?;
-                        remove_file_if_exists(RESPONSE_HASH_FILENAME)?;
-                        copy_file_if_exists(NEW_CHALLENGE_FILENAME, CHALLENGE_FILENAME)?;
-                        remove_file_if_exists(NEW_CHALLENGE_FILENAME)?;
-                        remove_file_if_exists(NEW_CHALLENGE_HASH_FILENAME)?;
-                    /*} else {
-                        copy_file_if_exists(NEW_CHALLENGE_FILENAME, CHALLENGE_FILENAME)?;
-                        let challenge_filename = format!("{}.{}", NEW_CHALLENGE_FILENAME, chunk_index);
-                        copy_file_if_exists(&format!("{}.{}", NEW_CHALLENGE_FILENAME, chunk_index), NEW_CHALLENGE_FILENAME)?;
-                        let challenge_contents = std::fs::read(challenge_filename).expect("should have read challenge");
-                        let hash = setup_utils::calculate_hash(&challenge_contents);
-                        std::fs::File::create(format!("{}.hash", NEW_CHALLENGE_FILENAME))
-                            .expect("unable to open new challenge hash file")
-                            .write_all(hash.as_slice())
-                            .expect("unable to write new challenge hash");
-                    }*/
+                    remove_file_if_exists(CHALLENGE_FILENAME)?;
+                    remove_file_if_exists(CHALLENGE_HASH_FILENAME)?;
+                    remove_file_if_exists(RESPONSE_FILENAME)?;
+                    remove_file_if_exists(RESPONSE_HASH_FILENAME)?;
+                    copy_file_if_exists(NEW_CHALLENGE_FILENAME, CHALLENGE_FILENAME)?;
+                    remove_file_if_exists(NEW_CHALLENGE_FILENAME)?;
+                    remove_file_if_exists(NEW_CHALLENGE_HASH_FILENAME)?;
 
                     if i == 0 {
                         if round_index == 0 {
@@ -390,10 +393,6 @@ impl TranscriptVerifier {
                         RESPONSE_FILENAME,
                     ))?;
 
-                    /*if self.phase == Phase::Phase2 {
-                        copy_file_if_exists(RESPONSE_FILENAME, NEW_CHALLENGE_FILENAME)?;
-                    }*/
-
                     // Run verification between challenge and response, and produce the next new
                     // challenge.
                     if self.phase == Phase::Phase1 {
@@ -435,10 +434,6 @@ impl TranscriptVerifier {
                            self.subgroup_check_mode,
                         );
                     }
-
-                    /*if self.phase == Phase::Phase2 {
-                        copy_file_if_exists(RESPONSE_HASH_FILENAME, NEW_CHALLENGE_HASH_FILENAME)?;
-                    }*/
 
                     let challenge_hash_from_file = read_hash_from_file(CHALLENGE_HASH_FILENAME)?;
                     // Check that the challenge hash is indeed the one the participant and the verifier
@@ -528,6 +523,7 @@ impl TranscriptVerifier {
                 phase2_options.initial_full_filename.as_ref(),
                 RESPONSE_LIST_FILENAME,
                 COMBINED_FILENAME,
+                false,
             );
         }
         println!("combined, applying beacon");
@@ -544,6 +540,24 @@ impl TranscriptVerifier {
                         self.force_correctness_checks,
                     ),
                     &parameters,
+                );
+            } else {
+                phase2_cli::verify(
+                   INITIAL_CHALLENGE_FILENAME,
+                   INITIAL_CHALLENGE_HASH_FILENAME,
+                   upgrade_correctness_check_config(
+                       DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+                       self.force_correctness_checks,
+                   ),
+                   COMBINED_FILENAME, 
+                   COMBINED_HASH_FILENAME,
+                   upgrade_correctness_check_config(
+                       DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
+                       self.force_correctness_checks,
+                   ),
+                   COMBINED_NEW_CHALLENGE_FILENAME,
+                   COMBINED_NEW_CHALLENGE_HASH_FILENAME,
+                   self.subgroup_check_mode,
                 );
             }
         } else {
@@ -624,8 +638,8 @@ impl TranscriptVerifier {
                        DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
                        self.force_correctness_checks,
                    ),
-                   COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME,
-                   COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME,
+                   COMBINED_VERIFIED_POK_AND_CORRECTNESS_FILENAME, //COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME,
+                   COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME, //COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME,
                    upgrade_correctness_check_config(
                        DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
                        self.force_correctness_checks,

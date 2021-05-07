@@ -378,6 +378,7 @@ impl Control {
                 &self.initial_full_filename.as_ref().expect("initial_full_filename needed when running phase2"), 
                 RESPONSE_LIST_FILENAME, 
                 COMBINED_FILENAME,
+                false,
             );
         }
         info!("Finished combining");
