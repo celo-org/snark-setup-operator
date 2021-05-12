@@ -203,7 +203,7 @@ impl TranscriptVerifier {
         let mut previous_round: Option<Ceremony> = None;
         for (round_index, ceremony) in self.transcript.rounds.iter().enumerate() {
             let round_index = round_index as u64;
-            println!("verifying round {}", round_index);
+            info!("verifying round {}", round_index);
 
             // These are the participant IDs we discover in the transcript.
             let mut participant_ids_from_poks = HashSet::new();
@@ -248,20 +248,19 @@ impl TranscriptVerifier {
             }
 
             if self.phase == Phase::Phase2 {
+                remove_file_if_exists(NEW_CHALLENGE_LIST_FILENAME)?;
                 let phase2_options = self.phase2_options.as_ref().expect("Phase2 options not used while running phase2 verification"); 
                 phase2_cli::new_challenge(
                     NEW_CHALLENGE_FILENAME,
                     NEW_CHALLENGE_HASH_FILENAME,
+                    NEW_CHALLENGE_LIST_FILENAME,
                     phase2_options.chunk_size,
                     &phase2_options.phase1_filename,
                     phase2_options.phase1_powers,
-                    //phase2_options.num_validators,
-                    //phase2_options.num_epochs,
                     &phase2_options.circuit_filename,
                 );
-                // Generate full initial contribution to check consistency of final contribution
+                // Generate full initial contribution to later check consistency of final contribution
                 // later
-                // TODO: Generate INITIAL_CHALLENGE_FILENAME
                 phase2_cli::combine(
                     phase2_options.initial_query_filename.as_ref(),
                     phase2_options.initial_full_filename.as_ref(),
@@ -308,9 +307,9 @@ impl TranscriptVerifier {
                                     .write_all(challenge_hash.as_slice())
                                     .expect("unable to write new challenge hash");
                             }
-                            println!("About to read new challenge hash");
+                            info!("About to read new challenge hash");
                             let new_challenge_hash_from_file = read_hash_from_file(NEW_CHALLENGE_HASH_FILENAME)?;
-                            println!("Read new challenge hash");
+                            info!("Read new challenge hash");
                             check_new_challenge_hashes_same(
                                 &verified_data.data.new_challenge_hash,
                                 &new_challenge_hash_from_file,
@@ -381,12 +380,12 @@ impl TranscriptVerifier {
                         &contributed_data.data.challenge_hash,
                         &verified_data.data.challenge_hash,
                     )?;
-                    println!("About to check first response hashes");
+                    info!("About to check first response hashes");
                     check_response_hashes_same(
                         &contributed_data.data.response_hash,
                         &verified_data.data.response_hash,
                     )?;
-                    println!("Checked first response hash");
+                    info!("Checked first response hash");
 
                     let contributed_location = contribution.contributed_location()?;
                     // Download the response computed by the participant.
@@ -450,12 +449,12 @@ impl TranscriptVerifier {
                     let response_hash_from_file = read_hash_from_file(RESPONSE_HASH_FILENAME)?;
                     // Check that the response hash is indeed the one the participant attested they produced
                     // and the verifier attested to work on.
-                    println!("About to check second response hashes");
+                    info!("About to check second response hashes");
                     check_response_hashes_same(
                         &verified_data.data.response_hash,
                         &response_hash_from_file,
                     )?;
-                    println!("Checked second response hash");
+                    info!("Checked second response hash");
 
                     let new_challenge_hash_from_file =
                         read_hash_from_file(NEW_CHALLENGE_HASH_FILENAME)?;
@@ -481,12 +480,12 @@ impl TranscriptVerifier {
                         copy(NEW_CHALLENGE_FILENAME, &new_challenge_filename)?;
                     }
                 }
-                println!("chunk {} verified", chunk.chunk_id);
+                info!("chunk {} verified", chunk.chunk_id);
             }
 
             drop(response_list_file);
 
-            println!(
+            info!(
                 "participants found in the transcript of round {}:\n{}",
                 round_index,
                 participant_ids_from_poks
@@ -506,10 +505,10 @@ impl TranscriptVerifier {
             }
 
             previous_round = Some(ceremony.clone());
-            println!("Verified round {}", round_index);
+            info!("Verified round {}", round_index);
         }
 
-        println!("all rounds and chunks verified, aggregating");
+        info!("all rounds and chunks verified, aggregating");
         remove_file_if_exists(COMBINED_FILENAME)?;
         let current_parameters = current_parameters.unwrap();
         let parameters = create_parameters_for_chunk::<E>(&current_parameters, 0)?;
@@ -530,7 +529,7 @@ impl TranscriptVerifier {
                 false,
             );
         }
-        println!("combined, applying beacon");
+        info!("combined, applying beacon");
         let parameters = create_full_parameters::<E>(&current_parameters)?;
         remove_file_if_exists(COMBINED_HASH_FILENAME)?;
         remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_FILENAME)?;
@@ -609,7 +608,7 @@ impl TranscriptVerifier {
                 )
                 .into());
             }
-            println!("applied beacon, verifying");
+            info!("applied beacon, verifying");
             remove_file_if_exists(COMBINED_HASH_FILENAME)?;
             remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME)?;
             remove_file_if_exists(COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME)?;
@@ -671,13 +670,13 @@ impl TranscriptVerifier {
             }
         }
 
-        println!("Finished verification successfully!");
+        info!("Finished verification successfully!");
         Ok(())
     }
 }
 
 fn main() {
-    // tracing_subscriber::fmt().json().init();
+    tracing_subscriber::fmt().json().init();
 
     let opts: VerifyTranscriptOpts = VerifyTranscriptOpts::parse_args_default_or_exit();
 

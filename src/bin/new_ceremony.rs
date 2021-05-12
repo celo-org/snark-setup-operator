@@ -28,6 +28,7 @@ use algebra::{Bls12_377, PairingEngine, BW6_761};
 
 const NEW_CHALLENGE_FILENAME: &str = "new_challenge";
 const NEW_CHALLENGE_HASH_FILENAME: &str = "new_challenge.hash";
+const NEW_CHALLENGE_LIST_FILENAME: &str = "new_challenge_list";
 
 #[derive(Debug, Options, Clone)]
 pub struct NewCeremonyOpts {
@@ -160,14 +161,13 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
         phase2_cli::new_challenge(
             NEW_CHALLENGE_FILENAME,
             NEW_CHALLENGE_HASH_FILENAME,
+            NEW_CHALLENGE_LIST_FILENAME,
             opts.chunk_size,
             &opts.phase1_filename.as_ref().expect("phase1 filename not found while running phase2"),
             opts.powers,
             &opts.circuit_filename.as_ref().expect("circuit filename not found when running phase2"),
         )
     };
-    // init tracing after phase 2 new_challenge to avoid memory blowout in circuit generation
-    tracing_subscriber::fmt().json().init();
 
     if let Some(prepared_ceremony) = opts.prepared_ceremony.as_ref() {
         let mut ceremony_contents = String::new();
@@ -333,6 +333,7 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
 
 #[tokio::main]
 async fn main() {
+    tracing_subscriber::fmt().json().init();
     let opts: NewCeremonyOpts = NewCeremonyOpts::parse_args_default_or_exit();
     let (_, private_key, _) = read_keys(&opts.keys_file, opts.unsafe_passphrase, false)
         .expect("Should have loaded Plumo setup keys");

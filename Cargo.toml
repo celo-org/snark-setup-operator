@@ -23,11 +23,11 @@ tracing-subscriber = "0.2"
 ethers = { git = "https://github.com/gakonst/ethers-rs", features = ["celo"] }
 hex = "0.4"
 
-phase1 = { git = "https://github.com/celo-org/snark-setup", package = "phase1", rev = "598edb9e229b230db68285641632578de02169a0" }
-phase1-cli = { git = "https://github.com/celo-org/snark-setup", package = "phase1-cli", rev = "598edb9e229b230db68285641632578de02169a0" }
-phase2 = { git = "https://github.com/celo-org/snark-setup", package = "phase2", rev = "598edb9e229b230db68285641632578de02169a0" }
-phase2-cli = { git = "https://github.com/celo-org/snark-setup", package = "phase2-cli", rev = "598edb9e229b230db68285641632578de02169a0" }
-setup-utils = { git = "https://github.com/celo-org/snark-setup", package = "setup-utils", rev = "598edb9e229b230db68285641632578de02169a0" } 
+phase1 = { git = "https://github.com/celo-org/snark-setup", package = "phase1", rev = "345b424d691fc2b39783323044f72251ac1ff6b0" }
+phase1-cli = { git = "https://github.com/celo-org/snark-setup", package = "phase1-cli", rev = "345b424d691fc2b39783323044f72251ac1ff6b0" }
+phase2 = { git = "https://github.com/celo-org/snark-setup", package = "phase2", rev = "345b424d691fc2b39783323044f72251ac1ff6b0" }
+phase2-cli = { git = "https://github.com/celo-org/snark-setup", package = "phase2-cli", rev = "345b424d691fc2b39783323044f72251ac1ff6b0" }
+setup-utils = { git = "https://github.com/celo-org/snark-setup", package = "setup-utils", rev = "345b424d691fc2b39783323044f72251ac1ff6b0" } 
 
 rand = "0.7"
 reqwest = { version = "0.10", features = [ "blocking", "stream", "gzip" ] }
