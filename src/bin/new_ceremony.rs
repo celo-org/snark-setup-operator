@@ -74,12 +74,10 @@ pub struct NewCeremonyOpts {
     #[options(help = "use prepared ceremony")]
     pub prepared_ceremony: Option<String>,
 
-    #[options(help = "number max validators used in the circuit. Only used for phase 2")]
-    pub num_validators: Option<usize>,
-    #[options(help = "number max epochs used in the circuit. Only used for phase 2")]
-    pub num_epochs: Option<usize>,
     #[options(help = "file with prepared output from phase1. Only used for phase 2")]
     pub phase1_filename: Option<String>, 
+    #[options(help = "file with prepared circuit. Only used for phase 2")]
+    pub circuit_filename: Option<String>, 
 }
 
 fn build_ceremony_from_chunks(
@@ -165,8 +163,7 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
             opts.chunk_size,
             &opts.phase1_filename.as_ref().expect("phase1 filename not found while running phase2"),
             opts.powers,
-            opts.num_validators.expect("num_validators not found while running phase2"),
-            opts.num_epochs.expect("num_epochs not found while running phase2"),
+            &opts.circuit_filename.as_ref().expect("circuit filename not found when running phase2"),
         )
     };
     // init tracing after phase 2 new_challenge to avoid memory blowout in circuit generation
