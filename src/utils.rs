@@ -5,6 +5,7 @@ pub const SIGNATURE_LENGTH_IN_HEX: usize = 130;
 pub const DEFAULT_MAX_RETRIES: usize = 5;
 pub const ONE_MB: usize = 1024 * 1024;
 pub const DEFAULT_CHUNK_SIZE: u64 = 1 * (ONE_MB as u64);
+pub const DEFAULT_NUM_PARALLEL_CHUNKS: usize = 50;
 pub const DEFAULT_CHUNK_TIMEOUT_IN_SECONDS: u64 = 300;
 pub const BEACON_HASH_LENGTH: usize = 32;
 
