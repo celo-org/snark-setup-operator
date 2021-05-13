@@ -3,7 +3,9 @@ use ethers::core::k256::ecdsa::SigningKey;
 use ethers::signers::LocalWallet;
 use gumdrop::Options;
 use phase1::{ContributionMode, Phase1Parameters, ProvingSystem};
+#[allow(unused_imports)]
 use phase1_cli::*;
+#[allow(unused_imports)]
 use phase2_cli::*;
 use reqwest::header::AUTHORIZATION;
 use secrecy::ExposeSecret;

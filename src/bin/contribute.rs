@@ -23,7 +23,9 @@ use indicatif::{ProgressBar, ProgressStyle};
 use lazy_static::lazy_static;
 use panic_control::{spawn_quiet, ThreadResultExt};
 use setup_utils::converters::{batch_exp_mode_from_str, subgroup_check_mode_from_str};
+#[allow(unused_imports)]
 use phase1_cli::*;
+#[allow(unused_imports)]
 use phase2_cli::*;
 use rand::prelude::SliceRandom;
 use reqwest::header::{AUTHORIZATION, CONTENT_LENGTH};

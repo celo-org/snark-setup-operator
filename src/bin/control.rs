@@ -7,7 +7,9 @@ use anyhow::Result;
 use ethers::core::k256::ecdsa::SigningKey;
 use ethers::signers::LocalWallet;
 use gumdrop::Options;
+#[allow(unused_imports)]
 use phase1_cli::*;
+#[allow(unused_imports)]
 use phase2_cli::*;
 use reqwest::header::AUTHORIZATION;
 use secrecy::ExposeSecret;
