@@ -16,7 +16,6 @@ use snark_setup_operator::{
         copy_file_if_exists, create_full_parameters, create_parameters_for_chunk,
         download_file_from_azure_async, read_hash_from_file, remove_file_if_exists, response_size,
         verify_signed_data, BEACON_HASH_LENGTH,
-        Phase, string_to_phase,
     },
 };
 use std::{
@@ -481,7 +480,7 @@ impl IntermediateTransform {
             );
         }
 
-        remove_file_if_exists(PHASE2_FILENAME);
+        remove_file_if_exists(PHASE2_FILENAME)?;
 
         phase1_cli::prepare_phase2(
             PHASE2_FILENAME,

@@ -45,8 +45,15 @@ const COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME: &str =
     "combined_verified_pok_and_correctness.hash";
 const COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME: &str =
     "combined_new_verified_pok_and_correctness_new_challenge";
-const COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME: &str =
-    "combined_verified_pok_and_correctness_new_challenge.hash";
+const COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME: &str = 
+"combined_verified_pok_and_correctness_new_challenge.hash";
+const NEW_CHALLENGE_FILENAME: &str = "new_challenge";
+const NEW_CHALLENGE_HASH_FILENAME: &str = "new_challenge.hash";
+const INITIAL_CHALLENGE_FILENAME: &str = "initial_challenge";
+const INITIAL_CHALLENGE_HASH_FILENAME: &str = "initial_challenge.hash";
+const COMBINED_NEW_CHALLENGE_FILENAME: &str = "combined_new_challenge";
+const COMBINED_NEW_CHALLENGE_HASH_FILENAME: &str = "combined_new_challenge.hash";
+const NEW_CHALLENGE_LIST_FILENAME: &str = "new_challenge_list";
 
 #[derive(Debug, Options, Clone)]
 pub struct AddParticipantOpts {
@@ -119,14 +126,6 @@ pub struct ControlOpts {
     )]
     pub phase: String,
     #[options(
-        help = "initial query filename. Used only for phase2",
-    )]
-    pub initial_query_filename: Option<String>,
-    #[options(
-        help = "initial full filename. Used only for phase2",
-    )]
-    pub initial_full_filename: Option<String>,    
-    #[options(
         help = "the url of the coordinator API",
         default = "http://localhost:8080"
     )]
@@ -142,6 +141,45 @@ pub struct ControlOpts {
     pub curve: String,
     #[options(command, required)]
     pub command: Option<Command>,
+
+    #[options(help = "chunk size. Only used for phase 2")]
+    pub chunk_size: Option<usize>,
+    #[options(help = "number powers used in phase 1. Only used for phase 2")]
+    pub phase1_powers: Option<usize>,
+    #[options(help = "file with prepared output from phase1. Only used for phase 2")]
+    pub phase1_filename: Option<String>, 
+    #[options(help = "file with prepared circuit. Only used for phase 2")]
+    pub circuit_filename: Option<String>, 
+    #[options(
+        help = "initial query filename. Used only for phase2",
+    )]
+    pub initial_query_filename: Option<String>,
+    #[options(
+        help = "initial full filename. Used only for phase2",
+    )]
+    pub initial_full_filename: Option<String>,    
+}
+
+pub struct Phase2Opts {
+    pub chunk_size: usize,
+    pub phase1_powers: usize,
+    pub phase1_filename: String, 
+    pub circuit_filename: String, 
+    pub initial_query_filename: String,
+    pub initial_full_filename: String,    
+}
+
+impl Phase2Opts {
+    pub fn new(opts: &ControlOpts) -> Result<Self> {
+        Ok(Self {
+            chunk_size: opts.chunk_size.expect("chunk_size must be used when running phase2"),
+            phase1_powers: opts.phase1_powers.expect("phase1_powers must be used when running phase2"),
+            phase1_filename: opts.phase1_filename.as_ref().expect("phase1_filename must be used when running phase2").to_string(),
+            circuit_filename: opts.circuit_filename.as_ref().expect("circuit_filename must be used when running phase2").to_string(),
+            initial_query_filename: opts.initial_query_filename.as_ref().expect("initial_query_filename needed when running phase2").to_string(), 
+            initial_full_filename: opts.initial_full_filename.as_ref().expect("initial_full_filename needed when running phase2").to_string(), 
+        })
+    }
 }
 
 // The supported commands
@@ -163,21 +201,23 @@ pub struct Control {
     pub phase: Phase,
     pub server_url: Url,
     pub private_key: LocalWallet,
-
-    // Used onlu for Phase2
-    pub initial_query_filename: Option<String>,
-    pub initial_full_filename: Option<String>,    
+    pub phase2_opts: Option<Phase2Opts>,
 }
 
 impl Control {
     pub fn new(opts: &ControlOpts, private_key: &[u8]) -> Result<Self> {
+        let phase = string_to_phase(&opts.phase)?;
+        let phase2_opts = if phase == Phase::Phase2 {
+            Some(Phase2Opts::new(opts)?)
+        } else {
+            None
+        };
         let private_key = LocalWallet::from(SigningKey::new(private_key)?);
         let control = Self {
-            phase: string_to_phase(&opts.phase)?,
+            phase: phase,
             server_url: Url::parse(&opts.coordinator_url)?.join("ceremony")?,
             private_key,
-            initial_query_filename: opts.initial_query_filename.clone(),
-            initial_full_filename: opts.initial_full_filename.clone(),
+            phase2_opts: phase2_opts,
         };
         Ok(control)
     }
@@ -373,9 +413,10 @@ impl Control {
                 &parameters,
             );
         } else {
+            let phase2_opts = self.phase2_opts.as_ref().expect("Phase 2 opts not found when running phase 2");
             phase2_cli::combine(
-                &self.initial_query_filename.as_ref().expect("initial_query_filename needed when running phase2"), 
-                &self.initial_full_filename.as_ref().expect("initial_full_filename needed when running phase2"), 
+                &phase2_opts.initial_query_filename, 
+                &phase2_opts.initial_full_filename,
                 RESPONSE_LIST_FILENAME, 
                 COMBINED_FILENAME,
                 false,
@@ -384,15 +425,50 @@ impl Control {
         info!("Finished combining");
         let parameters = create_full_parameters::<E>(&ceremony.parameters)?;
         remove_file_if_exists(COMBINED_HASH_FILENAME)?;
+        info!("Verifying round {}", ceremony.round);
         if self.phase == Phase::Phase1 {
-            info!("Verifying round {}", ceremony.round);
             phase1_cli::transform_ratios(
                 COMBINED_FILENAME,
                 DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
                 &parameters,
             );
-            info!("Verified round {}", ceremony.round);
+        } else {
+            let phase2_opts = self.phase2_opts.as_ref().expect("phase 2 options not found running phase 2");
+            remove_file_if_exists(NEW_CHALLENGE_LIST_FILENAME)?;
+            remove_file_if_exists(INITIAL_CHALLENGE_FILENAME)?;
+            remove_file_if_exists(INITIAL_CHALLENGE_HASH_FILENAME)?;
+            remove_file_if_exists(COMBINED_NEW_CHALLENGE_FILENAME)?;
+            remove_file_if_exists(COMBINED_NEW_CHALLENGE_HASH_FILENAME)?;
+            phase2_cli::new_challenge(
+                NEW_CHALLENGE_FILENAME,
+                NEW_CHALLENGE_HASH_FILENAME,
+                NEW_CHALLENGE_LIST_FILENAME,
+                phase2_opts.chunk_size,
+                &phase2_opts.phase1_filename,
+                phase2_opts.phase1_powers,
+                &phase2_opts.circuit_filename,
+            );
+            phase2_cli::combine(
+                phase2_opts.initial_query_filename.as_ref(),
+                phase2_opts.initial_full_filename.as_ref(),
+                NEW_CHALLENGE_LIST_FILENAME,
+                INITIAL_CHALLENGE_FILENAME,
+                true,
+            ); 
+            phase2_cli::verify(
+               INITIAL_CHALLENGE_FILENAME,
+               INITIAL_CHALLENGE_HASH_FILENAME,
+               DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+               COMBINED_FILENAME, 
+               COMBINED_HASH_FILENAME,
+               DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
+               COMBINED_NEW_CHALLENGE_FILENAME,
+               COMBINED_NEW_CHALLENGE_HASH_FILENAME,
+               SubgroupCheckMode::Auto,
+               true,
+            );
         }
+        info!("Verified round {}", ceremony.round);
 
         Ok(())
     }
@@ -430,9 +506,6 @@ impl Control {
         self.backup_ceremony(&ceremony)?;
         transcript.rounds.push(ceremony.clone());
         if verify_transcript {
-            if self.phase == Phase::Phase2 {
-                return Err(NewRoundError::NoVerificationPhase2.into());
-            }
             info!("Verifying transcript");
             self.combine_and_verify_round::<E>(&ceremony).await?;
             info!("Verified transcript");

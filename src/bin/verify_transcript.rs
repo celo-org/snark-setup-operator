@@ -25,7 +25,7 @@ use std::{
     fs::{copy, File},
     io::{Read, Write},
 };
-use tracing::{info, Level};
+use tracing::info;
 use tracing_subscriber;
 use algebra::{Bls12_377, PairingEngine, BW6_761};
 

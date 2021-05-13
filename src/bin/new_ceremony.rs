@@ -22,7 +22,6 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::path::Path;
 use tracing::info;
-use tracing::debug;
 use url::Url;
 use algebra::{Bls12_377, PairingEngine, BW6_761};
 

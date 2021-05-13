@@ -205,12 +205,6 @@ impl Contribute {
     ) -> Result<Self> {
         let private_key = LocalWallet::from(SigningKey::new(private_key)?);
         let phase = string_to_phase(&opts.phase)?;
-        /*let (new_challenge_filename, new_challenge_hash_filename) =
-          if phase == Phase::Phase1 {
-              (NEW_CHALLENGE_FILENAME.to_string(), NEW_CHALLENGE_HASH_FILENAME.to_string())
-          } else {
-            (RESPONSE_FILENAME.to_string(), RESPONSE_HASH_FILENAME.to_string())
-          };*/
 
         let contribute_struct = Self {
             phase: phase,
