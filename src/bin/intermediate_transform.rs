@@ -1,6 +1,7 @@
 use anyhow::Result;
 use gumdrop::Options;
 use setup_utils::converters::{batch_exp_mode_from_str, subgroup_check_mode_from_str};
+#[allow(unused_imports)]
 use phase1_cli::*;
 use setup_utils::{
     derive_rng_from_seed, from_slice, upgrade_correctness_check_config, BatchExpMode,
