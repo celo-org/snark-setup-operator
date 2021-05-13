@@ -667,6 +667,25 @@ impl TranscriptVerifier {
                     ),
                     &parameters,
                 );
+            } else {
+                phase2_cli::verify(
+                    INITIAL_CHALLENGE_FILENAME,
+                    INITIAL_CHALLENGE_HASH_FILENAME,
+                    upgrade_correctness_check_config(
+                        DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+                        self.force_correctness_checks,
+                    ),
+                    COMBINED_FILENAME, 
+                    COMBINED_HASH_FILENAME,
+                    upgrade_correctness_check_config(
+                        DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
+                        self.force_correctness_checks,
+                    ),
+                    COMBINED_NEW_CHALLENGE_FILENAME,
+                    COMBINED_NEW_CHALLENGE_HASH_FILENAME,
+                    self.subgroup_check_mode,
+                    true,
+                 );
             }
         }
 
