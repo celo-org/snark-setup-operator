@@ -1,3 +1,4 @@
+use algebra::{Bls12_377, PairingEngine, BW6_761};
 use anyhow::{anyhow, Result};
 use ethers::core::k256::ecdsa::SigningKey;
 use ethers::signers::LocalWallet;
@@ -15,17 +16,15 @@ use snark_setup_operator::data_structs::{
 };
 use snark_setup_operator::error::UtilsError;
 use snark_setup_operator::utils::{
-    address_to_string, get_authorization_value, proving_system_from_str, read_hash_from_file,
-    read_keys, remove_file_if_exists, upload_file_to_azure_with_access_key_async,
-    compute_hash_from_file, upload_mode_from_str, UploadMode,
-    string_to_phase, Phase,
+    address_to_string, compute_hash_from_file, get_authorization_value, proving_system_from_str,
+    read_hash_from_file, read_keys, remove_file_if_exists, string_to_phase,
+    upload_file_to_azure_with_access_key_async, upload_mode_from_str, Phase, UploadMode,
 };
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::Path;
 use tracing::info;
 use url::Url;
-use algebra::{Bls12_377, PairingEngine, BW6_761};
 
 const NEW_CHALLENGE_FILENAME: &str = "new_challenge";
 const NEW_CHALLENGE_HASH_FILENAME: &str = "new_challenge.hash";
@@ -34,9 +33,7 @@ const NEW_CHALLENGE_LIST_FILENAME: &str = "new_challenge_list";
 #[derive(Debug, Options, Clone)]
 pub struct NewCeremonyOpts {
     help: bool,
-    #[options(
-        help = "phase to be run. Must be either phase1 or phase2",
-    )]
+    #[options(help = "phase to be run. Must be either phase1 or phase2")]
     pub phase: String,
     #[options(help = "the server url", required)]
     pub server_url: String,
@@ -77,9 +74,9 @@ pub struct NewCeremonyOpts {
     pub prepared_ceremony: Option<String>,
 
     #[options(help = "file with prepared output from phase1. Only used for phase 2")]
-    pub phase1_filename: Option<String>, 
+    pub phase1_filename: Option<String>,
     #[options(help = "file with prepared circuit. Only used for phase 2")]
-    pub circuit_filename: Option<String>, 
+    pub circuit_filename: Option<String>,
 }
 
 fn build_ceremony_from_chunks(
@@ -164,9 +161,15 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
             NEW_CHALLENGE_HASH_FILENAME,
             NEW_CHALLENGE_LIST_FILENAME,
             opts.chunk_size,
-            &opts.phase1_filename.as_ref().expect("phase1 filename not found while running phase2"),
+            &opts
+                .phase1_filename
+                .as_ref()
+                .expect("phase1 filename not found while running phase2"),
             opts.powers,
-            &opts.circuit_filename.as_ref().expect("circuit filename not found when running phase2"),
+            &opts
+                .circuit_filename
+                .as_ref()
+                .expect("circuit filename not found when running phase2"),
         )
     };
 

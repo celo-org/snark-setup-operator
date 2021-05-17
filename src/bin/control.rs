@@ -3,6 +3,7 @@ use snark_setup_operator::{
     error::ControlError,
 };
 
+use algebra::{Bls12_377, PairingEngine, BW6_761};
 use anyhow::Result;
 use ethers::core::k256::ecdsa::SigningKey;
 use ethers::signers::LocalWallet;
@@ -24,7 +25,8 @@ use snark_setup_operator::error::{NewRoundError, VerifyTranscriptError};
 use snark_setup_operator::utils::{
     backup_transcript, create_full_parameters, create_parameters_for_chunk,
     download_file_from_azure_async, get_authorization_value, load_transcript, read_hash_from_file,
-    read_keys, remove_file_if_exists, response_size, save_transcript, BEACON_HASH_LENGTH, Phase, string_to_phase,
+    read_keys, remove_file_if_exists, response_size, save_transcript, string_to_phase, Phase,
+    BEACON_HASH_LENGTH,
 };
 use std::{
     collections::HashSet,
@@ -34,7 +36,6 @@ use std::{
 };
 use tracing::info;
 use url::Url;
-use algebra::{Bls12_377, PairingEngine, BW6_761};
 
 const RESPONSE_FILENAME: &str = "response";
 const RESPONSE_PREFIX_FOR_AGGREGATION: &str = "response";
@@ -47,8 +48,8 @@ const COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME: &str =
     "combined_verified_pok_and_correctness.hash";
 const COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME: &str =
     "combined_new_verified_pok_and_correctness_new_challenge";
-const COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME: &str = 
-"combined_verified_pok_and_correctness_new_challenge.hash";
+const COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME: &str =
+    "combined_verified_pok_and_correctness_new_challenge.hash";
 const NEW_CHALLENGE_FILENAME: &str = "new_challenge";
 const NEW_CHALLENGE_HASH_FILENAME: &str = "new_challenge.hash";
 const INITIAL_CHALLENGE_FILENAME: &str = "initial_challenge";
@@ -123,9 +124,7 @@ pub struct RemoveLastContributionOpts {
 #[derive(Debug, Options, Clone)]
 pub struct ControlOpts {
     help: bool,
-    #[options(
-        help = "phase to be run. Must be either phase1 or phase2",
-    )]
+    #[options(help = "phase to be run. Must be either phase1 or phase2")]
     pub phase: String,
     #[options(
         help = "the url of the coordinator API",
@@ -149,37 +148,53 @@ pub struct ControlOpts {
     #[options(help = "number powers used in phase 1. Only used for phase 2")]
     pub phase1_powers: Option<usize>,
     #[options(help = "file with prepared output from phase1. Only used for phase 2")]
-    pub phase1_filename: Option<String>, 
+    pub phase1_filename: Option<String>,
     #[options(help = "file with prepared circuit. Only used for phase 2")]
-    pub circuit_filename: Option<String>, 
-    #[options(
-        help = "initial query filename. Used only for phase2",
-    )]
+    pub circuit_filename: Option<String>,
+    #[options(help = "initial query filename. Used only for phase2")]
     pub initial_query_filename: Option<String>,
-    #[options(
-        help = "initial full filename. Used only for phase2",
-    )]
-    pub initial_full_filename: Option<String>,    
+    #[options(help = "initial full filename. Used only for phase2")]
+    pub initial_full_filename: Option<String>,
 }
 
 pub struct Phase2Opts {
     pub chunk_size: usize,
     pub phase1_powers: usize,
-    pub phase1_filename: String, 
-    pub circuit_filename: String, 
+    pub phase1_filename: String,
+    pub circuit_filename: String,
     pub initial_query_filename: String,
-    pub initial_full_filename: String,    
+    pub initial_full_filename: String,
 }
 
 impl Phase2Opts {
     pub fn new(opts: &ControlOpts) -> Result<Self> {
         Ok(Self {
-            chunk_size: opts.chunk_size.expect("chunk_size must be used when running phase2"),
-            phase1_powers: opts.phase1_powers.expect("phase1_powers must be used when running phase2"),
-            phase1_filename: opts.phase1_filename.as_ref().expect("phase1_filename must be used when running phase2").to_string(),
-            circuit_filename: opts.circuit_filename.as_ref().expect("circuit_filename must be used when running phase2").to_string(),
-            initial_query_filename: opts.initial_query_filename.as_ref().expect("initial_query_filename needed when running phase2").to_string(), 
-            initial_full_filename: opts.initial_full_filename.as_ref().expect("initial_full_filename needed when running phase2").to_string(), 
+            chunk_size: opts
+                .chunk_size
+                .expect("chunk_size must be used when running phase2"),
+            phase1_powers: opts
+                .phase1_powers
+                .expect("phase1_powers must be used when running phase2"),
+            phase1_filename: opts
+                .phase1_filename
+                .as_ref()
+                .expect("phase1_filename must be used when running phase2")
+                .to_string(),
+            circuit_filename: opts
+                .circuit_filename
+                .as_ref()
+                .expect("circuit_filename must be used when running phase2")
+                .to_string(),
+            initial_query_filename: opts
+                .initial_query_filename
+                .as_ref()
+                .expect("initial_query_filename needed when running phase2")
+                .to_string(),
+            initial_full_filename: opts
+                .initial_full_filename
+                .as_ref()
+                .expect("initial_full_filename needed when running phase2")
+                .to_string(),
         })
     }
 }
@@ -409,17 +424,16 @@ impl Control {
         let parameters = create_parameters_for_chunk::<E>(&ceremony.parameters, 0)?;
         info!("Combining");
         if self.phase == Phase::Phase1 {
-            phase1_cli::combine(
-                RESPONSE_LIST_FILENAME, 
-                COMBINED_FILENAME, 
-                &parameters,
-            );
+            phase1_cli::combine(RESPONSE_LIST_FILENAME, COMBINED_FILENAME, &parameters);
         } else {
-            let phase2_opts = self.phase2_opts.as_ref().expect("Phase 2 opts not found when running phase 2");
+            let phase2_opts = self
+                .phase2_opts
+                .as_ref()
+                .expect("Phase 2 opts not found when running phase 2");
             phase2_cli::combine(
-                &phase2_opts.initial_query_filename, 
+                &phase2_opts.initial_query_filename,
                 &phase2_opts.initial_full_filename,
-                RESPONSE_LIST_FILENAME, 
+                RESPONSE_LIST_FILENAME,
                 COMBINED_FILENAME,
                 false,
             );
@@ -435,7 +449,10 @@ impl Control {
                 &parameters,
             );
         } else {
-            let phase2_opts = self.phase2_opts.as_ref().expect("phase 2 options not found running phase 2");
+            let phase2_opts = self
+                .phase2_opts
+                .as_ref()
+                .expect("phase 2 options not found running phase 2");
             remove_file_if_exists(NEW_CHALLENGE_LIST_FILENAME)?;
             remove_file_if_exists(INITIAL_CHALLENGE_FILENAME)?;
             remove_file_if_exists(INITIAL_CHALLENGE_HASH_FILENAME)?;
@@ -456,18 +473,18 @@ impl Control {
                 NEW_CHALLENGE_LIST_FILENAME,
                 INITIAL_CHALLENGE_FILENAME,
                 true,
-            ); 
+            );
             phase2_cli::verify(
-               INITIAL_CHALLENGE_FILENAME,
-               INITIAL_CHALLENGE_HASH_FILENAME,
-               DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
-               COMBINED_FILENAME, 
-               COMBINED_HASH_FILENAME,
-               DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
-               COMBINED_NEW_CHALLENGE_FILENAME,
-               COMBINED_NEW_CHALLENGE_HASH_FILENAME,
-               SubgroupCheckMode::Auto,
-               true,
+                INITIAL_CHALLENGE_FILENAME,
+                INITIAL_CHALLENGE_HASH_FILENAME,
+                DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+                COMBINED_FILENAME,
+                COMBINED_HASH_FILENAME,
+                DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
+                COMBINED_NEW_CHALLENGE_FILENAME,
+                COMBINED_NEW_CHALLENGE_HASH_FILENAME,
+                SubgroupCheckMode::Auto,
+                true,
             );
         }
         info!("Verified round {}", ceremony.round);
@@ -594,7 +611,7 @@ impl Control {
         }
 
         // Generate combined file from transcript
-        // Verify result if running phase 1 
+        // Verify result if running phase 1
         self.combine_and_verify_round::<E>(&ceremony).await?;
 
         let parameters = create_full_parameters::<E>(&ceremony.parameters)?;
@@ -650,16 +667,16 @@ impl Control {
             );
         } else {
             phase2_cli::verify(
-               COMBINED_FILENAME,
-               COMBINED_HASH_FILENAME,
-               DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
-               COMBINED_VERIFIED_POK_AND_CORRECTNESS_FILENAME,
-               COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME,
-               DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
-               COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME,
-               COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME,
-               SubgroupCheckMode::Auto,
-               false,
+                COMBINED_FILENAME,
+                COMBINED_HASH_FILENAME,
+                DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+                COMBINED_VERIFIED_POK_AND_CORRECTNESS_FILENAME,
+                COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME,
+                DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
+                COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME,
+                COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME,
+                SubgroupCheckMode::Auto,
+                false,
             );
         }
 
@@ -792,19 +809,13 @@ async fn main() {
         Command::ApplyBeacon(opts) => match main_opts.curve.as_str() {
             "bw6" => {
                 control
-                    .apply_beacon::<BW6_761>(
-                        &opts.beacon_hash,
-                        &opts.expected_participant,
-                    )
+                    .apply_beacon::<BW6_761>(&opts.beacon_hash, &opts.expected_participant)
                     .await
                     .expect("Should have run command successfully");
             }
             "bls12_377" => {
                 control
-                    .apply_beacon::<Bls12_377>(
-                        &opts.beacon_hash,
-                        &opts.expected_participant,
-                    )
+                    .apply_beacon::<Bls12_377>(&opts.beacon_hash, &opts.expected_participant)
                     .await
                     .expect("Should have run command successfully");
             }

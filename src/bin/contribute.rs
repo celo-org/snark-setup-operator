@@ -14,6 +14,7 @@ use snark_setup_operator::{
     error::ContributeError,
 };
 
+use algebra::{PairingEngine, BW6_761};
 use anyhow::Result;
 use chrono::Duration;
 use ethers::core::k256::ecdsa::SigningKey;
@@ -22,7 +23,6 @@ use gumdrop::Options;
 use indicatif::{ProgressBar, ProgressStyle};
 use lazy_static::lazy_static;
 use panic_control::{spawn_quiet, ThreadResultExt};
-use setup_utils::converters::{batch_exp_mode_from_str, subgroup_check_mode_from_str};
 #[allow(unused_imports)]
 use phase1_cli::*;
 #[allow(unused_imports)]
@@ -30,11 +30,13 @@ use phase2_cli::*;
 use rand::prelude::SliceRandom;
 use reqwest::header::{AUTHORIZATION, CONTENT_LENGTH};
 use secrecy::{ExposeSecret, SecretVec};
+use setup_utils::converters::{batch_exp_mode_from_str, subgroup_check_mode_from_str};
 use setup_utils::{
     derive_rng_from_seed, upgrade_correctness_check_config, BatchExpMode, SubgroupCheckMode,
     DEFAULT_CONTRIBUTE_CHECK_INPUT_CORRECTNESS, DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
     DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
 };
+use snark_setup_operator::utils::{string_to_phase, Phase};
 use std::collections::{HashMap, HashSet};
 use std::ops::Deref;
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering::SeqCst};
@@ -43,8 +45,6 @@ use tokio::time::Instant;
 use tracing::{debug, error, info, warn};
 use tracing_subscriber::EnvFilter;
 use url::Url;
-use snark_setup_operator::utils::{Phase, string_to_phase};
-use algebra::{PairingEngine, BW6_761};
 
 const CHALLENGE_FILENAME: &str = "challenge";
 const CHALLENGE_HASH_FILENAME: &str = "challenge.hash";
@@ -77,9 +77,7 @@ lazy_static! {
 #[derive(Debug, Options, Clone)]
 pub struct ContributeOpts {
     pub help: bool,
-    #[options(
-        help = "phase to be run. Must be either phase1 or phase2",
-    )]
+    #[options(help = "phase to be run. Must be either phase1 or phase2")]
     pub phase: String,
     #[options(
         help = "the url of the coordinator API",
@@ -161,7 +159,6 @@ pub enum PipelineLane {
     Process,
     Upload,
 }
-
 
 impl std::fmt::Display for PipelineLane {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -853,7 +850,7 @@ impl Contribute {
                                 ),
                                 batch_exp_mode,
                                 rng,
-                            );         
+                            );
                         })
                     };
 

@@ -1,8 +1,9 @@
+use algebra::{Bls12_377, PairingEngine, BW6_761};
 use anyhow::Result;
 use gumdrop::Options;
-use setup_utils::converters::{batch_exp_mode_from_str, subgroup_check_mode_from_str};
 #[allow(unused_imports)]
 use phase1_cli::*;
+use setup_utils::converters::{batch_exp_mode_from_str, subgroup_check_mode_from_str};
 use setup_utils::{
     derive_rng_from_seed, from_slice, upgrade_correctness_check_config, BatchExpMode,
     SubgroupCheckMode, DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
@@ -25,7 +26,6 @@ use std::{
     io::{Read, Write},
 };
 use tracing::info;
-use algebra::{Bls12_377, PairingEngine, BW6_761};
 
 const CHALLENGE_FILENAME: &str = "challenge";
 const CHALLENGE_HASH_FILENAME: &str = "challenge.hash";
@@ -46,7 +46,7 @@ const COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME: &str =
     "combined_new_verified_pok_and_correctness_new_challenge";
 const COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME: &str =
     "combined_verified_pok_and_correctness_new_challenge.hash";
-const PHASE2_FILENAME: &str = "phase2_init"; 
+const PHASE2_FILENAME: &str = "phase2_init";
 
 #[derive(Debug, Options, Clone)]
 pub struct IntermediateTransformOpts {
@@ -211,11 +211,11 @@ impl IntermediateTransform {
                             // This is the initialization pseudo-contribution, so we verify it was
                             // deterministically created by `new`.
                             let verified_data = contribution.verified_data()?;
-                                phase1_cli::new_challenge(
-                                    NEW_CHALLENGE_FILENAME,
-                                    NEW_CHALLENGE_HASH_FILENAME,
-                                    &parameters,
-                                );
+                            phase1_cli::new_challenge(
+                                NEW_CHALLENGE_FILENAME,
+                                NEW_CHALLENGE_HASH_FILENAME,
+                                &parameters,
+                            );
                             let new_challenge_hash_from_file =
                                 read_hash_from_file(NEW_CHALLENGE_HASH_FILENAME)?;
                             check_new_challenge_hashes_same(
@@ -307,14 +307,14 @@ impl IntermediateTransform {
                         CHALLENGE_FILENAME,
                         CHALLENGE_HASH_FILENAME,
                         upgrade_correctness_check_config(
-                           DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
-                           self.force_correctness_checks,
+                            DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+                            self.force_correctness_checks,
                         ),
                         RESPONSE_FILENAME,
                         RESPONSE_HASH_FILENAME,
                         upgrade_correctness_check_config(
-                           DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
-                           self.force_correctness_checks,
+                            DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
+                            self.force_correctness_checks,
                         ),
                         NEW_CHALLENGE_FILENAME,
                         NEW_CHALLENGE_HASH_FILENAME,
@@ -396,11 +396,7 @@ impl IntermediateTransform {
         let current_parameters = current_parameters.unwrap();
         let parameters = create_parameters_for_chunk::<E>(&current_parameters, 0)?;
         // Combine the last contributions from each chunk into a single big contributions.
-        phase1_cli::combine(
-            RESPONSE_LIST_FILENAME, 
-            COMBINED_FILENAME, 
-            &parameters
-        );
+        phase1_cli::combine(RESPONSE_LIST_FILENAME, COMBINED_FILENAME, &parameters);
         info!("combined, applying beacon");
         let parameters = create_full_parameters::<E>(&current_parameters)?;
         remove_file_if_exists(COMBINED_HASH_FILENAME)?;
