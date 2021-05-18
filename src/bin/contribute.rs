@@ -205,7 +205,7 @@ impl Contribute {
         let private_key = LocalWallet::from(SigningKey::new(private_key)?);
         let phase = string_to_phase(&opts.phase)?;
 
-        let contribute_struct = Self {
+        let contribute_params = Self {
             phase: phase,
             server_url: Url::parse(&opts.coordinator_url)?,
             participant_id: address_to_string(&private_key.address()),
@@ -232,7 +232,7 @@ impl Contribute {
 
             chosen_chunk_id: None,
         };
-        Ok(contribute_struct)
+        Ok(contribute_params)
     }
 
     pub fn clone_with_new_filenames(&self, index: usize) -> Self {
@@ -838,7 +838,7 @@ impl Contribute {
                             );
                         })
                     } else {
-                        std::thread::spawn(move || {
+                        spawn_quiet(move || {
                             phase2_cli::contribute(
                                 &challenge_filename,
                                 &challenge_hash_filename,
@@ -965,10 +965,8 @@ impl Contribute {
                     )
                     .await?;
                     let start = Instant::now();
-                    //if self.phase == Phase::Phase1 {
                     remove_file_if_exists(&self.new_challenge_filename)?;
                     remove_file_if_exists(&self.new_challenge_hash_filename)?;
-                    //}
 
                     let (
                         challenge_filename,
