@@ -36,7 +36,7 @@ ctrlc = "3.1.7"
 indicatif = "0.15.0"
 algebra = { git = "https://github.com/celo-org/zexe", package = "algebra", default-features = false, features = [ "bw6_761", "bls12_377" ] }
 openssl-sys = { version = "0.9", features = ["vendored"]}
-age = { git = "https://github.com/str4d/rage", version = "0.5.0", features = [ "cli-common", "armor" ] }
+age = { git = "https://github.com/str4d/rage", rev = "9f96c9c076af760730b189a7973036d96533b928", features = [ "cli-common", "armor" ] }
 bincode = "1.3"
 panic-control = "0.1.4"
 lazy_static = "1.4.0"
