@@ -25,8 +25,8 @@ use snark_setup_operator::error::{NewRoundError, VerifyTranscriptError};
 use snark_setup_operator::utils::{
     backup_transcript, create_full_parameters, create_parameters_for_chunk,
     download_file_from_azure_async, get_authorization_value, load_transcript, read_hash_from_file,
-    read_keys, remove_file_if_exists, response_size, save_transcript, string_to_phase, Phase,
-    BEACON_HASH_LENGTH,
+    read_keys, remove_file_if_exists, save_transcript, string_to_phase, Phase,
+    BEACON_HASH_LENGTH, get_content_length,
 };
 use std::{
     collections::HashSet,
@@ -404,13 +404,13 @@ impl Control {
             .enumerate()
             .map(|(chunk_index, chunk)| (chunk_index, chunk.contributions.iter().last().unwrap()))
         {
-            let parameters = create_parameters_for_chunk::<E>(&ceremony.parameters, chunk_index)?;
+            //let parameters = create_parameters_for_chunk::<E>(&ceremony.parameters, chunk_index)?;
             remove_file_if_exists(RESPONSE_FILENAME)?;
             let contributed_location = contribution.contributed_location()?;
             info!("Downloading chunk {}", chunk_index);
             download_file_from_azure_async(
-                contributed_location,
-                response_size(&parameters),
+                &contributed_location,
+                get_content_length(&contributed_location).await?,
                 RESPONSE_FILENAME,
             )
             .await?;

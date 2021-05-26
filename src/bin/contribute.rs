@@ -3,11 +3,12 @@ use snark_setup_operator::data_structs::{
     SignedData, UnlockBody, VerifiedData,
 };
 use snark_setup_operator::utils::{
-    address_to_string, challenge_size, collect_processor_data, create_parameters_for_chunk,
+    address_to_string, collect_processor_data, create_parameters_for_chunk,
     download_file_direct_async, download_file_from_azure_async, get_authorization_value,
     participation_mode_from_str, read_hash_from_file, read_keys, remove_file_if_exists,
-    response_size, sign_json, upload_file_direct_async, upload_file_to_azure_async,
+    sign_json, upload_file_direct_async, upload_file_to_azure_async,
     upload_mode_from_str, write_attestation_to_file, ParticipationMode, UploadMode,
+    get_content_length,
 };
 use snark_setup_operator::{
     data_structs::{Ceremony, Response},
@@ -767,7 +768,7 @@ impl Contribute {
                             if download_url.contains("blob.core.windows.net") {
                                 download_file_from_azure_async(
                                     &download_url,
-                                    challenge_size(&parameters),
+                                    get_content_length(&download_url).await?,
                                     &self.challenge_filename,
                                 )
                                 .await?;
@@ -779,7 +780,7 @@ impl Contribute {
                         UploadMode::Azure => {
                             download_file_from_azure_async(
                                 &download_url,
-                                challenge_size(&parameters),
+                                get_content_length(&download_url).await?,
                                 &self.challenge_filename,
                             )
                             .await?;
@@ -903,9 +904,23 @@ impl Contribute {
                     match self.upload_mode {
                         UploadMode::Auto => {
                             if challenge_download_url.contains("blob.core.windows.net") {
+                                let client = reqwest::Client::new();
+                                let result = client
+                                    .head(&challenge_download_url)
+                                    .send()
+                                    .await
+                                    .unwrap()
+                                    .error_for_status()
+                                    .unwrap();
+                                let length = result.headers()["content-length"]
+                                    .to_str()
+                                    .unwrap()
+                                    .parse::<u64>()
+                                    .unwrap();
+                                println!("challenge content length: {:?}", length);
                                 download_file_from_azure_async(
                                     &challenge_download_url,
-                                    challenge_size(&parameters),
+                                    get_content_length(&challenge_download_url).await?,
                                     &self.challenge_filename,
                                 )
                                 .await?;
@@ -919,7 +934,7 @@ impl Contribute {
                             if response_download_url.contains("blob.core.windows.net") {
                                 download_file_from_azure_async(
                                     &response_download_url,
-                                    response_size(&parameters),
+                                    get_content_length(&response_download_url).await?,
                                     &self.response_filename,
                                 )
                                 .await?;
@@ -934,13 +949,13 @@ impl Contribute {
                         UploadMode::Azure => {
                             download_file_from_azure_async(
                                 &challenge_download_url,
-                                challenge_size(&parameters),
+                                get_content_length(&challenge_download_url).await?, 
                                 &self.challenge_filename,
                             )
                             .await?;
                             download_file_from_azure_async(
                                 &response_download_url,
-                                response_size(&parameters),
+                                get_content_length(&response_download_url).await?, 
                                 &self.response_filename,
                             )
                             .await?;

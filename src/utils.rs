@@ -188,6 +188,20 @@ pub fn remove_file_if_exists(file_path: &str) -> Result<()> {
     Ok(())
 }
 
+pub async fn get_content_length(url: &str) -> Result<u64> {
+    let client = reqwest::Client::new();
+    let result = client
+        .head(url)
+        .send()
+        .await
+        .unwrap()
+        .error_for_status()?;
+    Ok(result.headers()["content-length"]
+        .to_str()
+        .unwrap()
+        .parse::<u64>()?)
+}
+
 use crate::transcript_data_structs::Transcript;
 use blake2::{Blake2s, Digest};
 use ethers::signers::{LocalWallet, Signer};
