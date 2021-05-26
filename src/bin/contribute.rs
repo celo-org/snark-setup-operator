@@ -904,20 +904,6 @@ impl Contribute {
                     match self.upload_mode {
                         UploadMode::Auto => {
                             if challenge_download_url.contains("blob.core.windows.net") {
-                                let client = reqwest::Client::new();
-                                let result = client
-                                    .head(&challenge_download_url)
-                                    .send()
-                                    .await
-                                    .unwrap()
-                                    .error_for_status()
-                                    .unwrap();
-                                let length = result.headers()["content-length"]
-                                    .to_str()
-                                    .unwrap()
-                                    .parse::<u64>()
-                                    .unwrap();
-                                println!("challenge content length: {:?}", length);
                                 download_file_from_azure_async(
                                     &challenge_download_url,
                                     get_content_length(&challenge_download_url).await?,
