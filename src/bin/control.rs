@@ -24,9 +24,9 @@ use snark_setup_operator::data_structs::{
 use snark_setup_operator::error::{NewRoundError, VerifyTranscriptError};
 use snark_setup_operator::utils::{
     backup_transcript, create_full_parameters, create_parameters_for_chunk,
-    download_file_from_azure_async, get_authorization_value, load_transcript, read_hash_from_file,
-    read_keys, remove_file_if_exists, save_transcript, string_to_phase, Phase,
-    BEACON_HASH_LENGTH, get_content_length,
+    download_file_from_azure_async, get_authorization_value, get_content_length, load_transcript,
+    read_hash_from_file, read_keys, remove_file_if_exists, save_transcript, string_to_phase, Phase,
+    BEACON_HASH_LENGTH,
 };
 use std::{
     collections::HashSet,

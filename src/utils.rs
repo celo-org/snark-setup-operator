@@ -190,12 +190,7 @@ pub fn remove_file_if_exists(file_path: &str) -> Result<()> {
 
 pub async fn get_content_length(url: &str) -> Result<u64> {
     let client = reqwest::Client::new();
-    let result = client
-        .head(url)
-        .send()
-        .await
-        .unwrap()
-        .error_for_status()?;
+    let result = client.head(url).send().await.unwrap().error_for_status()?;
     Ok(result.headers()["content-length"]
         .to_str()
         .unwrap()

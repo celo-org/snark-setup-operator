@@ -18,8 +18,8 @@ use snark_setup_operator::{
     utils::{
         check_challenge_hashes_same, check_new_challenge_hashes_same, check_response_hashes_same,
         copy_file_if_exists, create_full_parameters, create_parameters_for_chunk,
-        download_file_from_azure_async, read_hash_from_file, remove_file_if_exists,
-        string_to_phase, verify_signed_data, Phase, BEACON_HASH_LENGTH, get_content_length,
+        download_file_from_azure_async, get_content_length, read_hash_from_file,
+        remove_file_if_exists, string_to_phase, verify_signed_data, Phase, BEACON_HASH_LENGTH,
     },
 };
 use std::{
