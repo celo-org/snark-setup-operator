@@ -77,8 +77,8 @@ lazy_static! {
 #[derive(Debug, Options, Clone)]
 pub struct ContributeOpts {
     pub help: bool,
-    #[options(help = "phase to be run. Must be either phase1 or phase2")]
-    pub phase: String,
+    /*#[options(help = "phase to be run. Must be either phase1 or phase2")]
+    pub phase: String,*/
     #[options(
         help = "the url of the coordinator API",
         default = "https://plumo-setup-phase-1.azurefd.net"
@@ -168,7 +168,7 @@ impl std::fmt::Display for PipelineLane {
 
 #[derive(Clone)]
 pub struct Contribute {
-    pub phase: Phase,
+    //pub phase: Phase,
     pub server_url: Url,
     pub participant_id: String,
     pub private_key: LocalWallet,
@@ -203,10 +203,10 @@ impl Contribute {
         attestation: &Attestation,
     ) -> Result<Self> {
         let private_key = LocalWallet::from(SigningKey::new(private_key)?);
-        let phase = string_to_phase(&opts.phase)?;
+        //let phase = string_to_phase(&opts.phase)?;
 
         let contribute_params = Self {
-            phase: phase,
+         //   phase: phase,
             server_url: Url::parse(&opts.coordinator_url)?,
             participant_id: address_to_string(&private_key.address()),
             private_key,
@@ -724,6 +724,7 @@ impl Contribute {
             self.wait_for_available_spot_in_lane(&PipelineLane::Download)
                 .await?;
             let chunk_info = self.get_chunk_info().await?;
+            let phase = string_to_phase(&chunk_info.phase)?;
 
             let num_non_contributed_chunks = chunk_info.num_non_contributed;
 
@@ -821,7 +822,7 @@ impl Contribute {
                         self.batch_exp_mode.clone(),
                     );
 
-                    let h = if self.phase == Phase::Phase1 {
+                    let h = if phase == Phase::Phase1 {
                         spawn_quiet(move || {
                             phase1_cli::contribute(
                                 &challenge_filename,
@@ -989,7 +990,7 @@ impl Contribute {
                         self.subgroup_check_mode.clone(),
                         self.ratio_check.clone(),
                     );
-                    let h = if self.phase == Phase::Phase1 {
+                    let h = if phase == Phase::Phase1 {
                         spawn_quiet(move || {
                             phase1_cli::transform_pok_and_correctness(
                                 &challenge_filename,

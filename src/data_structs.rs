@@ -136,6 +136,7 @@ pub struct Ceremony {
     pub chunks: Vec<Chunk>,
     pub parameters: Parameters,
     pub attestations: Option<Vec<Attestation>>,
+    pub phase: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -165,6 +166,7 @@ pub struct FilteredChunks {
     pub num_chunks: usize,
     pub max_locks: u64,
     pub shutdown_signal: bool,
+    pub phase: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
