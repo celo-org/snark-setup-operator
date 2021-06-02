@@ -124,9 +124,7 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
         .error_for_status()?
         .text()
         .await?;
-    println!("about to parse json");
     let ceremony: Ceremony = serde_json::from_str::<Response<Ceremony>>(&data)?.result;
-    println!("parsed json");
     let deployer = opts.deployer.clone();
     let private_key = LocalWallet::from(SigningKey::new(private_key)?);
     if address_to_string(&private_key.address()) != deployer {

@@ -1,0 +1,20 @@
+{
+  "round": 0,
+  "version": 0,
+  "maxLocks": 3,
+  "shutdownSignal": false,
+  "contributorIds": [],
+  "attestations": [],
+  "phase": "phase1",
+  "verifierIds": [
+    "0xb522a4df212f0baa380d1dd480affbb955b39595"
+  ],
+  "chunks": [],
+  "parameters": {
+    "provingSystem": "groth16",
+    "curveKind": "bw6",
+    "chunkSize": 1024,
+    "batchSize": 1024,
+    "power": 12
+  }
+}
