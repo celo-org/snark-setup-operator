@@ -16,6 +16,7 @@ use age::{
     armor::{ArmoredWriter, Format},
     EncryptError, Encryptor,
 };
+use algebra::PairingEngine;
 use anyhow::Result;
 use ethers::types::{Address, Signature};
 use hex::ToHex;
@@ -30,7 +31,21 @@ use std::{
     str::FromStr,
 };
 use tracing::warn;
-use zexe_algebra::PairingEngine;
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Phase {
+    Phase1,
+    Phase2,
+}
+
+pub fn string_to_phase(str: &str) -> Result<Phase> {
+    match str.to_lowercase().as_ref() {
+        "phase1" => Ok(Phase::Phase1),
+        "phase2" => Ok(Phase::Phase2),
+        "" => Err(UtilsError::NoPhaseError.into()),
+        x => Err(UtilsError::UnknownPhaseError(x.to_string()).into()),
+    }
+}
 
 pub fn copy_file_if_exists(file_path: &str, dest_path: &str) -> Result<()> {
     if Path::new(file_path).exists() {
@@ -171,6 +186,14 @@ pub fn remove_file_if_exists(file_path: &str) -> Result<()> {
         remove_file(file_path)?;
     }
     Ok(())
+}
+
+pub async fn get_content_length(url: &str) -> Result<u64> {
+    let client = reqwest::Client::new();
+    let result = client.head(url).send().await?.error_for_status()?;
+    Ok(result.headers()["content-length"]
+        .to_str()?
+        .parse::<u64>()?)
 }
 
 use crate::transcript_data_structs::Transcript;
@@ -546,4 +569,11 @@ pub fn trim_newline(s: &mut String) {
             s.pop();
         }
     }
+}
+
+pub fn compute_hash_from_file(fname: &str) -> Result<String> {
+    let challenge_contents = std::fs::read(fname)?;
+    Ok(hex::encode(setup_utils::calculate_hash(
+        &challenge_contents,
+    )))
 }

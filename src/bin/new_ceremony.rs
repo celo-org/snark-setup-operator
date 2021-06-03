@@ -1,9 +1,13 @@
+use algebra::{Bls12_377, PairingEngine, BW6_761};
 use anyhow::{anyhow, Result};
 use ethers::core::k256::ecdsa::SigningKey;
 use ethers::signers::LocalWallet;
 use gumdrop::Options;
 use phase1::{ContributionMode, Phase1Parameters, ProvingSystem};
-use phase1_cli::new_challenge;
+#[allow(unused_imports)]
+use phase1_cli::*;
+#[allow(unused_imports)]
+use phase2_cli::*;
 use reqwest::header::AUTHORIZATION;
 use secrecy::ExposeSecret;
 use snark_setup_operator::data_structs::{
@@ -12,23 +16,25 @@ use snark_setup_operator::data_structs::{
 };
 use snark_setup_operator::error::UtilsError;
 use snark_setup_operator::utils::{
-    address_to_string, get_authorization_value, proving_system_from_str, read_hash_from_file,
-    read_keys, remove_file_if_exists, upload_file_to_azure_with_access_key_async,
-    upload_mode_from_str, UploadMode,
+    address_to_string, compute_hash_from_file, get_authorization_value, proving_system_from_str,
+    read_hash_from_file, read_keys, remove_file_if_exists, string_to_phase,
+    upload_file_to_azure_with_access_key_async, upload_mode_from_str, Phase, UploadMode,
 };
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::Path;
 use tracing::info;
 use url::Url;
-use zexe_algebra::{Bls12_377, PairingEngine, BW6_761};
 
 const NEW_CHALLENGE_FILENAME: &str = "new_challenge";
 const NEW_CHALLENGE_HASH_FILENAME: &str = "new_challenge.hash";
+const NEW_CHALLENGE_LIST_FILENAME: &str = "new_challenge_list";
 
 #[derive(Debug, Options, Clone)]
 pub struct NewCeremonyOpts {
     help: bool,
+    #[options(help = "phase to be run. Must be either phase1 or phase2")]
+    pub phase: String,
     #[options(help = "the server url", required)]
     pub server_url: String,
     #[options(help = "the upload mode", required)]
@@ -66,6 +72,11 @@ pub struct NewCeremonyOpts {
     pub unsafe_passphrase: bool,
     #[options(help = "use prepared ceremony")]
     pub prepared_ceremony: Option<String>,
+
+    #[options(help = "file with prepared output from phase1. Only used for phase 2")]
+    pub phase1_filename: Option<String>,
+    #[options(help = "file with prepared circuit. Only used for phase 2")]
+    pub circuit_filename: Option<String>,
 }
 
 fn build_ceremony_from_chunks(
@@ -91,6 +102,7 @@ fn build_ceremony_from_chunks(
             power: opts.powers,
         },
         chunks: chunks.to_vec(),
+        phase: opts.phase.clone(),
     };
     let filename = format!("ceremony_{}", chrono::Utc::now().timestamp_nanos());
     info!(
@@ -105,6 +117,7 @@ fn build_ceremony_from_chunks(
 }
 
 async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Result<()> {
+    let phase = string_to_phase(&opts.phase)?;
     let server_url = Url::parse(opts.server_url.as_str())?.join("ceremony")?;
     let data = reqwest::get(server_url.as_str())
         .await?
@@ -136,9 +149,29 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
         opts.powers,
         chunk_size,
     );
-    let num_chunks = match proving_system {
-        ProvingSystem::Groth16 => (parameters.powers_g1_length + chunk_size - 1) / chunk_size,
-        ProvingSystem::Marlin => (parameters.powers_length + chunk_size - 1) / chunk_size,
+    // phase 1 new_challenge creates one chunk per call, phase 2 new_challenge creates all chunks
+    // and returns how many have been created
+    let num_chunks = if phase == Phase::Phase1 {
+        match proving_system {
+            ProvingSystem::Groth16 => (parameters.powers_g1_length + chunk_size - 1) / chunk_size,
+            ProvingSystem::Marlin => (parameters.powers_length + chunk_size - 1) / chunk_size,
+        }
+    } else {
+        phase2_cli::new_challenge(
+            NEW_CHALLENGE_FILENAME,
+            NEW_CHALLENGE_HASH_FILENAME,
+            NEW_CHALLENGE_LIST_FILENAME,
+            opts.chunk_size,
+            &opts
+                .phase1_filename
+                .as_ref()
+                .expect("phase1 filename not found while running phase2"),
+            opts.powers,
+            &opts
+                .circuit_filename
+                .as_ref()
+                .expect("circuit filename not found when running phase2"),
+        )
     };
 
     if let Some(prepared_ceremony) = opts.prepared_ceremony.as_ref() {
@@ -162,8 +195,6 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
     let mut chunks = vec![];
     for chunk_index in 0..num_chunks {
         info!("Working on chunk {}", chunk_index);
-        remove_file_if_exists(NEW_CHALLENGE_FILENAME)?;
-        remove_file_if_exists(NEW_CHALLENGE_HASH_FILENAME)?;
         let parameters = Phase1Parameters::<E>::new_chunk(
             ContributionMode::Chunked,
             chunk_index,
@@ -172,13 +203,27 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
             opts.powers,
             chunk_size,
         );
-        new_challenge(
-            NEW_CHALLENGE_FILENAME,
-            NEW_CHALLENGE_HASH_FILENAME,
-            &parameters,
-        );
+        if phase == Phase::Phase1 {
+            remove_file_if_exists(NEW_CHALLENGE_FILENAME)?;
+            remove_file_if_exists(NEW_CHALLENGE_HASH_FILENAME)?;
+            phase1_cli::new_challenge(
+                NEW_CHALLENGE_FILENAME,
+                NEW_CHALLENGE_HASH_FILENAME,
+                &parameters,
+            );
+        }
 
-        let new_challenge_hash_from_file = read_hash_from_file(NEW_CHALLENGE_HASH_FILENAME)?;
+        let phase2_new_challenge_fname = format!("{}.{}", NEW_CHALLENGE_FILENAME, chunk_index);
+        let challenge_filename = if phase == Phase::Phase1 {
+            NEW_CHALLENGE_FILENAME
+        } else {
+            &phase2_new_challenge_fname
+        };
+        let new_challenge_hash_from_file = if phase == Phase::Phase1 {
+            read_hash_from_file(NEW_CHALLENGE_HASH_FILENAME)?
+        } else {
+            compute_hash_from_file(challenge_filename)?
+        };
 
         let round = 0;
         let path = format!("{}.{}.0", round, chunk_index);
@@ -197,7 +242,7 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
                     .as_ref()
                     .ok_or(UtilsError::MissingOptionErr)?;
                 upload_file_to_azure_with_access_key_async(
-                    NEW_CHALLENGE_FILENAME,
+                    challenge_filename,
                     &access_key,
                     &storage_account,
                     &container,
@@ -217,7 +262,7 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
                         .ok_or(UtilsError::MissingOptionErr)?,
                 )
                 .join(path);
-                std::fs::copy(NEW_CHALLENGE_FILENAME, output_path)?;
+                std::fs::copy(challenge_filename, output_path)?;
                 format!(
                     "{}/chunks/{}/{}/contribution/0",
                     opts.server_url, round, chunk_index
@@ -294,7 +339,6 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt().json().init();
-
     let opts: NewCeremonyOpts = NewCeremonyOpts::parse_args_default_or_exit();
     let (_, private_key, _) = read_keys(&opts.keys_file, opts.unsafe_passphrase, false)
         .expect("Should have loaded Plumo setup keys");

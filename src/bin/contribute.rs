@@ -3,10 +3,10 @@ use snark_setup_operator::data_structs::{
     SignedData, UnlockBody, VerifiedData,
 };
 use snark_setup_operator::utils::{
-    address_to_string, challenge_size, collect_processor_data, create_parameters_for_chunk,
+    address_to_string, collect_processor_data, create_parameters_for_chunk,
     download_file_direct_async, download_file_from_azure_async, get_authorization_value,
-    participation_mode_from_str, read_hash_from_file, read_keys, remove_file_if_exists,
-    response_size, sign_json, upload_file_direct_async, upload_file_to_azure_async,
+    get_content_length, participation_mode_from_str, read_hash_from_file, read_keys,
+    remove_file_if_exists, sign_json, upload_file_direct_async, upload_file_to_azure_async,
     upload_mode_from_str, write_attestation_to_file, ParticipationMode, UploadMode,
 };
 use snark_setup_operator::{
@@ -14,6 +14,7 @@ use snark_setup_operator::{
     error::ContributeError,
 };
 
+use algebra::{PairingEngine, BW6_761};
 use anyhow::Result;
 use chrono::Duration;
 use ethers::core::k256::ecdsa::SigningKey;
@@ -22,16 +23,20 @@ use gumdrop::Options;
 use indicatif::{ProgressBar, ProgressStyle};
 use lazy_static::lazy_static;
 use panic_control::{spawn_quiet, ThreadResultExt};
-use phase1::helpers::{batch_exp_mode_from_str, subgroup_check_mode_from_str};
-use phase1_cli::{contribute, transform_pok_and_correctness};
+#[allow(unused_imports)]
+use phase1_cli::*;
+#[allow(unused_imports)]
+use phase2_cli::*;
 use rand::prelude::SliceRandom;
 use reqwest::header::{AUTHORIZATION, CONTENT_LENGTH};
 use secrecy::{ExposeSecret, SecretVec};
+use setup_utils::converters::{batch_exp_mode_from_str, subgroup_check_mode_from_str};
 use setup_utils::{
     derive_rng_from_seed, upgrade_correctness_check_config, BatchExpMode, SubgroupCheckMode,
     DEFAULT_CONTRIBUTE_CHECK_INPUT_CORRECTNESS, DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
     DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
 };
+use snark_setup_operator::utils::{string_to_phase, Phase};
 use std::collections::{HashMap, HashSet};
 use std::ops::Deref;
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering::SeqCst};
@@ -40,7 +45,6 @@ use tokio::time::Instant;
 use tracing::{debug, error, info, warn};
 use tracing_subscriber::EnvFilter;
 use url::Url;
-use zexe_algebra::{PairingEngine, BW6_761};
 
 const CHALLENGE_FILENAME: &str = "challenge";
 const CHALLENGE_HASH_FILENAME: &str = "challenge.hash";
@@ -73,6 +77,8 @@ lazy_static! {
 #[derive(Debug, Options, Clone)]
 pub struct ContributeOpts {
     pub help: bool,
+    #[options(help = "phase to be run. Must be either phase1 or phase2")]
+    pub phase: Option<String>,
     #[options(
         help = "the url of the coordinator API",
         default = "https://plumo-setup-phase-1.azurefd.net"
@@ -162,6 +168,7 @@ impl std::fmt::Display for PipelineLane {
 
 #[derive(Clone)]
 pub struct Contribute {
+    pub phase: Option<Phase>,
     pub server_url: Url,
     pub participant_id: String,
     pub private_key: LocalWallet,
@@ -196,7 +203,13 @@ impl Contribute {
         attestation: &Attestation,
     ) -> Result<Self> {
         let private_key = LocalWallet::from(SigningKey::new(private_key)?);
-        let contribute = Self {
+        let phase = match &opts.phase {
+            Some(phase) => Some(string_to_phase(phase)?),
+            _ => None,
+        };
+
+        let contribute_params = Self {
+            phase,
             server_url: Url::parse(&opts.coordinator_url)?,
             participant_id: address_to_string(&private_key.address()),
             private_key,
@@ -222,7 +235,7 @@ impl Contribute {
 
             chosen_chunk_id: None,
         };
-        Ok(contribute)
+        Ok(contribute_params)
     }
 
     pub fn clone_with_new_filenames(&self, index: usize) -> Self {
@@ -714,6 +727,10 @@ impl Contribute {
             self.wait_for_available_spot_in_lane(&PipelineLane::Download)
                 .await?;
             let chunk_info = self.get_chunk_info().await?;
+            let phase = match &self.phase {
+                Some(phase) => phase.clone(),
+                _ => string_to_phase(&chunk_info.phase)?,
+            };
 
             let num_non_contributed_chunks = chunk_info.num_non_contributed;
 
@@ -757,7 +774,7 @@ impl Contribute {
                             if download_url.contains("blob.core.windows.net") {
                                 download_file_from_azure_async(
                                     &download_url,
-                                    challenge_size(&parameters),
+                                    get_content_length(&download_url).await?,
                                     &self.challenge_filename,
                                 )
                                 .await?;
@@ -769,7 +786,7 @@ impl Contribute {
                         UploadMode::Azure => {
                             download_file_from_azure_async(
                                 &download_url,
-                                challenge_size(&parameters),
+                                get_content_length(&download_url).await?,
                                 &self.challenge_filename,
                             )
                             .await?;
@@ -810,21 +827,40 @@ impl Contribute {
                         self.force_correctness_checks.clone(),
                         self.batch_exp_mode.clone(),
                     );
-                    let h = spawn_quiet(move || {
-                        contribute(
-                            &challenge_filename,
-                            &challenge_hash_filename,
-                            &response_filename,
-                            &response_hash_filename,
-                            upgrade_correctness_check_config(
-                                DEFAULT_CONTRIBUTE_CHECK_INPUT_CORRECTNESS,
-                                force_correctness_checks,
-                            ),
-                            batch_exp_mode,
-                            &parameters,
-                            rng,
-                        );
-                    });
+
+                    let h = if phase == Phase::Phase1 {
+                        spawn_quiet(move || {
+                            phase1_cli::contribute(
+                                &challenge_filename,
+                                &challenge_hash_filename,
+                                &response_filename,
+                                &response_hash_filename,
+                                upgrade_correctness_check_config(
+                                    DEFAULT_CONTRIBUTE_CHECK_INPUT_CORRECTNESS,
+                                    force_correctness_checks,
+                                ),
+                                batch_exp_mode,
+                                &parameters,
+                                rng,
+                            );
+                        })
+                    } else {
+                        spawn_quiet(move || {
+                            phase2_cli::contribute(
+                                &challenge_filename,
+                                &challenge_hash_filename,
+                                &response_filename,
+                                &response_hash_filename,
+                                upgrade_correctness_check_config(
+                                    DEFAULT_CONTRIBUTE_CHECK_INPUT_CORRECTNESS,
+                                    force_correctness_checks,
+                                ),
+                                batch_exp_mode,
+                                rng,
+                            );
+                        })
+                    };
+
                     let result = h.join();
                     if !result.is_ok() {
                         if let Some(panic_value) = result.panic_value_as_str() {
@@ -876,7 +912,7 @@ impl Contribute {
                             if challenge_download_url.contains("blob.core.windows.net") {
                                 download_file_from_azure_async(
                                     &challenge_download_url,
-                                    challenge_size(&parameters),
+                                    get_content_length(&challenge_download_url).await?,
                                     &self.challenge_filename,
                                 )
                                 .await?;
@@ -890,7 +926,7 @@ impl Contribute {
                             if response_download_url.contains("blob.core.windows.net") {
                                 download_file_from_azure_async(
                                     &response_download_url,
-                                    response_size(&parameters),
+                                    get_content_length(&response_download_url).await?,
                                     &self.response_filename,
                                 )
                                 .await?;
@@ -905,13 +941,13 @@ impl Contribute {
                         UploadMode::Azure => {
                             download_file_from_azure_async(
                                 &challenge_download_url,
-                                challenge_size(&parameters),
+                                get_content_length(&challenge_download_url).await?,
                                 &self.challenge_filename,
                             )
                             .await?;
                             download_file_from_azure_async(
                                 &response_download_url,
-                                response_size(&parameters),
+                                get_content_length(&response_download_url).await?,
                                 &self.response_filename,
                             )
                             .await?;
@@ -960,27 +996,50 @@ impl Contribute {
                         self.subgroup_check_mode.clone(),
                         self.ratio_check.clone(),
                     );
-                    let h = spawn_quiet(move || {
-                        transform_pok_and_correctness(
-                            &challenge_filename,
-                            &challenge_hash_filename,
-                            upgrade_correctness_check_config(
-                                DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
-                                force_correctness_checks,
-                            ),
-                            &response_filename,
-                            &response_hash_filename,
-                            upgrade_correctness_check_config(
-                                DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
-                                force_correctness_checks,
-                            ),
-                            &new_challenge_filename,
-                            &new_challenge_hash_filename,
-                            subgroup_check_mode,
-                            ratio_check,
-                            &parameters,
-                        );
-                    });
+                    let h = if phase == Phase::Phase1 {
+                        spawn_quiet(move || {
+                            phase1_cli::transform_pok_and_correctness(
+                                &challenge_filename,
+                                &challenge_hash_filename,
+                                upgrade_correctness_check_config(
+                                    DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+                                    force_correctness_checks,
+                                ),
+                                &response_filename,
+                                &response_hash_filename,
+                                upgrade_correctness_check_config(
+                                    DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
+                                    force_correctness_checks,
+                                ),
+                                &new_challenge_filename,
+                                &new_challenge_hash_filename,
+                                subgroup_check_mode,
+                                ratio_check,
+                                &parameters,
+                            );
+                        })
+                    } else {
+                        spawn_quiet(move || {
+                            phase2_cli::verify(
+                                &challenge_filename,
+                                &challenge_hash_filename,
+                                upgrade_correctness_check_config(
+                                    DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+                                    force_correctness_checks,
+                                ),
+                                &response_filename,
+                                &response_hash_filename,
+                                upgrade_correctness_check_config(
+                                    DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
+                                    force_correctness_checks,
+                                ),
+                                &new_challenge_filename,
+                                &new_challenge_hash_filename,
+                                subgroup_check_mode,
+                                false,
+                            );
+                        })
+                    };
                     let result = h.join();
                     if !result.is_ok() {
                         if let Some(panic_value) = result.panic_value_as_str() {
@@ -1326,10 +1385,10 @@ fn main() {
 
         write_attestation_to_file(&attestation, &opts.attestation_path)
             .expect("Should have written attestation to file");
-        let contribute = Contribute::new(&opts, private_key.expose_secret(), &attestation)
+        let contribute_struct = Contribute::new(&opts, private_key.expose_secret(), &attestation)
             .expect("Should have been able to create a contribute.");
 
-        match contribute.run_and_catch_errors::<BW6_761>().await {
+        match contribute_struct.run_and_catch_errors::<BW6_761>().await {
             Err(e) => panic!("Got error from contribute: {}", e.to_string()),
             _ => {}
         }
