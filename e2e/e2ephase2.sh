@@ -2,7 +2,7 @@
 
 ps auwx | grep "nodemon" | grep -v grep | awk '{print $2}' | xargs kill || true
 
-COMMIT="straka/phase"
+COMMIT="master"
 BASE_DIR=$(pwd)
 
 rm -rf snark-setup-coordinator
