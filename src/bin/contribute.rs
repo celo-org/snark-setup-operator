@@ -81,7 +81,7 @@ pub struct ContributeOpts {
     pub phase: Option<String>,
     #[options(
         help = "the url of the coordinator API",
-        default = "https://plumo-setup-phase-1.azurefd.net"
+        default = "https://plumo-setup-phase-2.azurefd.net"
     )]
     pub coordinator_url: String,
     #[options(

@@ -161,7 +161,7 @@ async fn run<E: PairingEngine>(opts: &NewCeremonyOpts, private_key: &[u8]) -> Re
             NEW_CHALLENGE_FILENAME,
             NEW_CHALLENGE_HASH_FILENAME,
             NEW_CHALLENGE_LIST_FILENAME,
-            opts.chunk_size,
+            chunk_size,
             &opts
                 .phase1_filename
                 .as_ref()
