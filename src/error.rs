@@ -114,6 +114,10 @@ pub enum UtilsError {
     MissingOptionErr,
     #[error("Unknown participation mode: {0}")]
     UnknownParticipationModeError(String),
+    #[error("Unknown phase: {0}")]
+    UnknownPhaseError(String),
+    #[error("Phase not selected")]
+    NoPhaseError,
     #[error("Retry failed: {0}")]
     RetryFailedError(String),
     #[error("Could not read passphrase")]
@@ -134,4 +138,6 @@ pub enum NewRoundError {
     RoundSameError(u64),
     #[error("Expected participants were different: current {0:?}, expected {1:?}")]
     DifferentExpectedParticipantsError(HashSet<String>, HashSet<String>),
+    #[error("Transcript cannot be verified independently in phase 2")]
+    NoVerificationPhase2,
 }

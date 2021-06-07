@@ -7,7 +7,7 @@ use crate::{
     error::{HttpError, UtilsError},
     utils::{
         MaxRetriesHandler, DEFAULT_CHUNK_SIZE, DEFAULT_CHUNK_TIMEOUT_IN_SECONDS,
-        DEFAULT_MAX_RETRIES,
+        DEFAULT_MAX_RETRIES, DEFAULT_NUM_PARALLEL_CHUNKS,
     },
 };
 use anyhow::Result;
@@ -141,6 +141,12 @@ pub async fn upload_with_client(
 
         blocks.blocks.push(BlobBlockType::Uncommitted(block_id));
         sent += send_size;
+        if futures.len() == DEFAULT_NUM_PARALLEL_CHUNKS {
+            futures::future::try_join_all(futures)
+                .await
+                .map_err(|e| UtilsError::RetryFailedError(e.to_string()))?;
+            futures = vec![];
+        }
     }
 
     futures::future::try_join_all(futures)
