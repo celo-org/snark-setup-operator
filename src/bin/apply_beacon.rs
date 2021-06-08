@@ -16,8 +16,8 @@ use snark_setup_operator::{
     error::VerifyTranscriptError,
     utils::{
         copy_file_if_exists, create_full_parameters, create_parameters_for_chunk,
-        download_file_from_azure_async, get_content_length, read_hash_from_file,
-        remove_file_if_exists, string_to_phase, Phase, BEACON_HASH_LENGTH,
+        download_file_from_azure_async, get_content_length, remove_file_if_exists, string_to_phase,
+        Phase, BEACON_HASH_LENGTH,
     },
 };
 use std::{
