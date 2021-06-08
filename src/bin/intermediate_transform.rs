@@ -318,8 +318,7 @@ impl IntermediateTransform {
                         ),
                         NEW_CHALLENGE_FILENAME,
                         NEW_CHALLENGE_HASH_FILENAME,
-                        true, // subgroup check
-                        Some(self.subgroup_check_mode),
+                        self.subgroup_check_mode,
                         self.ratio_check,
                         &parameters,
                     );
@@ -462,8 +461,7 @@ impl IntermediateTransform {
                 ),
                 COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME,
                 COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME,
-                true, // subgroup check
-                Some(self.subgroup_check_mode),
+                self.subgroup_check_mode,
                 self.ratio_check,
                 &parameters,
             );

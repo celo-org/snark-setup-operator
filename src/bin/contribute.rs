@@ -1013,8 +1013,7 @@ impl Contribute {
                                 ),
                                 &new_challenge_filename,
                                 &new_challenge_hash_filename,
-                                true, // subgroup check
-                                Some(subgroup_check_mode),
+                                subgroup_check_mode,
                                 ratio_check,
                                 &parameters,
                             );

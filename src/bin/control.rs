@@ -656,8 +656,7 @@ impl Control {
                 DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
                 COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME,
                 COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME,
-                true, // subgroup check
-                Some(SubgroupCheckMode::Auto),
+                SubgroupCheckMode::Auto,
                 false, // ratio check
                 &parameters,
             );

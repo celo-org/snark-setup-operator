@@ -427,48 +427,49 @@ impl TranscriptVerifier {
 
                     // Run verification between challenge and response, and produce the next new
                     // challenge. Skip both subgroup and ratio checks if below round threshold.
-                    if round_index < self.round_threshold {
-                        if self.phase == Phase::Phase1 {
-                            phase1_cli::transform_pok_and_correctness(
-                                CHALLENGE_FILENAME,
-                                CHALLENGE_HASH_FILENAME,
-                                upgrade_correctness_check_config(
-                                    DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
-                                    self.force_correctness_checks,
-                                ),
-                                RESPONSE_FILENAME,
-                                RESPONSE_HASH_FILENAME,
-                                upgrade_correctness_check_config(
-                                    DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
-                                    self.force_correctness_checks,
-                                ),
-                                NEW_CHALLENGE_FILENAME,
-                                NEW_CHALLENGE_HASH_FILENAME,
-                                false, // subgroup_check
-                                Some(self.subgroup_check_mode), // subgroup check mode
-                                false, // ratio_check
-                                &parameters,
-                            );
-                        } else {
-                            phase2_cli::verify(
-                                CHALLENGE_FILENAME,
-                                CHALLENGE_HASH_FILENAME,
-                                upgrade_correctness_check_config(
-                                    DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
-                                    self.force_correctness_checks,
-                                ),
-                                RESPONSE_FILENAME,
-                                RESPONSE_HASH_FILENAME,
-                                upgrade_correctness_check_config(
-                                    DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
-                                    self.force_correctness_checks,
-                                ),
-                                NEW_CHALLENGE_FILENAME,
-                                NEW_CHALLENGE_HASH_FILENAME,
-                                self.subgroup_check_mode,
-                                false, // verify full contribution
-                            );
-                        }
+                    let (subgroup_check, ratio_check) = match round_index < self.round_threshold {
+                        true => (SubgroupCheckMode::No, false),
+                        false => (self.subgroup_check_mode, self.ratio_check),
+                    };
+                    if self.phase == Phase::Phase1 {
+                        phase1_cli::transform_pok_and_correctness(
+                            CHALLENGE_FILENAME,
+                            CHALLENGE_HASH_FILENAME,
+                            upgrade_correctness_check_config(
+                                DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+                                self.force_correctness_checks,
+                            ),
+                            RESPONSE_FILENAME,
+                            RESPONSE_HASH_FILENAME,
+                            upgrade_correctness_check_config(
+                                DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
+                                self.force_correctness_checks,
+                            ),
+                            NEW_CHALLENGE_FILENAME,
+                            NEW_CHALLENGE_HASH_FILENAME,
+                            subgroup_check,
+                            ratio_check,
+                            &parameters,
+                        );
+                    } else {
+                        phase2_cli::verify(
+                            CHALLENGE_FILENAME,
+                            CHALLENGE_HASH_FILENAME,
+                            upgrade_correctness_check_config(
+                                DEFAULT_VERIFY_CHECK_INPUT_CORRECTNESS,
+                                self.force_correctness_checks,
+                            ),
+                            RESPONSE_FILENAME,
+                            RESPONSE_HASH_FILENAME,
+                            upgrade_correctness_check_config(
+                                DEFAULT_VERIFY_CHECK_OUTPUT_CORRECTNESS,
+                                self.force_correctness_checks,
+                            ),
+                            NEW_CHALLENGE_FILENAME,
+                            NEW_CHALLENGE_HASH_FILENAME,
+                            subgroup_check,
+                            false, // verify full contribution
+                        );
                     }
 
                     let challenge_hash_from_file = read_hash_from_file(CHALLENGE_HASH_FILENAME)?;
@@ -664,8 +665,7 @@ impl TranscriptVerifier {
                     ),
                     COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME,
                     COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME,
-                    true, // subgroup check
-                    Some(self.subgroup_check_mode),
+                    self.subgroup_check_mode,
                     self.ratio_check,
                     &parameters,
                 );
