@@ -57,8 +57,6 @@ pub struct VerifyTranscriptOpts {
     pub phase: String,
     #[options(help = "the path of the transcript json file", default = "transcript")]
     pub transcript_path: String,
-    #[options(help = "apply beacon")]
-    pub apply_beacon: bool,
     #[options(help = "the beacon hash")]
     pub beacon_hash: String,
     #[options(
@@ -104,7 +102,6 @@ pub struct VerifyTranscriptOpts {
 pub struct TranscriptVerifier {
     pub phase: Phase,
     pub transcript: Transcript,
-    pub apply_beacon: bool,
     pub beacon_hash: Vec<u8>,
     pub force_correctness_checks: bool,
     pub batch_exp_mode: BatchExpMode,
@@ -192,7 +189,6 @@ impl TranscriptVerifier {
             phase,
             transcript,
             beacon_hash,
-            apply_beacon: opts.apply_beacon,
             force_correctness_checks: opts.force_correctness_checks,
             batch_exp_mode: opts.batch_exp_mode,
             subgroup_check_mode: opts.subgroup_check_mode,
@@ -320,17 +316,6 @@ impl TranscriptVerifier {
                 self.batch_exp_mode,
                 rng,
             );
-        }
-        let final_hash_computed = hex::decode(&read_hash_from_file(
-            COMBINED_VERIFIED_POK_AND_CORRECTNESS_HASH_FILENAME,
-        )?)?;
-        let final_hash_expected = hex::decode(self.transcript.final_hash.as_ref().unwrap())?;
-        if final_hash_computed != final_hash_expected {
-            return Err(VerifyTranscriptError::BeaconHashWasDifferentError(
-                hex::encode(&final_hash_expected),
-                hex::encode(&final_hash_computed),
-            )
-            .into());
         }
         info!("applied beacon, verifying");
         remove_file_if_exists(COMBINED_HASH_FILENAME)?;
