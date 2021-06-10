@@ -276,7 +276,7 @@ impl TranscriptVerifier {
                     NEW_CHALLENGE_FILENAME,
                     NEW_CHALLENGE_HASH_FILENAME,
                     NEW_CHALLENGE_LIST_FILENAME,
-                    phase2_options.chunk_size,
+                    1 << phase2_options.chunk_size,
                     &phase2_options.phase1_filename,
                     phase2_options.phase1_powers,
                     &phase2_options.circuit_filename,
