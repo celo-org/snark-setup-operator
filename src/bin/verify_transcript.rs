@@ -87,9 +87,11 @@ pub struct VerifyTranscriptOpts {
     pub skip_ratio_check: bool,
     #[options(help = "curve", default = "bw6")]
     pub curve: String,
-
+    #[options(help = "the round at which full checks begin", default = "0")]
+    pub round_threshold: u64,
     #[options(help = "size of chunks used")]
     pub chunk_size: Option<usize>,
+
     #[options(help = "number max validators used in the circuit. Only used for phase 2")]
     pub num_validators: Option<usize>,
     #[options(help = "number max epochs used in the circuit. Only used for phase 2")]
@@ -115,6 +117,7 @@ pub struct TranscriptVerifier {
     pub batch_exp_mode: BatchExpMode,
     pub subgroup_check_mode: SubgroupCheckMode,
     pub ratio_check: bool,
+    pub round_threshold: u64,
     pub phase2_options: Option<Phase2Options>,
 }
 
@@ -202,6 +205,7 @@ impl TranscriptVerifier {
             batch_exp_mode: opts.batch_exp_mode,
             subgroup_check_mode: opts.subgroup_check_mode,
             ratio_check: !opts.skip_ratio_check,
+            round_threshold: opts.round_threshold,
             phase2_options,
         };
         Ok(verifier)
@@ -272,7 +276,7 @@ impl TranscriptVerifier {
                     NEW_CHALLENGE_FILENAME,
                     NEW_CHALLENGE_HASH_FILENAME,
                     NEW_CHALLENGE_LIST_FILENAME,
-                    phase2_options.chunk_size,
+                    1 << phase2_options.chunk_size,
                     &phase2_options.phase1_filename,
                     phase2_options.phase1_powers,
                     &phase2_options.circuit_filename,
@@ -422,7 +426,11 @@ impl TranscriptVerifier {
                     ))?;
 
                     // Run verification between challenge and response, and produce the next new
-                    // challenge.
+                    // challenge. Skip both subgroup and ratio checks if below round threshold.
+                    let (subgroup_check, ratio_check) = match round_index < self.round_threshold {
+                        true => (SubgroupCheckMode::No, false),
+                        false => (self.subgroup_check_mode, self.ratio_check),
+                    };
                     if self.phase == Phase::Phase1 {
                         phase1_cli::transform_pok_and_correctness(
                             CHALLENGE_FILENAME,
@@ -439,8 +447,8 @@ impl TranscriptVerifier {
                             ),
                             NEW_CHALLENGE_FILENAME,
                             NEW_CHALLENGE_HASH_FILENAME,
-                            self.subgroup_check_mode,
-                            self.ratio_check,
+                            subgroup_check,
+                            ratio_check,
                             &parameters,
                         );
                     } else {
@@ -459,8 +467,8 @@ impl TranscriptVerifier {
                             ),
                             NEW_CHALLENGE_FILENAME,
                             NEW_CHALLENGE_HASH_FILENAME,
-                            self.subgroup_check_mode,
-                            false,
+                            subgroup_check,
+                            false, // verify full contribution
                         );
                     }
 

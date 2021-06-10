@@ -657,7 +657,7 @@ impl Control {
                 COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_FILENAME,
                 COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME,
                 SubgroupCheckMode::Auto,
-                false,
+                false, // ratio check
                 &parameters,
             );
             phase1_cli::transform_ratios(
