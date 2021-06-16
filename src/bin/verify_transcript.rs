@@ -18,8 +18,9 @@ use snark_setup_operator::{
     utils::{
         check_challenge_hashes_same, check_new_challenge_hashes_same, check_response_hashes_same,
         copy_file_if_exists, create_full_parameters, create_parameters_for_chunk,
-        download_file_from_azure_async, get_content_length, read_hash_from_file,
-        remove_file_if_exists, string_to_phase, verify_signed_data, Phase, BEACON_HASH_LENGTH,
+        download_file_direct_async, download_file_from_azure_async, get_content_length,
+        read_hash_from_file, remove_file_if_exists, string_to_phase, verify_signed_data, Phase,
+        BEACON_HASH_LENGTH,
     },
 };
 use std::{
@@ -418,12 +419,19 @@ impl TranscriptVerifier {
 
                     let contributed_location = contribution.contributed_location()?;
                     // Download the response computed by the participant.
-                    let length = rt.block_on(get_content_length(&contributed_location))?;
-                    rt.block_on(download_file_from_azure_async(
-                        &contributed_location,
-                        length,
-                        RESPONSE_FILENAME,
-                    ))?;
+                    if contributed_location.contains("blob.core.windows.net") {
+                        let length = rt.block_on(get_content_length(&contributed_location))?;
+                        rt.block_on(download_file_from_azure_async(
+                            &contributed_location,
+                            length,
+                            RESPONSE_FILENAME,
+                        ))?;
+                    } else {
+                        rt.block_on(download_file_direct_async(
+                            &contributed_location,
+                            RESPONSE_FILENAME,
+                        ))?;
+                    };
 
                     // Run verification between challenge and response, and produce the next new
                     // challenge. Skip both subgroup and ratio checks if below round threshold.
