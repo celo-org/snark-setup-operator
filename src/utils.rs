@@ -10,7 +10,9 @@ pub const DEFAULT_CHUNK_TIMEOUT_IN_SECONDS: u64 = 300;
 pub const BEACON_HASH_LENGTH: usize = 32;
 
 use crate::blobstore::{upload_access_key, upload_sas};
-use crate::data_structs::{Attestation, Ceremony, Response, Parameters, PlumoSetupKeys, ProcessorData};
+use crate::data_structs::{
+    Attestation, Ceremony, Parameters, PlumoSetupKeys, ProcessorData, Response,
+};
 use crate::error::{UtilsError, VerifyTranscriptError};
 use age::{
     armor::{ArmoredWriter, Format},
@@ -197,12 +199,10 @@ pub async fn get_content_length(url: &str) -> Result<u64> {
 }
 
 pub async fn get_ceremony(url: &str) -> Result<Ceremony> {
-   let response = reqwest::get(url)
-            .await?
-            .error_for_status()?;
-        let data = response.text().await?;
-        let ceremony: Ceremony = serde_json::from_str::<Response<Ceremony>>(&data)?.result;
-        Ok(ceremony) 
+    let response = reqwest::get(url).await?.error_for_status()?;
+    let data = response.text().await?;
+    let ceremony: Ceremony = serde_json::from_str::<Response<Ceremony>>(&data)?.result;
+    Ok(ceremony)
 }
 
 use crate::transcript_data_structs::Transcript;
