@@ -1,5 +1,5 @@
 use snark_setup_operator::{
-    data_structs::{Ceremony, Response},
+    data_structs::Ceremony,
     error::ControlError,
 };
 
@@ -26,7 +26,7 @@ use snark_setup_operator::utils::{
     backup_transcript, create_full_parameters, create_parameters_for_chunk,
     download_file_from_azure_async, get_authorization_value, get_content_length, load_transcript,
     read_hash_from_file, read_keys, remove_file_if_exists, save_transcript, string_to_phase, Phase,
-    BEACON_HASH_LENGTH,
+    BEACON_HASH_LENGTH, get_ceremony
 };
 use std::{
     collections::HashSet,
@@ -124,8 +124,8 @@ pub struct RemoveLastContributionOpts {
 #[derive(Debug, Options, Clone)]
 pub struct ControlOpts {
     help: bool,
-    #[options(help = "phase to be run. Must be either phase1 or phase2")]
-    pub phase: String,
+    #[options(help = "phase to be run. Must be either phase1 or phase2. Defaults to server choice")]
+    pub phase: Option<String>,
     #[options(
         help = "the url of the coordinator API",
         default = "http://localhost:8080"
@@ -222,8 +222,13 @@ pub struct Control {
 }
 
 impl Control {
-    pub fn new(opts: &ControlOpts, private_key: &[u8]) -> Result<Self> {
-        let phase = string_to_phase(&opts.phase)?;
+    pub async fn new(opts: &ControlOpts, private_key: &[u8]) -> Result<Self> {
+        let server_url = Url::parse(&opts.coordinator_url)?.join("ceremony")?; 
+        let ceremony = get_ceremony(&server_url.as_str()).await?;
+        let phase = match &opts.phase {
+            Some(phase) => string_to_phase(&phase)?,
+            _ => string_to_phase(&ceremony.phase)?,
+        };
         let phase2_opts = if phase == Phase::Phase2 {
             Some(Phase2Opts::new(opts)?)
         } else {
@@ -232,7 +237,7 @@ impl Control {
         let private_key = LocalWallet::from(SigningKey::new(private_key)?);
         let control = Self {
             phase: phase,
-            server_url: Url::parse(&opts.coordinator_url)?.join("ceremony")?,
+            server_url: server_url,
             private_key,
             phase2_opts: phase2_opts,
         };
@@ -273,12 +278,7 @@ impl Control {
     }
 
     async fn get_ceremony(&self) -> Result<Ceremony> {
-        let response = reqwest::get(self.server_url.as_str())
-            .await?
-            .error_for_status()?;
-        let data = response.text().await?;
-        let ceremony: Ceremony = serde_json::from_str::<Response<Ceremony>>(&data)?.result;
-        Ok(ceremony)
+        get_ceremony(&self.server_url.as_str()).await
     }
 
     fn backup_ceremony(&self, ceremony: &Ceremony) -> Result<()> {
@@ -745,7 +745,7 @@ async fn main() {
         .expect("Should have loaded Plumo setup keys");
 
     let control = Control::new(&main_opts, private_key.expose_secret())
-        .expect("Should have been able to create a control.");
+        .await.expect("Should have been able to create a control.");
     let command = main_opts.clone().command.unwrap_or_else(|| {
         eprintln!("No command was provided.");
         eprintln!("{}", ControlOpts::usage());
