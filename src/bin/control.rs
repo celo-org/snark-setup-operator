@@ -166,14 +166,21 @@ pub struct Phase2Opts {
 }
 
 impl Phase2Opts {
-    pub fn new(opts: &ControlOpts) -> Result<Self> {
+    pub async fn new(opts: &ControlOpts) -> Result<Self> {
+        let server_url = Url::parse(&opts.coordinator_url)?.join("ceremony")?;
+        let ceremony = get_ceremony(&server_url.as_str()).await?;
+
+        let chunk_size = match opts.chunk_size {
+            Some(size) => 1 << size,
+            _ => ceremony.parameters.chunk_size,
+        };
+        let powers = match opts.phase1_powers {
+            Some(powers) => powers,
+            _ => ceremony.parameters.power,
+        };
         Ok(Self {
-            chunk_size: opts
-                .chunk_size
-                .expect("chunk_size must be used when running phase2"),
-            phase1_powers: opts
-                .phase1_powers
-                .expect("phase1_powers must be used when running phase2"),
+            chunk_size: chunk_size,
+            phase1_powers: powers,
             phase1_filename: opts
                 .phase1_filename
                 .as_ref()
@@ -229,7 +236,7 @@ impl Control {
             _ => string_to_phase(&ceremony.phase)?,
         };
         let phase2_opts = if phase == Phase::Phase2 {
-            Some(Phase2Opts::new(opts)?)
+            Some(Phase2Opts::new(opts).await?)
         } else {
             None
         };
