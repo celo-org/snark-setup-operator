@@ -28,4 +28,4 @@ echo 1 | RUST_LOG=info cargo run --release  --bin contribute --no-default-featur
 echo 1 | RUST_LOG=info cargo run --release  --bin contribute --no-default-features -- --unsafe-passphrase --exit-when-finished-contributing --keys-file $BASE_DIR/plumo-verifier.keys --participation-mode verify --coordinator-url http://localhost:8080
 echo 1 | RUST_LOG=info cargo run --release  --bin control -- --phase phase1 --unsafe-passphrase --keys-file $BASE_DIR/plumo-verifier.keys  --coordinator-url http://localhost:8080 apply-beacon --beacon-hash 0000000000000000000000000000000000000000000000000000000000000000 --expected-participant 0x31e598a18069f75983dc00c39aafc7e9f7b71aee
 RUST_LOG=info cargo run --release --bin verify_transcript --no-default-features -- --phase phase1 --beacon-hash 0000000000000000000000000000000000000000000000000000000000000000
-#RUST_LOG=info cargo run --release --bin intermediate_transform -- --num-powers 12 --beacon-hash 0000000000000000000000000000000000000000000000000000000000000000
+RUST_LOG=info cargo run --release --bin intermediate_transform -- --num-powers 12
