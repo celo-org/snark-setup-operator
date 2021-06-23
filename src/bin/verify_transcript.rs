@@ -133,10 +133,8 @@ pub struct Phase2Options {
 impl Phase2Options {
     pub fn new(opts: &VerifyTranscriptOpts) -> Result<Self> {
         Ok(Self {
-            chunk_size: opts
-                .chunk_size,
-            phase1_powers: opts
-                .phase1_powers,
+            chunk_size: opts.chunk_size,
+            phase1_powers: opts.phase1_powers,
             phase1_filename: opts
                 .phase1_filename
                 .as_ref()
