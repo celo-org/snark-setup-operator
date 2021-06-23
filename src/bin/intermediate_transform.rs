@@ -6,15 +6,9 @@ use phase1_cli::*;
 use snark_setup_operator::transcript_data_structs::Transcript;
 use snark_setup_operator::{
     error::VerifyTranscriptError,
-    utils::{
-        create_full_parameters,
-        remove_file_if_exists,
-    },
+    utils::{create_full_parameters, remove_file_if_exists},
 };
-use std::{
-    fs::File,
-    io::Read,
-};
+use std::{fs::File, io::Read};
 
 const PHASE2_FILENAME: &str = "phase2_init";
 const COMBINED_FILENAME: &str = "combined";
@@ -52,7 +46,12 @@ impl IntermediateTransform {
     }
 
     fn run<E: PairingEngine>(&self) -> Result<()> {
-        let ceremony = self.transcript.rounds.iter().last().expect("Round not found in transcript");
+        let ceremony = self
+            .transcript
+            .rounds
+            .iter()
+            .last()
+            .expect("Round not found in transcript");
         let parameters = create_full_parameters::<E>(&ceremony.parameters)?;
 
         remove_file_if_exists(PHASE2_FILENAME)?;
