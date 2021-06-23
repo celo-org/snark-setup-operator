@@ -86,6 +86,37 @@ jobs:
           cd e2e
           ./e2e.sh
 
+  e2efull:
+    name: E2EFull
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rust:
+          - stable
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Install Rust (${{ matrix.rust }})
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ matrix.rust }}
+          override: true
+
+      - name: Install node and run e2e
+        run: |
+          curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.36.0/install.sh | bash
+          export NVM_DIR="$HOME/.nvm"
+          . "$NVM_DIR/nvm.sh"
+          . "$NVM_DIR/bash_completion"
+          nvm install node
+          cd e2e
+          ./e2e.sh
+          ./e2ephase2.sh
+
+
+
 
   cross-compile:
     name: Cross compile
