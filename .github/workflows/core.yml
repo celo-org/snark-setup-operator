@@ -59,7 +59,7 @@ jobs:
           command: test
           args: --release --all --no-fail-fast
 
-    e2efull:
+  e2efull:
     name: E2EFull
     runs-on: ubuntu-latest
     strategy:
