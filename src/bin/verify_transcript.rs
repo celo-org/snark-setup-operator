@@ -26,7 +26,7 @@ use snark_setup_operator::{
 use std::{
     collections::HashSet,
     fs::{copy, File},
-    io::{Read, Write},
+    io::{Write, Read},
 };
 use tracing::info;
 use tracing_subscriber;
