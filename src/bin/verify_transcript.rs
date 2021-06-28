@@ -123,8 +123,8 @@ pub struct TranscriptVerifier {
 }
 
 pub struct Phase2Options {
-    pub chunk_size: usize,
-    pub phase1_powers: usize,
+    pub chunk_size: Option<usize>,
+    pub phase1_powers: Option<usize>,
     pub phase1_filename: String,
     pub circuit_filename: String,
     pub initial_query_filename: String,
@@ -134,12 +134,8 @@ pub struct Phase2Options {
 impl Phase2Options {
     pub fn new(opts: &VerifyTranscriptOpts) -> Result<Self> {
         Ok(Self {
-            chunk_size: opts
-                .chunk_size
-                .expect("chunk_size must be used when running phase2"),
-            phase1_powers: opts
-                .phase1_powers
-                .expect("phase1_powers must be used when running phase2"),
+            chunk_size: opts.chunk_size,
+            phase1_powers: opts.phase1_powers,
             phase1_filename: opts
                 .phase1_filename
                 .as_ref()
@@ -273,13 +269,21 @@ impl TranscriptVerifier {
                     .phase2_options
                     .as_ref()
                     .expect("Phase2 options not used while running phase2 verification");
+                let chunk_size = match phase2_options.chunk_size {
+                    Some(size) => 1 << size,
+                    _ => ceremony.parameters.chunk_size,
+                };
+                let num_powers = match phase2_options.phase1_powers {
+                    Some(powers) => powers,
+                    _ => ceremony.parameters.power,
+                };
                 phase2_cli::new_challenge(
                     NEW_CHALLENGE_FILENAME,
                     NEW_CHALLENGE_HASH_FILENAME,
                     NEW_CHALLENGE_LIST_FILENAME,
-                    1 << phase2_options.chunk_size,
+                    chunk_size,
                     &phase2_options.phase1_filename,
-                    phase2_options.phase1_powers,
+                    num_powers,
                     &phase2_options.circuit_filename,
                 );
                 // Generate full initial contribution to later check consistency of final contribution
