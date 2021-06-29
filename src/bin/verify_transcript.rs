@@ -190,7 +190,13 @@ impl TranscriptVerifier {
         }
         let phase = match &opts.phase {
             Some(phase) => string_to_phase(&phase)?,
-            _ => string_to_phase(&transcript.rounds.last().expect("No rounds in transcript").phase)?,
+            _ => string_to_phase(
+                &transcript
+                    .rounds
+                    .last()
+                    .expect("No rounds in transcript")
+                    .phase,
+            )?,
         };
         let phase2_options = match phase {
             Phase::Phase1 => None,
