@@ -235,11 +235,20 @@ impl Control {
             Some(phase) => string_to_phase(&phase)?,
             _ => string_to_phase(&ceremony.phase)?,
         };
-        let phase2_opts = if phase == Phase::Phase2 {
-            Some(Phase2Opts::new(opts).await?)
-        } else {
-            None
+        let phase2_opts = match (&phase, opts.command.as_ref().expect("No command found")) {
+            (Phase::Phase2, Command::NewRound(round_opts)) => {
+                if round_opts.verify_transcript {
+                    Some(Phase2Opts::new(opts).await?)
+                } else {
+                    None
+                }
+            }
+            (Phase::Phase2, Command::ApplyBeacon(_round_opts)) => {
+                Some(Phase2Opts::new(opts).await?)
+            }
+            (_, _) => None,
         };
+
         let private_key = LocalWallet::from(SigningKey::new(private_key)?);
         let control = Self {
             phase: phase,
@@ -410,7 +419,6 @@ impl Control {
             .enumerate()
             .map(|(chunk_index, chunk)| (chunk_index, chunk.contributions.iter().last().unwrap()))
         {
-            //let parameters = create_parameters_for_chunk::<E>(&ceremony.parameters, chunk_index)?;
             remove_file_if_exists(RESPONSE_FILENAME)?;
             let contributed_location = contribution.contributed_location()?;
             info!("Downloading chunk {}", chunk_index);
