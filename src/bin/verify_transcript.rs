@@ -60,7 +60,7 @@ const COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME: &str =
 pub struct VerifyTranscriptOpts {
     help: bool,
     #[options(help = "phase to be run. Must be either phase1 or phase2")]
-    pub phase: String,
+    pub phase: Option<String>,
     #[options(help = "the path of the transcript json file", default = "transcript")]
     pub transcript_path: String,
     #[options(help = "apply beacon")]
@@ -188,7 +188,16 @@ impl TranscriptVerifier {
             )
             .into());
         }
-        let phase = string_to_phase(&opts.phase)?;
+        let phase = match &opts.phase {
+            Some(phase) => string_to_phase(&phase)?,
+            _ => string_to_phase(
+                &transcript
+                    .rounds
+                    .last()
+                    .expect("No rounds in transcript")
+                    .phase,
+            )?,
+        };
         let phase2_options = match phase {
             Phase::Phase1 => None,
             Phase::Phase2 => Some(Phase2Options::new(&opts)?),
