@@ -18,8 +18,9 @@ use snark_setup_operator::{
     utils::{
         check_challenge_hashes_same, check_new_challenge_hashes_same, check_response_hashes_same,
         copy_file_if_exists, create_full_parameters, create_parameters_for_chunk,
-        download_file_from_azure_async, get_content_length, read_hash_from_file,
-        remove_file_if_exists, string_to_phase, verify_signed_data, Phase, BEACON_HASH_LENGTH,
+        download_file_direct_async, download_file_from_azure_async, get_content_length,
+        read_hash_from_file, remove_file_if_exists, string_to_phase, verify_signed_data, Phase,
+        BEACON_HASH_LENGTH,
     },
 };
 use std::{
@@ -59,7 +60,7 @@ const COMBINED_VERIFIED_POK_AND_CORRECTNESS_NEW_CHALLENGE_HASH_FILENAME: &str =
 pub struct VerifyTranscriptOpts {
     help: bool,
     #[options(help = "phase to be run. Must be either phase1 or phase2")]
-    pub phase: String,
+    pub phase: Option<String>,
     #[options(help = "the path of the transcript json file", default = "transcript")]
     pub transcript_path: String,
     #[options(help = "apply beacon")]
@@ -87,9 +88,11 @@ pub struct VerifyTranscriptOpts {
     pub skip_ratio_check: bool,
     #[options(help = "curve", default = "bw6")]
     pub curve: String,
-
+    #[options(help = "the round at which full checks begin", default = "0")]
+    pub round_threshold: u64,
     #[options(help = "size of chunks used")]
     pub chunk_size: Option<usize>,
+
     #[options(help = "number max validators used in the circuit. Only used for phase 2")]
     pub num_validators: Option<usize>,
     #[options(help = "number max epochs used in the circuit. Only used for phase 2")]
@@ -115,12 +118,13 @@ pub struct TranscriptVerifier {
     pub batch_exp_mode: BatchExpMode,
     pub subgroup_check_mode: SubgroupCheckMode,
     pub ratio_check: bool,
+    pub round_threshold: u64,
     pub phase2_options: Option<Phase2Options>,
 }
 
 pub struct Phase2Options {
-    pub chunk_size: usize,
-    pub phase1_powers: usize,
+    pub chunk_size: Option<usize>,
+    pub phase1_powers: Option<usize>,
     pub phase1_filename: String,
     pub circuit_filename: String,
     pub initial_query_filename: String,
@@ -130,12 +134,8 @@ pub struct Phase2Options {
 impl Phase2Options {
     pub fn new(opts: &VerifyTranscriptOpts) -> Result<Self> {
         Ok(Self {
-            chunk_size: opts
-                .chunk_size
-                .expect("chunk_size must be used when running phase2"),
-            phase1_powers: opts
-                .phase1_powers
-                .expect("phase1_powers must be used when running phase2"),
+            chunk_size: opts.chunk_size,
+            phase1_powers: opts.phase1_powers,
             phase1_filename: opts
                 .phase1_filename
                 .as_ref()
@@ -188,7 +188,16 @@ impl TranscriptVerifier {
             )
             .into());
         }
-        let phase = string_to_phase(&opts.phase)?;
+        let phase = match &opts.phase {
+            Some(phase) => string_to_phase(&phase)?,
+            _ => string_to_phase(
+                &transcript
+                    .rounds
+                    .last()
+                    .expect("No rounds in transcript")
+                    .phase,
+            )?,
+        };
         let phase2_options = match phase {
             Phase::Phase1 => None,
             Phase::Phase2 => Some(Phase2Options::new(&opts)?),
@@ -202,6 +211,7 @@ impl TranscriptVerifier {
             batch_exp_mode: opts.batch_exp_mode,
             subgroup_check_mode: opts.subgroup_check_mode,
             ratio_check: !opts.skip_ratio_check,
+            round_threshold: opts.round_threshold,
             phase2_options,
         };
         Ok(verifier)
@@ -268,13 +278,21 @@ impl TranscriptVerifier {
                     .phase2_options
                     .as_ref()
                     .expect("Phase2 options not used while running phase2 verification");
+                let chunk_size = match phase2_options.chunk_size {
+                    Some(size) => 1 << size,
+                    _ => ceremony.parameters.chunk_size,
+                };
+                let num_powers = match phase2_options.phase1_powers {
+                    Some(powers) => powers,
+                    _ => ceremony.parameters.power,
+                };
                 phase2_cli::new_challenge(
                     NEW_CHALLENGE_FILENAME,
                     NEW_CHALLENGE_HASH_FILENAME,
                     NEW_CHALLENGE_LIST_FILENAME,
-                    phase2_options.chunk_size,
+                    chunk_size,
                     &phase2_options.phase1_filename,
-                    phase2_options.phase1_powers,
+                    num_powers,
                     &phase2_options.circuit_filename,
                 );
                 // Generate full initial contribution to later check consistency of final contribution
@@ -414,15 +432,26 @@ impl TranscriptVerifier {
 
                     let contributed_location = contribution.contributed_location()?;
                     // Download the response computed by the participant.
-                    let length = rt.block_on(get_content_length(&contributed_location))?;
-                    rt.block_on(download_file_from_azure_async(
-                        &contributed_location,
-                        length,
-                        RESPONSE_FILENAME,
-                    ))?;
+                    if contributed_location.contains("blob.core.windows.net") {
+                        let length = rt.block_on(get_content_length(&contributed_location))?;
+                        rt.block_on(download_file_from_azure_async(
+                            &contributed_location,
+                            length,
+                            RESPONSE_FILENAME,
+                        ))?;
+                    } else {
+                        rt.block_on(download_file_direct_async(
+                            &contributed_location,
+                            RESPONSE_FILENAME,
+                        ))?;
+                    };
 
                     // Run verification between challenge and response, and produce the next new
-                    // challenge.
+                    // challenge. Skip both subgroup and ratio checks if below round threshold.
+                    let (subgroup_check, ratio_check) = match round_index < self.round_threshold {
+                        true => (SubgroupCheckMode::No, false),
+                        false => (self.subgroup_check_mode, self.ratio_check),
+                    };
                     if self.phase == Phase::Phase1 {
                         phase1_cli::transform_pok_and_correctness(
                             CHALLENGE_FILENAME,
@@ -439,8 +468,8 @@ impl TranscriptVerifier {
                             ),
                             NEW_CHALLENGE_FILENAME,
                             NEW_CHALLENGE_HASH_FILENAME,
-                            self.subgroup_check_mode,
-                            self.ratio_check,
+                            subgroup_check,
+                            ratio_check,
                             &parameters,
                         );
                     } else {
@@ -459,8 +488,8 @@ impl TranscriptVerifier {
                             ),
                             NEW_CHALLENGE_FILENAME,
                             NEW_CHALLENGE_HASH_FILENAME,
-                            self.subgroup_check_mode,
-                            false,
+                            subgroup_check,
+                            false, // verify full contribution
                         );
                     }
 

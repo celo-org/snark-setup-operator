@@ -3,6 +3,7 @@
 ceremony_*
 *.log
 *.keys
+*.swp
 new_challenge
 new_challenge.hash
 snark-setup-coordinator
