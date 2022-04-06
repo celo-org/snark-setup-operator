@@ -40,7 +40,7 @@ RUN cargo build --release --bin verify_transcript --target=x86_64-unknown-linux-
 # Final Stage
 # ------------------------------------------------------------------------------
 
-FROM alpine:latest
+FROM alpine:3.15.4
 
 RUN addgroup -g 1000 main
 
